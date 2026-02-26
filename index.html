@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Core Logistics | Warehouse Optimizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="app-container">
+
+        <!-- Sidebar Navigation -->
+        <nav id="sidebar">
+            <div class="nav-item active" onclick="switchView('controls')" title="Controls">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+            </div>
+            <div class="nav-item" onclick="switchView('items')" title="Items Database">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+            </div>
+            <div class="nav-item" onclick="switchView('analytics')" title="Analytics">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+            </div>
+            <div class="nav-item" onclick="switchView('warehouse')" title="Warehouse Config">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+            </div>
+        </nav>
+
+        <!-- Header -->
+        <header id="header">
+            <h2 style="font-weight: 700; letter-spacing: 1px;">CORE <span
+                    style="color:var(--accent-primary)">LOGISTICS</span></h2>
+            <div class="header-controls">
+                <div class="select-wrapper">
+                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 5px;">WAREHOUSE</span>
+                    <select id="warehouse-select" onchange="switchWarehouse(this.value)">
+                        <option value="1">Loading...</option>
+                    </select>
+                </div>
+                <div class="select-wrapper">
+                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 5px;">VIEW MODE</span>
+                    <select id="color-scheme" onchange="updateVisualization()">
+                        <option value="category">Category</option>
+                        <option value="weight">Weight</option>
+                        <option value="priority">Priority</option>
+                        <option value="access">Access Frequency</option>
+                        <option value="fragility">Fragility</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Viewport -->
+        <main id="viewport">
+            <div id="three-container"></div>
+            <!-- Tooltip -->
+            <div id="tooltip"></div>
+        </main>
+
+        <!-- Inspector / Right Sidebar -->
+        <aside id="inspector">
+
+            <!-- Controls View -->
+            <div id="view-controls" class="view-panel">
+                <div class="panel-section">
+                    <div class="section-title">Optimization Engine</div>
+                    <div class="input-group">
+                        <label>Algorithm</label>
+                        <div class="select-wrapper">
+                            <select id="algorithm-select" onchange="updateAlgorithmParams()">
+                                <option value="ga">Genetic Algorithm</option>
+                                <option value="eo">Extremal Optimization</option>
+                                <option value="ga-eo">Hybrid (GA + EO)</option>
+                                <option value="eo-ga">Hybrid (EO + GA)</option>
+                                <option value="compare">Compare All Algorithms</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-title">Status</div>
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                        <div class="status-indicator">
+                            <div id="status-dot" class="dot"></div>
+                            <span id="status-text"
+                                style="color: var(--text-main); font-size: 0.9rem; margin-left: 8px;">IDLE</span>
+                        </div>
+                        <span id="progress-percent"
+                            style="color: var(--accent-primary); font-family: 'JetBrains Mono';">0%</span>
+                    </div>
+                    <div
+                        style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 10px;">
+                        <div id="progress-bar-fill"
+                            style="width: 0%; height: 100%; background: var(--accent-primary); transition: width 0.3s;">
+                        </div>
+                    </div>
+                    <!-- Extended Status Info -->
+                    <div
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;">
+                        <div>Algorithm: <span id="status-algo" style="color: var(--text-main);">-</span></div>
+                        <div>Gen/Iter: <span id="status-gen" style="color: var(--text-main);">-</span></div>
+                        <div>Placed: <span id="status-placed" style="color: var(--success);">-</span></div>
+                        <div>Elapsed: <span id="status-elapsed" style="color: var(--text-main);">-</span></div>
+                    </div>
+                    <div
+                        style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+                        <span>Best Fitness:</span>
+                        <span id="best-fitness"
+                            style="color: var(--text-main); font-family: 'JetBrains Mono';">0.0000</span>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-title">Parameters</div>
+                    <div id="algorithm-params">
+                        <!-- GA params (default fallback) -->
+                        <div class="input-group">
+                            <label>Population Size</label>
+                            <input type="number" id="population-size" value="50">
+                        </div>
+                        <div class="input-group">
+                            <label>Generations</label>
+                            <input type="number" id="generations" value="100">
+                        </div>
+                    </div>
+
+                    <div id="compare-params" style="display:none;">
+                        <div
+                            style="margin-bottom: 10px; border-left: 2px solid var(--accent-primary); padding-left: 8px;">
+                            <label style="color: var(--accent-primary);">Genetic Algorithm</label>
+                            <div class="data-grid" style="grid-template-columns: 1fr 1fr; gap:5px;">
+                                <div class="input-group"><label>Pop</label><input type="number" id="cmp-ga-pop"
+                                        value="30"></div>
+                                <div class="input-group"><label>Gen</label><input type="number" id="cmp-ga-gen"
+                                        value="50"></div>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 10px; border-left: 2px solid #7000ff; padding-left: 8px;">
+                            <label style="color: #7000ff;">Extremal Opt</label>
+                            <div class="input-group"><label>Iterations</label><input type="number" id="cmp-eo-iter"
+                                    value="100"></div>
+                        </div>
+                        <div style="margin-bottom: 10px; border-left: 2px solid #ff0055; padding-left: 8px;">
+                            <label style="color: #ff0055;">Hybrid GA-EO</label>
+                            <div class="data-grid" style="grid-template-columns: 1fr 1fr; gap:5px;">
+                                <div class="input-group"><label>GA Gen</label><input type="number" id="cmp-hyb1-gen"
+                                        value="20"></div>
+                                <div class="input-group"><label>EO Iter</label><input type="number" id="cmp-hyb1-iter"
+                                        value="50"></div>
+                            </div>
+                        </div>
+                        <div style="border-left: 2px solid #FFD600; padding-left: 8px;">
+                            <label style="color: #FFD600;">Hybrid EO-GA</label>
+                            <div class="data-grid" style="grid-template-columns: 1fr 1fr; gap:5px;">
+                                <div class="input-group"><label>EO Iter</label><input type="number" id="cmp-hyb2-iter"
+                                        value="50"></div>
+                                <div class="input-group"><label>GA Gen</label><input type="number" id="cmp-hyb2-gen"
+                                        value="20"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-title">Visualization</div>
+                    <div class="input-group">
+                        <label>Color Items By</label>
+                        <select id="color-mode" onchange="updateVisualization()"
+                            style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px;">
+                            <option value="category">Category</option>
+                            <option value="weight">Weight Heatmap</option>
+                            <option value="access">Access Frequency</option>
+                        </select>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="show-path" onchange="togglePickerPath()">
+                            <span>Show Picker Path</span>
+                        </label>
+                    </div>
+                    <div id="picker-path-config"
+                        style="display:none; margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                        <div class="input-group" style="margin-bottom: 8px;">
+                            <label>Items to Pick</label>
+                            <input type="number" id="picker-item-count" value="5" min="1" max="50">
+                        </div>
+                        <div class="input-group" style="margin-bottom: 8px;">
+                            <label>Selection Mode</label>
+                            <select id="picker-selection-mode"
+                                style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-main); padding: 6px;">
+                                <option value="access">Top Access Frequency</option>
+                                <option value="random">Random</option>
+                                <option value="nearest">Nearest to Door</option>
+                            </select>
+                        </div>
+                        <button class="btn" onclick="generatePickerPath()" style="width: 100%;">GENERATE PATH</button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-title">Weights</div>
+                    <div class="input-group">
+                        <label>Space Utilization</label>
+                        <input type="range" id="weight-space" min="0" max="1" step="0.1" value="0.6">
+                    </div>
+                    <div class="input-group">
+                        <label>Accessibility</label>
+                        <input type="range" id="weight-accessibility" min="0" max="1" step="0.1" value="0.3">
+                    </div>
+                    <div class="input-group">
+                        <label>Stability</label>
+                        <input type="range" id="weight-stability" min="0" max="1" step="0.1" value="0.1">
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <button class="btn" id="start-btn" onclick="startOptimization()">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M4 4l8 4-8 4V4z" />
+                        </svg>
+                        INITIATE OPTIMIZATION
+                    </button>
+                    <button class="btn btn-danger" id="stop-btn" onclick="stopOptimization()" disabled
+                        style="margin-top: 10px;">
+                        STOP
+                    </button>
+                </div>
+            </div>
+
+            <!-- Items View (Hidden by default) -->
+            <div id="view-items" class="view-panel" style="display:none;">
+                <div class="panel-section">
+                    <div class="section-title">Item Management</div>
+                    <div class="data-grid" style="grid-template-columns: 1fr;">
+                        <button class="btn btn-danger" onclick="deleteAllItems()" style="margin-bottom: 10px;">DELETE
+                            ALL ITEMS</button>
+                        <button class="btn" onclick="document.getElementById('file-upload').click()">IMPORT CSV</button>
+                        <input type="file" id="file-upload" accept=".csv" style="display:none" onchange="uploadCSV()">
+                        <button class="btn" onclick="scrambleItems()"
+                            style="background: var(--bg-dark-secondary); border: 1px solid var(--accent-primary); color: var(--accent-primary);">SCRAMBLE
+                            (RANDOMIZE)</button>
+                        <button class="btn" onclick="exportCSV()">EXPORT LAYOUT</button>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <div class="section-title">Inventory List</div>
+                    <div id="items-list"
+                        style="height: 400px; overflow-y: auto; font-size: 0.8rem; color: var(--text-muted);">
+                        <!-- Items injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics View (Hidden) -->
+            <div id="view-analytics" class="view-panel" style="display:none;">
+                <div class="panel-section">
+                    <div class="section-title">Performance Metrics</div>
+                    <div class="data-grid">
+                        <div class="data-card">
+                            <div class="data-label">Space Utility</div>
+                            <div class="data-value" id="metric-space">0%</div>
+                        </div>
+                        <div class="data-card">
+                            <div class="data-label">Accessibility</div>
+                            <div class="data-value" id="metric-access">0.00</div>
+                        </div>
+                        <div class="data-card">
+                            <div class="data-label">Stability</div>
+                            <div class="data-value" id="metric-stability">0%</div>
+                        </div>
+                        <div class="data-card">
+                            <div class="data-label">Total Items</div>
+                            <div class="data-value" id="metric-count">0</div>
+                        </div>
+                        <div class="data-card">
+                            <div class="data-label">Rendered 3D</div>
+                            <div class="data-value" id="metric-rendered">0</div>
+                        </div>
+                    </div>
+                    <button class="btn" onclick="countRenderedBoxes()" style="margin-top: 10px; width: 100%;">
+                        📦 COUNT 3D BOXES
+                    </button>
+                </div>
+                <!-- Mini Charts -->
+                <div class="panel-section">
+                    <div class="section-title">Category Distribution</div>
+                    <div style="height: 200px; width: 100%;">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <div class="section-title">Optimization History</div>
+                    <div style="height: 150px; width: 100%;">
+                        <canvas id="historyChart"></canvas>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <div class="section-title">Algorithm Best Performance</div>
+                    <div id="algo-best-summary" style="margin-bottom: 15px;">
+                        <div class="data-grid" style="grid-template-columns: 1fr;">
+                            <div class="data-card" style="padding: 10px;">
+                                <table
+                                    style="width:100%; text-align:left; border-collapse: collapse; font-size: 0.85rem;">
+                                    <thead>
+                                        <tr style="color:var(--accent-primary); border-bottom:1px solid #444;">
+                                            <th style="padding:6px;">Algorithm</th>
+                                            <th style="padding:6px;">Best Fitness</th>
+                                            <th style="padding:6px;">Time to Best</th>
+                                            <th style="padding:6px;">Achieved At</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="algo-best-body">
+                                        <tr>
+                                            <td colspan="4" style="padding:10px; color:var(--text-muted);">Loading...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <button class="btn" onclick="runBenchmark()" id="benchmark-btn" style="flex: 1;">
+                                RUN BENCHMARK (×20)
+                            </button>
+                            <button class="btn" onclick="exportAlgoPerformance()" style="flex: 1;">
+                                EXPORT CSV
+                            </button>
+                            <button class="btn btn-danger" onclick="clearAlgoPerformance()" style="flex: 1;">
+                                CLEAR PERFORMANCE
+                            </button>
+                        </div>
+                        <div id="benchmark-status"
+                            style="display: none; margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span id="benchmark-algo" style="color: var(--accent-primary);">-</span>
+                                <span id="benchmark-progress" style="font-family: 'JetBrains Mono';">0%</span>
+                            </div>
+                            <div
+                                style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                                <div id="benchmark-bar"
+                                    style="width: 0%; height: 100%; background: var(--accent-primary); transition: width 0.3s;">
+                                </div>
+                            </div>
+                            <div id="benchmark-results"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <div class="section-title">Optimization Log</div>
+                    <div style="max-height: 250px; overflow-y: auto;">
+                        <table style="width:100%; text-align:left; border-collapse: collapse; font-size: 0.8rem;">
+                            <thead>
+                                <tr style="color:var(--accent-primary); border-bottom:1px solid #444;">
+                                    <th style="padding:4px;">Algo</th>
+                                    <th style="padding:4px;">Fit</th>
+                                    <th style="padding:4px;">Time(B)</th>
+                                    <th style="padding:4px;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analytics-history-body">
+                                <tr>
+                                    <td colspan="4" style="padding:10px;">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Warehouse Config View (Hidden) -->
+            <div id="view-warehouse" class="view-panel" style="display:none;">
+                <div class="panel-section">
+                    <div class="section-title">Presets</div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button class="btn" style="flex:1" onclick="applyPreset('4-shelves')">Physics Setup
+                            (Compact)</button>
+                        <button class="btn"
+                            style="flex:1; background: var(--bg-dark-secondary); border: 1px solid var(--border-color);"
+                            onclick="applyPreset('clear')">Clear All</button>
+                    </div>
+
+                    <div class="section-title">Dimensions</div>
+                    <div class="input-group">
+                        <label>Length (m)</label>
+                        <input type="number" id="warehouse-length">
+                    </div>
+                    <div class="input-group">
+                        <label>Width (m)</label>
+                        <input type="number" id="warehouse-width">
+                    </div>
+                    <div class="input-group">
+                        <label>Height (m)</label>
+                        <input type="number" id="warehouse-height">
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 15px; margin-bottom: 5px;">
+                        Door Location (Entry Point)</div>
+                    <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="input-group"><label>Door X (m)</label><input type="number" id="warehouse-door-x"
+                                step="0.5" value="0">
+                        </div>
+                        <div class="input-group"><label>Door Y (m)</label><input type="number" id="warehouse-door-y"
+                                step="0.5" value="0">
+                        </div>
+                    </div>
+                    <button class="btn" onclick="updateWarehouseConfig()">UPDATE CONFIG</button>
+                    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
+                    <div class="section-title">Zone Management</div>
+                    <div class="input-group">
+                        <label>Zone Name</label>
+                        <input type="text" id="zone-name" placeholder="Name">
+                    </div>
+
+                    <!-- Group: Floor Coordinates (Position & Size) -->
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; margin-bottom: 5px;">
+                        Position & Size</div>
+                    <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="input-group"><label>Pos X (m)</label><input type="number" id="zone-pos-x"
+                                step="0.5"></div>
+                        <div class="input-group"><label>Pos Y (m)</label><input type="number" id="zone-pos-y"
+                                step="0.5"></div>
+                        <div class="input-group"><label>Width (m)</label><input type="number" id="zone-width"
+                                step="0.5"></div>
+                        <div class="input-group"><label>Depth (m)</label><input type="number" id="zone-depth"
+                                step="0.5"></div>
+                    </div>
+
+                    <!-- Group: Vertical Limits -->
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; margin-bottom: 5px;">
+                        Vertical Limits</div>
+                    <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="input-group"><label>Base Height</label><input type="number" id="zone-base-z"
+                                step="0.5" value="0"></div>
+                        <div class="input-group"><label>Height (H)</label><input type="number" id="zone-height"
+                                step="0.5" value="5"></div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Type</label>
+                        <select id="zone-type"
+                            style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px;">
+                            <option value="exclusion">Restriction Zone (Red)</option>
+                            <option value="allocation">Allocation Zone (Green)</option>
+                        </select>
+                    </div>
+                    <button class="btn" onclick="addZone()">ADD ZONE</button>
+
+                    <div class="section-title" style="margin-top:20px;">Current Zones</div>
+                    <div id="zones-list" style="margin-top: 10px;"></div>
+                </div>
+            </div>
+
+        </aside>
+
+
+
+        <!-- Comparison Results Modal -->
+        <div id="comparison-modal"
+            style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:999; justify-content:center; align-items:center;">
+            <div
+                style="background: var(--bg-secondary); padding: 30px; border-radius: 8px; width: 80%; max-width: 800px; border: 1px solid var(--accent-primary); box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h3 style="margin:0; color:var(--accent-primary);">Algorithm Comparison Results</h3>
+                    <button onclick="document.getElementById('comparison-modal').style.display='none'"
+                        style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">&times;</button>
+                </div>
+                <div id="comparison-results-content" style="color: var(--text-muted);">
+                    Loading comparison data...
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js?v=3"></script>
+</body>
+
+</html>

@@ -1,0 +1,550 @@
+Finalizing optimization...
+Loaded items and warehouse config
+Loaded items and warehouse config
+Converted list solution to numpy array (50 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.13506256784648926
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Loaded items and warehouse config
+Converted list solution to numpy array (50 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.10080900573314126
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Loaded items and warehouse config
+Converted list solution to numpy array (50 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.13506256784648926
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Loaded items and warehouse config
+Converted list solution to numpy array (50 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.10990993862569672
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Loaded items and warehouse config
+Converted list solution to numpy array (50 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.10990993862569672
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Loaded items and warehouse config
+Converted list solution to numpy array (700 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: -0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=10, generations=20
+DEBUG: Unstackable Items Count: 408 / 700
+Starting thread...
+Thread started
+GA Init: pop_size=5, generations=20
+DEBUG: Unstackable Items Count: 408 / 700
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.4200
+Finalizing optimization...
+Loaded items and warehouse config
+Loaded items and warehouse config
+Converted list solution to numpy array (700 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Loaded items and warehouse config
+Converted list solution to numpy array (700 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=5, generations=20
+DEBUG: Unstackable Items Count: 332 / 600
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.3583
+Starting thread...
+Thread started
+GA Init: pop_size=5, generations=10
+DEBUG: Unstackable Items Count: 332 / 600
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.3583
+Finalizing optimization...
+Loaded items and warehouse config
+Loaded items and warehouse config
+Converted list solution to numpy array (600 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+DEBUG: Unstackable Items Count: 332 / 600
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.3583
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.3583
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.3583
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.3583
+Starting thread...
+Thread started
+GA Init: pop_size=3, generations=10
+DEBUG: Unstackable Items Count: 316 / 550
+DEBUG: Unstackable Items Count: 316 / 550
+DEBUG: Unstackable Items Count: 1 / 5
+DEBUG: Unstackable Items Count: 1 / 5
+DEBUG: Unstackable Items Count: 1 / 5
+DEBUG: Unstackable Items Count: 27 / 50
+DEBUG: Unstackable Items Count: 27 / 50
+DEBUG: Unstackable Items Count: 27 / 50
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+DEBUG: Unstackable Items Count: 27 / 50
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (50 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.161002856704086
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+DEBUG: Unstackable Items Count: 118 / 200
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.02594626854511322
+Saved solution to DB
+DEBUG: Unstackable Items Count: 0 / 50
+DEBUG: Unstackable Items Count: 0 / 50
+DEBUG: Unstackable Items Count: 0 / 50
+DEBUG: Unstackable Items Count: 0 / 50
+DEBUG: Unstackable Items Count: 0 / 50
+DEBUG: Unstackable Items Count: 0 / 50
+DEBUG: Unstackable Items Count: 0 / 50
+DEBUG: Unstackable Items Count: 0 / 50
+DEBUG: Unstackable Items Count: 0 / 50
+DEBUG: Unstackable Items Count: 0 / 50
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+DEBUG: Unstackable Items Count: 118 / 200
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+DEBUG: Unstackable Items Count: 118 / 200
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.04277634752287205
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.043309809538229466
+Saved solution to DB
+DEBUG: Unstackable Items Count: 118 / 200
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.04156144639402845
+Saved solution to DB
+DEBUG: Unstackable Items Count: 118 / 200
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.042571907131983354
+Saved solution to DB
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 0 / 10
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 118 / 200
+DEBUG: Unstackable Items Count: 243 / 400
+DEBUG: Unstackable Items Count: 243 / 400
+DEBUG: Unstackable Items Count: 243 / 400
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (400 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.035754539407207686
+Saved solution to DB
+DEBUG: Unstackable Items Count: 243 / 400
+DEBUG: Unstackable Items Count: 347 / 600
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.3850
+DEBUG: Unstackable Items Count: 347 / 600
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.3817
+Zero Fit: Overlap=0.0000, Zone=0.0000, Stack=0.3700
+DEBUG: Unstackable Items Count: 347 / 600
+DEBUG: Unstackable Items Count: 3 / 10
+DEBUG: Unstackable Items Count: 3 / 10
+DEBUG: Unstackable Items Count: 6 / 10
+DEBUG: Unstackable Items Count: 3 / 10
+DEBUG: Unstackable Items Count: 2 / 10
+DEBUG: Unstackable Items Count: 0 / 10
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (600 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (600 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (600 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.03485827531471265
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.03406465757731604
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.02593018715567725
+Saved solution to DB
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.030220947623793046
+Saved solution to DB
+DEBUG: Unstackable Items Count: 5 / 10
+DEBUG: Unstackable Items Count: 5 / 10
+DEBUG: Unstackable Items Count: 5 / 10
+DEBUG: Unstackable Items Count: 3 / 10
+DEBUG: Unstackable Items Count: 5 / 10
+DEBUG: Unstackable Items Count: 6 / 10
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (200 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.027791274855082267
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+DEBUG: Unstackable Items Count: 16 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 15 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 18 / 30
+DEBUG: Unstackable Items Count: 18 / 30
+DEBUG: Unstackable Items Count: 22 / 30
+DEBUG: Unstackable Items Count: 14 / 30
+DEBUG: Unstackable Items Count: 16 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 18 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 15 / 30
+DEBUG: Unstackable Items Count: 11 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 21 / 30
+DEBUG: Unstackable Items Count: 15 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 15 / 30
+DEBUG: Unstackable Items Count: 13 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 22 / 30
+DEBUG: Unstackable Items Count: 18 / 30
+DEBUG: Unstackable Items Count: 13 / 30
+DEBUG: Unstackable Items Count: 14 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 14 / 30
+DEBUG: Unstackable Items Count: 21 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 14 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 23 / 30
+DEBUG: Unstackable Items Count: 20 / 30
+DEBUG: Unstackable Items Count: 15 / 30
+DEBUG: Unstackable Items Count: 22 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 16 / 30
+DEBUG: Unstackable Items Count: 22 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 13 / 30
+DEBUG: Unstackable Items Count: 22 / 30
+DEBUG: Unstackable Items Count: 21 / 30
+DEBUG: Unstackable Items Count: 21 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 18 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 23 / 30
+DEBUG: Unstackable Items Count: 16 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 15 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 18 / 30
+DEBUG: Unstackable Items Count: 16 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 15 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 16 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 15 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+DEBUG: Unstackable Items Count: 16 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 17 / 30
+DEBUG: Unstackable Items Count: 15 / 30
+DEBUG: Unstackable Items Count: 19 / 30
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0, Space=0.28686823666666666, Acc=0.20437826191806716, Stab=0.1575
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0, Space=0.28686823666666666, Acc=0.20437826191806716, Stab=0.895
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0, Space=0.28686823666666666, Acc=0.20437826191806716, Stab=0.895
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Running PyBullet Physics Settlement...
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Running PyBullet Physics Settlement...
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.0, Space=0.28686823666666666, Acc=0.20437826191806716, Stab=0.895
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (800 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.08162372559817509, Space=0.28686823666666666, Acc=0.20437826191806716, Stab=0.895
+Saved solution to DB
+DEBUG: Unstackable Items Count: 464 / 800
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (10 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.1874745006924045, Space=0.0031962666666666664, Acc=0.2851891356413482, Stab=1.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (10 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.1874745006924045, Space=0.0031962666666666664, Acc=0.2851891356413482, Stab=1.0
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (600 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.08128901663890584, Space=0.21314473666666667, Acc=0.14807239748441137, Stab=0.8983333333333333
+Saved solution to DB
+Starting thread...
+Thread started
+GA Init: pop_size=50, generations=100
+Finalizing optimization...
+Loaded items and warehouse config
+Converted list solution to numpy array (600 items)
+Running PyBullet Physics Settlement with Layers: [0.0, 3.0]...
+Skipping PyBullet Physics Settlement (Bypassed)...
+Calculated fitness: 0.08128901663890584, Space=0.21314473666666667, Acc=0.14807239748441137, Stab=0.8983333333333333
+Saved solution to DB

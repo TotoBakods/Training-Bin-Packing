@@ -135,52 +135,10 @@
 
                 <div class="panel-section">
                     <div class="section-title">Parameters</div>
-                    <div id="algorithm-params">
-                        <!-- GA params (default fallback) -->
-                        <div class="input-group">
-                            <label>Population Size</label>
-                            <input type="number" id="population-size" value="50">
-                        </div>
-                        <div class="input-group">
-                            <label>Generations</label>
-                            <input type="number" id="generations" value="100">
-                        </div>
+                    <div id="algorithm-params" style="display:none;">
                     </div>
 
                     <div id="compare-params" style="display:none;">
-                        <div
-                            style="margin-bottom: 10px; border-left: 2px solid var(--accent-primary); padding-left: 8px;">
-                            <label style="color: var(--accent-primary);">Genetic Algorithm</label>
-                            <div class="data-grid" style="grid-template-columns: 1fr 1fr; gap:5px;">
-                                <div class="input-group"><label>Pop</label><input type="number" id="cmp-ga-pop"
-                                        value="30"></div>
-                                <div class="input-group"><label>Gen</label><input type="number" id="cmp-ga-gen"
-                                        value="50"></div>
-                            </div>
-                        </div>
-                        <div style="margin-bottom: 10px; border-left: 2px solid #7000ff; padding-left: 8px;">
-                            <label style="color: #7000ff;">Extremal Opt</label>
-                            <div class="input-group"><label>Iterations</label><input type="number" id="cmp-eo-iter"
-                                    value="100"></div>
-                        </div>
-                        <div style="margin-bottom: 10px; border-left: 2px solid #ff0055; padding-left: 8px;">
-                            <label style="color: #ff0055;">Hybrid GA-EO</label>
-                            <div class="data-grid" style="grid-template-columns: 1fr 1fr; gap:5px;">
-                                <div class="input-group"><label>GA Gen</label><input type="number" id="cmp-hyb1-gen"
-                                        value="20"></div>
-                                <div class="input-group"><label>EO Iter</label><input type="number" id="cmp-hyb1-iter"
-                                        value="50"></div>
-                            </div>
-                        </div>
-                        <div style="border-left: 2px solid #FFD600; padding-left: 8px;">
-                            <label style="color: #FFD600;">Hybrid EO-GA</label>
-                            <div class="data-grid" style="grid-template-columns: 1fr 1fr; gap:5px;">
-                                <div class="input-group"><label>EO Iter</label><input type="number" id="cmp-hyb2-iter"
-                                        value="50"></div>
-                                <div class="input-group"><label>GA Gen</label><input type="number" id="cmp-hyb2-gen"
-                                        value="20"></div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -284,6 +242,14 @@
                             <div class="data-value" id="metric-space">0%</div>
                         </div>
                         <div class="data-card">
+                            <div class="data-label">Free Space Vol</div>
+                            <div class="data-value" id="metric-free-space">0 m³</div>
+                        </div>
+                        <div class="data-card">
+                            <div class="data-label">Run Time</div>
+                            <div class="data-value" id="metric-runtime">0.00s</div>
+                        </div>
+                        <div class="data-card">
                             <div class="data-label">Accessibility</div>
                             <div class="data-value" id="metric-access">0.00</div>
                         </div>
@@ -295,8 +261,8 @@
                             <div class="data-label">Total Items</div>
                             <div class="data-value" id="metric-count">0</div>
                         </div>
-                        <div class="data-card">
-                            <div class="data-label">Rendered 3D</div>
+                        <div class="data-card" style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center;">
+                            <div class="data-label" style="margin-bottom: 0;">Rendered 3D</div>
                             <div class="data-value" id="metric-rendered">0</div>
                         </div>
                     </div>
@@ -307,13 +273,13 @@
                 <!-- Mini Charts -->
                 <div class="panel-section">
                     <div class="section-title">Category Distribution</div>
-                    <div style="height: 200px; width: 100%;">
+                    <div style="height: 110px; width: 100%;">
                         <canvas id="categoryChart"></canvas>
                     </div>
                 </div>
                 <div class="panel-section">
                     <div class="section-title">Optimization History</div>
-                    <div style="height: 150px; width: 100%;">
+                    <div style="height: 110px; width: 100%;">
                         <canvas id="historyChart"></canvas>
                     </div>
                 </div>

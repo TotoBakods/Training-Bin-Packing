@@ -18,7 +18,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 CHECKPOINT_PATH = os.path.join(current_dir, 'checkpoints', 'generator.pth')
 SCALER_PATH = os.path.join(current_dir, 'scaler.pkl')
 OUTPUT_FILE = os.path.join(current_dir, 'generated_items.csv')
-REAL_DATA_FILE = os.path.join(current_dir, '..', 'datasets.csv')
+REAL_DATA_FILE = os.path.join(current_dir, '..', 'datasets', 'datasets.csv')
 
 # Heuristics
 FRAGILE_CATEGORIES = {

@@ -114,7 +114,7 @@ def get_rotated_dims(l, w, h, rotation_code):
     if code == 5: return h, w, l
     return l, w, h
 
-def repair_solution_compact(solution, items_props=None, warehouse_dims=None, allocation_zones=None, layer_heights=None):
+def repair_solution_compact(solution, items_props=None, warehouse_dims=None, allocation_zones=None, layer_heights=None, fast_mode=False):
     """Repair solution by placing items in valid positions with gravity."""
     # Use globals if in worker process
     if items_props is None: items_props = _pool_items_props
@@ -169,10 +169,11 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
             candidates.add((z['x1'], z['y1']))
         
         # From placed items (adjacent positions)
-        for (px, py, pz, pdx, pdy, pdz) in placed_items:
-            candidates.add((px + pdx, py))  # Right
-            candidates.add((px, py + pdy))  # Back
-            candidates.add((px, py))        # On top
+        if not fast_mode:
+            for (px, py, pz, pdx, pdy, pdz) in placed_items:
+                candidates.add((px + pdx, py))  # Right
+                candidates.add((px, py + pdy))  # Back
+                candidates.add((px, py))        # On top
         
         # Add the gene's target position as a candidate to guide the heuristic
         # We add candidates for both rotated and unrotated orientations to be safe

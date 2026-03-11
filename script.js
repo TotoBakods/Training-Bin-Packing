@@ -25,66 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Algorithm parameter UI
 function updateAlgorithmParams() {
-    const algo = document.getElementById('algorithm-select').value;
+    // The ML model no longer uses configurable parameters in the UI.
     const container = document.getElementById('algorithm-params');
     const compareParams = document.getElementById('compare-params');
-
-    // Toggle visibility based on mode
-    if (algo === 'compare') {
-        if (compareParams) compareParams.style.display = 'block';
-        if (container) container.style.display = 'none';
-        return; // No need to render standard params
-    } else {
-        if (compareParams) compareParams.style.display = 'none';
-        if (container) container.style.display = 'block';
-    }
-
-    if (!container) return;
-
-    const gaParams = `
-        <div class="input-group">
-            <label>Population Size</label>
-            <input type="number" id="population-size" value="50">
-        </div>
-        <div class="input-group">
-            <label>Generations</label>
-            <input type="number" id="generations" value="100">
-        </div>
-    `;
-
-    const eoParams = `
-        <div class="input-group">
-            <label>Iterations</label>
-            <input type="number" id="generations" value="500">
-        </div>
-        <div class="input-group">
-            <label>Tau (Selection Pressure)</label>
-            <input type="number" id="eo-tau" value="1.5" step="0.1" min="1.0" max="3.0">
-        </div>
-    `;
-
-    const hybridParams = `
-        <div class="input-group">
-            <label>Population Size</label>
-            <input type="number" id="population-size" value="30">
-        </div>
-        <div class="input-group">
-            <label>GA Generations</label>
-            <input type="number" id="generations" value="50">
-        </div>
-        <div class="input-group">
-            <label>EO Iterations</label>
-            <input type="number" id="eo-iterations" value="100">
-        </div>
-    `;
-
-    if (algo === 'ga') {
-        container.innerHTML = gaParams;
-    } else if (algo === 'eo') {
-        container.innerHTML = eoParams;
-    } else {
-        container.innerHTML = hybridParams;
-    }
+    
+    if (compareParams) compareParams.style.display = 'none';
+    if (container) container.style.display = 'none';
 }
 
 // UI navigation
@@ -794,63 +740,6 @@ function startOptimization() {
         }
     };
 
-    if (algo === 'ga') {
-        params.population_size = parseInt(document.getElementById('population-size').value);
-        params.generations = parseInt(document.getElementById('generations').value);
-    } else if (algo === 'eo') {
-        params.iterations = parseInt(document.getElementById('generations').value);
-        const tauEl = document.getElementById('eo-tau');
-        if (tauEl) params.tau = parseFloat(tauEl.value);
-    } else if (algo === 'compare') {
-        // Custom comparison parameters
-        params.custom_algorithms = [
-            {
-                name: 'GA', type: 'ga',
-                params: {
-                    population_size: parseInt(document.getElementById('cmp-ga-pop').value) || 30,
-                    generations: parseInt(document.getElementById('cmp-ga-gen').value) || 50
-                },
-                description: 'Genetic Algorithm (Custom)'
-            },
-            {
-                name: 'EO', type: 'eo',
-                params: {
-                    iterations: parseInt(document.getElementById('cmp-eo-iter').value) || 100
-                },
-                description: 'Extremal Optimization (Custom)'
-            },
-            {
-                name: 'Hybrid GA-EO', type: 'ga-eo',
-                params: {
-                    generations: parseInt(document.getElementById('cmp-hyb1-gen').value) || 20,
-                    iterations: parseInt(document.getElementById('cmp-hyb1-iter').value) || 50
-                },
-                description: 'GA -> EO (Custom)'
-            },
-            {
-                name: 'Hybrid EO-GA', type: 'eo-ga',
-                params: {
-                    iterations: parseInt(document.getElementById('cmp-hyb2-iter').value) || 50,
-                    generations: parseInt(document.getElementById('cmp-hyb2-gen').value) || 20
-                },
-                description: 'EO -> GA (Custom)'
-            }
-        ];
-    } else {
-        // Hybrid logic
-        const popEl = document.getElementById('population-size');
-        if (popEl) params.population_size = parseInt(popEl.value);
-
-        const genEl = document.getElementById('generations');
-        if (genEl) params.generations = parseInt(genEl.value);
-
-        const iterEl = document.getElementById('eo-iterations');
-        if (iterEl) params.iterations = parseInt(iterEl.value);
-    }
-
-
-
-
     // Load items before starting
     fetch(`${API_BASE_URL}/api/items?warehouse_id=${currentWarehouseId}`)
         .then(res => res.json())
@@ -1042,11 +931,15 @@ function loadAnalytics() {
         .then(res => res.json())
         .then(data => {
             const mSpace = document.getElementById('metric-space');
+            const mFreeSpace = document.getElementById('metric-free-space');
+            const mRuntime = document.getElementById('metric-runtime');
             const mAccess = document.getElementById('metric-access');
             const mStab = document.getElementById('metric-stability');
             const mCount = document.getElementById('metric-count');
 
             if (mSpace) mSpace.textContent = (data.space_utilization * 100).toFixed(1) + '%';
+            if (mFreeSpace) mFreeSpace.textContent = data.free_space_vol ? data.free_space_vol.toFixed(2) + ' m³' : '0.00 m³';
+            if (mRuntime) mRuntime.textContent = data.execution_time ? data.execution_time.toFixed(2) + 's' : '0.00s';
             if (mAccess) mAccess.textContent = data.accessibility.toFixed(2);
             if (mStab) mStab.textContent = (data.stability * 100).toFixed(1) + '%';
             if (mCount) mCount.textContent = data.total_items;

@@ -135,8 +135,10 @@ class MLOptimizer:
             if callback:
                 callback(20, 0, 0, None, 0, 0, 0, message="ML Inference complete. Applying Physics Settlement (Tetris Style)...")
             
-            # Repair using compact logic
-            solution = repair_solution_compact(solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z)
+            # Repair using compact logic with fast_mode
+            solution = repair_solution_compact(
+                solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, fast_mode=True
+            )
             
             if callback:
                 callback(80, 0, 0, None, 0, 0, 0, message="Physics Settlement Complete.")

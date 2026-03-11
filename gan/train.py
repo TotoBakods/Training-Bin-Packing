@@ -17,7 +17,7 @@ B2 = 0.999
 
 # Get absolute path to datasets.csv assuming it is in the parent directory of this script
 current_dir = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(current_dir, '..', 'datasets.csv')
+DATA_FILE = os.path.join(current_dir, '..', 'datasets', 'datasets.csv')
 CHECKPOINT_DIR = os.path.join(current_dir, 'checkpoints')
 SCALER_PATH = os.path.join(current_dir, 'scaler.pkl')
 

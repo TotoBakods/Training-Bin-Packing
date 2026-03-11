@@ -3,7 +3,7 @@ import csv
 import os
 
 INPUT_FILE = '../datasets/bed-bpp_v1.json'
-OUTPUT_FILE = '../datasets.csv'
+OUTPUT_FILE = '../datasets/datasets.csv'
 
 def convert():
     input_path = os.path.join(os.path.dirname(__file__), INPUT_FILE)

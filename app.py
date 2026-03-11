@@ -719,16 +719,13 @@ def optimize_compare():
     weights = data.get('weights', {'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
     warehouse_id = data.get('warehouse_id', optimization_state['current_warehouse_id'])
     
-    # Use custom algorithms if provided, otherwise use defaults
-    if 'custom_algorithms' in data:
-        algorithms = data['custom_algorithms']
-    else:
-        algorithms = [
-            {'name': 'GA', 'type': 'ga', 'params': {'population_size': 30, 'generations': 50}, 'description': 'Genetic Algorithm - Evolves population of solutions'},
-            {'name': 'EO', 'type': 'eo', 'params': {'iterations': 100}, 'description': 'Extremal Optimization - Improves worst-performing items'},
-            {'name': 'Hybrid GA-EO', 'type': 'ga-eo', 'params': {'generations': 40, 'iterations': 100}, 'description': 'High Quality: Deep GA search + EO refinement'},
-            {'name': 'Hybrid EO-GA', 'type': 'eo-ga', 'params': {'generations': 10, 'iterations': 50}, 'description': 'Fast Mode: EO setup + Quick GA polish'},
-        ]
+    # ML algorithms to benchmark
+    algorithms = [
+        {'name': 'ML - GA', 'type': 'fit_ga', 'description': 'ML Model imitating Genetic Algorithm'},
+        {'name': 'ML - EO', 'type': 'fit_eo', 'description': 'ML Model imitating Extremal Optimization'},
+        {'name': 'ML - Hybrid GA-EO', 'type': 'fit_ga_eo', 'description': 'ML Model imitating GA to EO Hybrid'},
+        {'name': 'ML - Hybrid EO-GA', 'type': 'fit_eo_ga', 'description': 'ML Model imitating EO to GA Hybrid'},
+    ]
     
     # Reset comparison state
     comparison_state = {
@@ -771,34 +768,11 @@ def optimize_compare():
                 warehouse = get_warehouse_config(warehouse_id)
                 start_time = time.time()
                 
-                solution = None
-                fitness = 0
-                time_to_best = 0
-
-                if algo['type'] == 'ga':
-                    optimizer = GeneticAlgorithm(
-                        population_size=algo['params']['population_size'],
-                        generations=algo['params']['generations']
-                    )
-                    solution, fitness, time_to_best = optimizer.optimize(items, warehouse, weights, callback=algo_callback)
-                elif algo['type'] == 'eo':
-                    optimizer = ExtremalOptimization(iterations=algo['params']['iterations'])
-                    solution, fitness, time_to_best = optimizer.optimize(items, warehouse, weights, callback=algo_callback)
-                elif algo['type'] == 'ga-eo':
-                    optimizer = HybridOptimizer(
-                        ga_generations=algo['params']['generations'],
-                        eo_iterations=algo['params']['iterations'],
-                        population_size=algo['params'].get('population_size', 50)
-                    )
-                    solution, fitness, time_to_best = optimizer.optimize(items, warehouse, weights, callback=algo_callback)
-                elif algo['type'] == 'eo-ga':
-                    optimizer = HybridOptimizer(
-                        ga_generations=algo['params']['generations'],
-                        eo_iterations=algo['params']['iterations'],
-                        population_size=algo['params'].get('population_size', 50)
-                    )
-                    solution, fitness, time_to_best = optimizer.optimize_eo_ga(items, warehouse, weights, callback=algo_callback)
-                
+                optimizer = MLOptimizer(algo['type'])
+                solution, fitness, time_to_best = optimizer.optimize(
+                    items, warehouse, weights, callback=algo_callback, optimization_state=comparison_state
+                )
+                  
                 end_time = time.time()
                 execution_time = end_time - start_time
                 
@@ -937,13 +911,27 @@ def get_current_metrics():
     
     cog_x, cog_y, cog_z = ga.calculate_center_of_gravity(solution, {i['id']: i for i in items})
 
+    # Additional calculations for Free Space Vol
+    warehouse_volume = warehouse['length'] * warehouse['width'] * warehouse['height']
+    total_items_volume = sum([(i['length'] * i['width'] * i['height']) for i in items if i.get('z', 1000) < 1000]) # only consider items that fit
+    free_space_vol = warehouse_volume - total_items_volume
+    if free_space_vol < 0:
+        free_space_vol = 0 # Safety clamp
+
+    history = get_metrics_history(warehouse_id)
+    latest_run_time = 0.00
+    if history and len(history) > 0:
+         latest_run_time = history[-1].get('execution_time', 0.00)
+
     return jsonify({
         'space_utilization': space_util,
+        'free_space_vol': free_space_vol,
+        'execution_time': latest_run_time,
         'accessibility': accessibility,
         'stability': stability,
         'grouping': grouping,
         'total_items': len(items),
-        'warehouse_volume': warehouse['length'] * warehouse['width'] * warehouse['height'],
+        'warehouse_volume': warehouse_volume,
         'center_of_gravity': {'x': cog_x, 'y': cog_y, 'z': cog_z}
     })
 

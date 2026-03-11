@@ -514,7 +514,8 @@ def create_default_sample_data():
 
 def load_sample_data(warehouse_id=1):
     try:
-        if os.path.exists('datasets.csv'):
+        dataset_path = os.path.join('datasets', 'datasets.csv')
+        if os.path.exists(dataset_path):
             conn = sqlite3.connect(DB_PATH)
             
             # Clear existing items first to avoid duplicates if replace isn't working as expected per chunk
@@ -549,8 +550,7 @@ def load_sample_data(warehouse_id=1):
                 'rotation': 'rotation'
             }
             
-            chunk_size = 10000
-            for chunk in pd.read_csv('datasets.csv', chunksize=chunk_size):
+            for chunk in pd.read_csv(dataset_path, chunksize=chunk_size):
                 # Only map columns that actually exist in the CSV
                 column_mapping = {k: v for k, v in potential_columns.items() if k in chunk.columns}
                 

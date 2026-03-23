@@ -5,7 +5,6 @@ import numpy as np
 import time
 from database import get_exclusion_zones
 from optimizer import (
-    GeneticAlgorithm, 
     repair_solution_compact, 
     fitness_function_numpy, 
     get_valid_z_positions
@@ -58,10 +57,9 @@ class MLOptimizer:
         start_time = time.time()
         
         if self.model is None:
-             # Fallback to standard GA if model missing
-             print("ML Model missing, falling back to GA")
-             ga = GeneticAlgorithm(generations=50, population_size=50) 
-             return ga.optimize(items, warehouse, weights, callback, optimization_state)
+             # Fallback to standard GA if model missing has been removed
+             print("ML Model missing, cannot proceed.")
+             return [], 0, 0
 
         # Pre-process items
         zones = get_exclusion_zones(warehouse['id'])

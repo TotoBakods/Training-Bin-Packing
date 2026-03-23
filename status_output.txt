@@ -1,5 +1,0 @@
-Running: False
-Algorithm: Hybrid EO-GA
-Progress: 100
-Error: None
-Message: Physics Settlement Complete.

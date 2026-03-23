@@ -1,5 +1,0 @@
-49: if (viewName === 'analytics') loadAnalytics();
-830: loadAnalytics(); // Refresh stats
-929: function loadAnalytics() {
-2016: loadAnalytics();
-2037: loadAnalytics(); // Refresh the table

@@ -24,7 +24,7 @@ from database import (
     get_item_stats_by_category, load_generated_data, DB_PATH
 )
 from optimizer import (
-    GeneticAlgorithm, ExtremalOptimization, HybridOptimizer, get_valid_z_positions
+    fitness_function, calculate_center_of_gravity, get_valid_z_positions
 )
 from ml_utils import MLOptimizer
 from optimizer_physics import physics_settle
@@ -131,8 +131,7 @@ def finalize_optimization(solution, algorithm, weights, start_time, warehouse_id
             with open('thread_debug.log', 'a') as f: f.write(f"Physics Integration Error: {e}\n")
         # -----------------------------------
 
-        calculator = GeneticAlgorithm()
-        final_fitness, space_util, accessibility, stability, grouping = calculator.fitness_function(
+        final_fitness, space_util, accessibility, stability, grouping = fitness_function(
             solution, items, warehouse, weights
         )
         
@@ -777,8 +776,7 @@ def optimize_compare():
                 execution_time = end_time - start_time
                 
                 # Calculate detailed metrics
-                ga_calc = GeneticAlgorithm()
-                final_fitness, space_util, accessibility, stability, grouping = ga_calc.fitness_function(
+                final_fitness, space_util, accessibility, stability, grouping = fitness_function(
                     solution, items, warehouse, weights
                 )
 
@@ -902,14 +900,13 @@ def get_current_metrics():
     if not items or not warehouse:
         return jsonify({'error': 'No data available'})
 
-    ga = GeneticAlgorithm()
     solution = [{'id': item['id'], 'x': item.get('x', 0), 'y': item.get('y', 0),
                  'z': item.get('z', 0), 'rotation': item.get('rotation', 0)}
                 for item in items]
 
-    _, space_util, accessibility, stability, grouping = ga.fitness_function(solution, items, warehouse)
+    _, space_util, accessibility, stability, grouping = fitness_function(solution, items, warehouse)
     
-    cog_x, cog_y, cog_z = ga.calculate_center_of_gravity(solution, {i['id']: i for i in items})
+    cog_x, cog_y, cog_z = calculate_center_of_gravity(solution, {i['id']: i for i in items})
 
     # Additional calculations for Free Space Vol
     warehouse_volume = warehouse['length'] * warehouse['width'] * warehouse['height']
@@ -1042,22 +1039,18 @@ benchmark_state = {
 }
 
 
+
 @app.route('/api/benchmark', methods=['POST'])
 def run_benchmark():
-    """Run all algorithms multiple times and calculate averages."""
+    """Run all ML algorithms multiple times and calculate averages."""
     global benchmark_state
     
     if benchmark_state['running'] or optimization_state['running']:
         return jsonify({'success': False, 'error': 'Optimization or benchmark already running'})
     
     data = request.json or {}
-    runs_per_algo = data.get('runs', 20)
+    runs_per_algo = data.get('runs', 5)
     warehouse_id = data.get('warehouse_id', optimization_state['current_warehouse_id'])
-    
-    # Reduced parameters for benchmarking (faster)
-    benchmark_generations = data.get('generations', 50)
-    benchmark_iterations = data.get('iterations', 500)
-    benchmark_population = data.get('population_size', 30)
     
     items = get_all_items(warehouse_id)
     if not items:
@@ -1071,18 +1064,10 @@ def run_benchmark():
     benchmark_state['results'] = {}
     
     algorithms = [
-        ('GA', 'Genetic Algorithm', lambda: GeneticAlgorithm(
-            population_size=benchmark_population,
-            generations=benchmark_generations
-        )),
-        ('EO', 'Extremal Optimization', lambda: ExtremalOptimization(
-            iterations=benchmark_iterations
-        )),
-        ('GA-EO', 'Hybrid GA-EO', lambda: HybridOptimizer(
-            ga_generations=benchmark_generations,
-            eo_iterations=benchmark_iterations
-        )),
-        ('EO-GA', 'Hybrid EO-GA', 'eo-ga'),  # Special case - uses dedicated endpoint logic
+        ('ML-GA', 'ML - Genetic Algorithm', lambda: MLOptimizer("fit_ga")),
+        ('ML-EO', 'ML - Extremal Optimization', lambda: MLOptimizer("fit_eo")),
+        ('ML-GA-EO', 'ML - Hybrid GA-EO', lambda: MLOptimizer("fit_ga_eo")),
+        ('ML-EO-GA', 'ML - Hybrid EO-GA', lambda: MLOptimizer("fit_eo_ga")),
     ]
     
     total_runs = len(algorithms) * runs_per_algo
@@ -1108,29 +1093,10 @@ def run_benchmark():
                 start_time = time.time()
                 
                 try:
-                    # Special handling for EO-GA (EO first, then GA)
-                    if algo_key == 'EO-GA':
-                        # Phase 1: Run EO
-                        eo = ExtremalOptimization(iterations=benchmark_iterations)
-                        eo_solution, eo_fitness, eo_ttb = eo.optimize(
-                            items, warehouse, weights, callback=None, optimization_state={'running': True}
-                        )
-                        
-                        # Phase 2: Run GA using EO result
-                        ga = GeneticAlgorithm(
-                            population_size=benchmark_population,
-                            generations=benchmark_generations
-                        )
-                        solution, fitness, ga_ttb = ga.optimize(
-                            items, warehouse, weights, callback=None, optimization_state={'running': True},
-                            initial_solution=eo_solution
-                        )
-                        ttb = eo_ttb + ga_ttb
-                    else:
-                        optimizer = algo_factory()
-                        solution, fitness, ttb = optimizer.optimize(
-                            items, warehouse, weights, callback=None, optimization_state={'running': True}
-                        )
+                    optimizer = algo_factory()
+                    solution, fitness, ttb = optimizer.optimize(
+                        items, warehouse, weights, callback=None, optimization_state={'running': True}
+                    )
                     
                     exec_time = time.time() - start_time
                     
@@ -1175,10 +1141,8 @@ def run_benchmark():
     
     return jsonify({'success': True, 'total_runs': total_runs})
 
-
 @app.route('/api/benchmark/status', methods=['GET'])
 def get_benchmark_status():
-    """Get current benchmark progress."""
     return jsonify({
         'running': benchmark_state['running'],
         'progress': benchmark_state['progress'],
@@ -1188,13 +1152,10 @@ def get_benchmark_status():
         'results': benchmark_state['results']
     })
 
-
 @app.route('/api/benchmark/stop', methods=['POST'])
 def stop_benchmark():
-    """Stop the benchmark."""
     benchmark_state['running'] = False
     return jsonify({'success': True})
-
 
 if __name__ == '__main__':
     try:

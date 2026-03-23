@@ -1592,6 +1592,57 @@ function applyPreset(name) {
                     });
                 }
             });
+    } else if (name === 'small-room') {
+        const newConfig = {
+            name: "Small Room",
+            length: 5, width: 5, height: 3, levels: 1, grid_size: 0.5,
+            door_x: 2.5, door_y: 0, id: currentWarehouseId
+        };
+        fetch(`${API_BASE_URL}/api/warehouse/config`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
+        }).then(() => { clearZones().then(() => { loadWarehouseConfig(); alert('Applied: Small Room (5x5m)'); }); });
+    } else if (name === 'long-hall') {
+        const newConfig = {
+            name: "Long Hall",
+            length: 30, width: 5, height: 4, levels: 1, grid_size: 1,
+            door_x: 0, door_y: 2.5, id: currentWarehouseId
+        };
+        fetch(`${API_BASE_URL}/api/warehouse/config`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
+        }).then(() => { clearZones().then(() => { loadWarehouseConfig(); alert('Applied: Long Hall (30x5m)'); }); });
+    } else if (name === 'massive-center') {
+        const newConfig = {
+            name: "Massive Center",
+            length: 50, width: 50, height: 10, levels: 1, grid_size: 2,
+            door_x: 25, door_y: 0, id: currentWarehouseId
+        };
+        fetch(`${API_BASE_URL}/api/warehouse/config`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
+        }).then(() => { clearZones().then(() => { loadWarehouseConfig(); alert('Applied: Massive Center (50x50m)'); }); });
+    } else if (name === 'l-shape') {
+        const newConfig = {
+            name: "L-Shape Warehouse",
+            length: 20, width: 20, height: 5, levels: 1, grid_size: 1,
+            door_x: 10, door_y: 0, id: currentWarehouseId
+        };
+        fetch(`${API_BASE_URL}/api/warehouse/config`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
+        }).then(res => res.json()).then(d => {
+            if (d.success) {
+                clearZones().then(() => {
+                    const lZone = {
+                        name: "L-Shape Cutout",
+                        x1: 10, y1: 10, x2: 20, y2: 20,
+                        z1: 0, z2: 5,
+                        zone_type: 'exclusion',
+                        warehouse_id: currentWarehouseId
+                    };
+                    fetch(`${API_BASE_URL}/api/warehouse/zones`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lZone)
+                    }).then(() => { loadWarehouseConfig(); alert('Applied: L-Shape Warehouse (20x20m with 10x10m exclusion)'); });
+                });
+            }
+        });
     } else if (name === 'clear') {
         clearZones().then(() => {
             // Also reset config to default

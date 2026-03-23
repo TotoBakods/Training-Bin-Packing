@@ -36,7 +36,7 @@ body {
 #app-container {
     display: grid;
     grid-template-columns: 64px 1fr 320px;
-    grid-template-rows: 60px 1fr 40px;
+    grid-template-rows: 60px minmax(0, 1fr) 40px;
     height: 100vh;
     width: 100vw;
     grid-template-areas:
@@ -167,11 +167,22 @@ option {
     backdrop-filter: var(--glass-blur);
     border-left: 1px solid var(--border-color);
     padding: 24px;
-    overflow-y: auto;
+    overflow-y: scroll;
+    overflow-x: hidden; /* Prevent horizontal jitter */
     z-index: 10;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
+    /* Ensure it never grows beyond the viewport row */
+    min-height: 0;
+    height: 100%;
+    scrollbar-gutter: stable;
+}
+
+.view-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .panel-section {
@@ -202,11 +213,94 @@ option {
     padding: 12px;
     border: 1px solid transparent;
     transition: var(--transition);
+    min-width: 0; /* Important for flex children */
 }
 
 .data-card:hover {
     border-color: var(--border-color);
     background: rgba(255, 255, 255, 0.05);
+}
+
+/* Compact Table Utility */
+.compact-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    table-layout: fixed;
+}
+
+.compact-table th, .compact-table td {
+    padding: 4px 2px;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Algo Performance Cards */
+#algo-best-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.algo-performance-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.algo-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 6px;
+}
+
+.algo-card-name {
+    font-weight: bold;
+    font-size: 0.85rem;
+}
+
+.algo-card-fitness {
+    font-family: var(--font-mono);
+    color: var(--accent-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.algo-card-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px 4px;
+}
+
+.mini-metric {
+    display: flex;
+    flex-direction: column;
+}
+
+.mini-label {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.mini-value {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+.algo-card-footer {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-align: right;
+    margin-top: 4px;
 }
 
 .data-label {

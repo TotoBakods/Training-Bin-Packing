@@ -124,6 +124,54 @@ function onMouseClick(event) {
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
+
+    // Check if place door mode is active
+    const placeDoorToggle = document.getElementById('place-door-btn');
+    const isEditingDoor = placeDoorToggle && placeDoorToggle.classList.contains('active-tool');
+    
+    if (event.shiftKey || isEditingDoor) {
+        // Intersect with floor
+        const floorIntersects = raycaster.intersectObjects(warehouseGroup.children);
+        const floorHit = floorIntersects.find(hit => hit.object.name === "warehouse_floor");
+        
+        if (floorHit) {
+            // Hit point is relative to warehouse center, convert to normal coordinates (0 to length/width)
+            const newX = floorHit.point.x + warehouseConfig.length / 2;
+            const newY = floorHit.point.z + warehouseConfig.width / 2;
+            
+            // Snap to nearest wall to make it realistic
+            const dl = newX;
+            const dr = warehouseConfig.length - newX;
+            const dt = newY;
+            const db = warehouseConfig.width - newY;
+            const minDist = Math.min(dl, dr, dt, db);
+            
+            let snappedX = newX;
+            let snappedY = newY;
+            
+            if (minDist === dl) snappedX = 0;
+            else if (minDist === dr) snappedX = warehouseConfig.length;
+            else if (minDist === dt) snappedY = 0;
+            else if (minDist === db) snappedY = warehouseConfig.width;
+            
+            // Limit to bounds
+            snappedX = Math.max(0, Math.min(warehouseConfig.length, snappedX));
+            snappedY = Math.max(0, Math.min(warehouseConfig.width, snappedY));
+            
+            // Update UI
+            document.getElementById('warehouse-door-x').value = snappedX.toFixed(1);
+            document.getElementById('warehouse-door-y').value = snappedY.toFixed(1);
+
+            // Show confirmation button
+            const confirmBtn = document.getElementById('confirm-door-btn');
+            if (confirmBtn) {
+                confirmBtn.style.display = 'block';
+                confirmBtn.innerText = `CONFIRM DOOR AT (${snappedX.toFixed(1)}, ${snappedY.toFixed(1)})`;
+            }
+            return;
+        }
+    }
+
     const intersects = raycaster.intersectObjects(itemsGroup.children);
 
     const tooltip = document.getElementById('tooltip');
@@ -146,6 +194,30 @@ function onMouseClick(event) {
     } else {
         tooltip.style.display = 'none';
     }
+}
+
+function togglePlaceDoorMode() {
+    const btn = document.getElementById('place-door-btn');
+    const confirmBtn = document.getElementById('confirm-door-btn');
+    if (!btn) return;
+
+    if (btn.classList.contains('active-tool')) {
+        btn.classList.remove('active-tool');
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.innerText = 'PLACE DOOR (Click on floor)';
+        if (confirmBtn) confirmBtn.style.display = 'none';
+    } else {
+        btn.classList.add('active-tool');
+        btn.style.background = 'var(--accent-primary)';
+        btn.style.color = '#000';
+        btn.innerText = 'CANCEL PLACEMENT';
+    }
+}
+
+function confirmDoorPlacement() {
+    updateWarehouseConfig();
+    togglePlaceDoorMode();
 }
 
 // Data loading and rendering
@@ -260,6 +332,7 @@ function renderWarehouse() {
     const floor = new THREE.Mesh(planeGeo, planeMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
+    floor.name = "warehouse_floor";
     warehouseGroup.add(floor);
 
     // Wireframe bounds
@@ -269,29 +342,60 @@ function renderWarehouse() {
     line.position.y = height / 2;
     warehouseGroup.add(line);
 
-    // Door marker
+    // Enhanced Door visualization
     const doorX = warehouseConfig.door_x || 0;
     const doorY = warehouseConfig.door_y || 0;
+    const doorWidth = 2.5;
+    const doorHeight = 3.0;
+    const doorDepth = 0.5;
 
-    // Door position
-    const doorGeo = new THREE.BoxGeometry(2, 0.1, 2); // 2x2m pad
-    const doorMat = new THREE.MeshBasicMaterial({ color: 0xFFD600 }); // Yellow
-    const doorMesh = new THREE.Mesh(doorGeo, doorMat);
-
-    // Position relative to warehouse center
-    doorMesh.position.set(
-        doorX - length / 2,
-        0.05,
-        doorY - width / 2
-    );
-    warehouseGroup.add(doorMesh);
-
-    // Door label stick
-    const stickGeo = new THREE.CylinderGeometry(0.1, 0.1, 2, 8);
-    const stickMat = new THREE.MeshBasicMaterial({ color: 0xFFD600 });
-    const stick = new THREE.Mesh(stickGeo, stickMat);
-    stick.position.set(doorX - length / 2, 1, doorY - width / 2);
-    warehouseGroup.add(stick);
+    // Determine wall orientation
+    const distToLeft = doorX;
+    const distToRight = length - doorX;
+    const distToTop = doorY;
+    const distToBottom = width - doorY;
+    const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+    
+    const isHorizontalWall = (minDist === distToTop || minDist === distToBottom);
+    
+    // Group for door frame components
+    const doorGroup = new THREE.Group();
+    
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8, roughness: 0.2 });
+    const postGeo = new THREE.BoxGeometry(0.3, doorHeight, doorDepth);
+    const lintelGeo = new THREE.BoxGeometry(doorWidth + 0.6, 0.3, doorDepth);
+    
+    const leftPost = new THREE.Mesh(postGeo, frameMat);
+    leftPost.position.set(-doorWidth/2, doorHeight/2, 0);
+    const rightPost = new THREE.Mesh(postGeo, frameMat);
+    rightPost.position.set(doorWidth/2, doorHeight/2, 0);
+    const lintel = new THREE.Mesh(lintelGeo, frameMat);
+    lintel.position.set(0, doorHeight + 0.15, 0);
+    
+    doorGroup.add(leftPost);
+    doorGroup.add(rightPost);
+    doorGroup.add(lintel);
+    
+    // Glowing field entrance
+    const fieldGeo = new THREE.PlaneGeometry(doorWidth, doorHeight);
+    const fieldMat = new THREE.MeshBasicMaterial({ 
+        color: 0xFFD600, 
+        transparent: true, 
+        opacity: 0.3,
+        side: THREE.DoubleSide
+    });
+    const field = new THREE.Mesh(fieldGeo, fieldMat);
+    field.position.set(0, doorHeight/2, 0);
+    doorGroup.add(field);
+    
+    doorGroup.position.set(doorX - length / 2, 0, doorY - width / 2);
+    
+    // Rotate based on wall
+    if (!isHorizontalWall) {
+        doorGroup.rotation.y = Math.PI / 2;
+    }
+    
+    warehouseGroup.add(doorGroup);
 
     // Layer planes - removed per user request
     /*
@@ -644,10 +748,10 @@ function generatePickerPath() {
         const shuffled = [...items].sort(() => Math.random() - 0.5);
         selectedItems = shuffled.slice(0, itemCount);
     } else if (selectionMode === 'nearest') {
-        // Sort by distance from door
+        // Sort by distance from door (orthogonal)
         selectedItems = [...items].sort((a, b) => {
-            const distA = Math.sqrt(Math.pow(a.x - doorX, 2) + Math.pow(a.y - doorY, 2));
-            const distB = Math.sqrt(Math.pow(b.x - doorX, 2) + Math.pow(b.y - doorY, 2));
+            const distA = Math.abs(a.x - doorX) + Math.abs(a.y - doorY);
+            const distB = Math.abs(b.x - doorX) + Math.abs(b.y - doorY);
             return distA - distB;
         }).slice(0, itemCount);
     }
@@ -668,7 +772,8 @@ function generatePickerPath() {
 
         for (const item of selectedItems) {
             if (visited.has(item.id)) continue;
-            const dist = Math.sqrt(Math.pow(item.x - currentPos.x, 2) + Math.pow(item.y - currentPos.y, 2));
+            // Use orthogonal distance for realistic aisle movement
+            const dist = Math.abs(item.x - currentPos.x) + Math.abs(item.y - currentPos.y);
             if (dist < nearestDist) {
                 nearestDist = dist;
                 nearestItem = item;
@@ -677,6 +782,15 @@ function generatePickerPath() {
 
         if (nearestItem) {
             visited.add(nearestItem.id);
+            
+            // Add orthogonal midpoint (L-shape path) to mimic aisle routing
+            const midPoint = new THREE.Vector3(
+                currentPos.x - whLength / 2, // Keep X same initially
+                0.2, // close to floor
+                nearestItem.y - whWidth / 2 // Move Y first
+            );
+            pathPoints.push(midPoint);
+            
             const itemPoint = new THREE.Vector3(
                 nearestItem.x - whLength / 2,
                 (nearestItem.z || 0) + (nearestItem.height || 0.5) / 2,
@@ -958,19 +1072,32 @@ function loadAnalytics() {
     fetch(`${API_BASE_URL}/api/metrics/algo-best?warehouse_id=${currentWarehouseId}`)
         .then(res => res.json())
         .then(data => {
-            const algoBestBody = document.getElementById('algo-best-body');
-            if (algoBestBody) {
-                algoBestBody.innerHTML = '';
+            const algoBestCards = document.getElementById('algo-best-cards');
+            if (algoBestCards) {
+                algoBestCards.innerHTML = '';
 
                 if (data.length === 0) {
-                    algoBestBody.innerHTML = '<tr><td colspan="4" style="padding:10px; color:var(--text-muted);">No optimization runs yet</td></tr>';
+                    algoBestCards.innerHTML = '<div style="padding:10px; color:var(--text-muted); text-align:center;">No optimization runs yet</div>';
                     return;
                 }
 
-                data.forEach(algo => {
-                    const row = document.createElement('tr');
-                    row.style.borderBottom = '1px solid #333';
+                // Pre-compute max values for colour coding
+                const maxSpace = Math.max(...data.map(d => d.space_utilization || 0));
+                const maxAccess = Math.max(...data.map(d => d.accessibility || 0));
+                const maxStab = Math.max(...data.map(d => d.stability || 0));
+                const maxGroup = Math.max(...data.map(d => d.grouping || 0));
+                
+                const goodColor = (v, max) => {
+                    if (!v || !max) return 'var(--text-muted)';
+                    const t = v / max;
+                    return t >= 0.9 ? 'var(--success)' : t >= 0.6 ? 'var(--text-main)' : 'var(--warning)';
+                };
+                
+                const pct = (v) => (v != null && v > 0) ? (v * 100).toFixed(1) + '%' : '-';
+                const dec = (v) => (v != null && v > 0) ? v.toFixed(3) : '-';
+                const sec = (v) => (v != null && v > 0) ? v.toFixed(2) + 's' : '-';
 
+                data.forEach(algo => {
                     // Format algorithm name
                     let algoName = algo.algorithm;
                     let algoColor = '#fff';
@@ -995,13 +1122,42 @@ function loadAnalytics() {
                         achievedAt = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     }
 
-                    row.innerHTML = `
-                        <td style="padding:8px; font-weight:bold; color:${algoColor};">${algoName}</td>
-                        <td style="padding:8px; font-family:'JetBrains Mono'; color:var(--text-main);">${algo.best_fitness ? algo.best_fitness.toFixed(4) : '0.0000'}</td>
-                        <td style="padding:8px; color:#00f0ff; font-family:'JetBrains Mono';">${algo.time_to_best ? algo.time_to_best.toFixed(2) + 's' : '-'}</td>
-                        <td style="padding:8px; color:var(--text-muted); font-size:0.75rem;">${achievedAt}</td>
+                    const card = document.createElement('div');
+                    card.className = 'algo-performance-card';
+                    card.innerHTML = `
+                        <div class="algo-card-header">
+                            <span class="algo-card-name" style="color:${algoColor}">${algoName}</span>
+                            <span class="algo-card-fitness" title="Best Fitness">${algo.best_fitness ? algo.best_fitness.toFixed(4) : '0.0000'}</span>
+                        </div>
+                        <div class="algo-card-metrics">
+                            <div class="mini-metric">
+                                <span class="mini-label">Space</span>
+                                <span class="mini-value" style="color:${goodColor(algo.space_utilization, maxSpace)}">${pct(algo.space_utilization)}</span>
+                            </div>
+                            <div class="mini-metric">
+                                <span class="mini-label">Access</span>
+                                <span class="mini-value" style="color:${goodColor(algo.accessibility, maxAccess)}">${dec(algo.accessibility)}</span>
+                            </div>
+                            <div class="mini-metric">
+                                <span class="mini-label">Stable</span>
+                                <span class="mini-value" style="color:${goodColor(algo.stability, maxStab)}">${pct(algo.stability)}</span>
+                            </div>
+                            <div class="mini-metric">
+                                <span class="mini-label">Group</span>
+                                <span class="mini-value" style="color:${goodColor(algo.grouping, maxGroup)}">${dec(algo.grouping)}</span>
+                            </div>
+                            <div class="mini-metric">
+                                <span class="mini-label">T-Best</span>
+                                <span class="mini-value" style="color:var(--accent-primary)">${sec(algo.time_to_best)}</span>
+                            </div>
+                            <div class="mini-metric">
+                                <span class="mini-label">Total</span>
+                                <span class="mini-value" style="color:var(--text-muted)">${sec(algo.execution_time)}</span>
+                            </div>
+                        </div>
+                        <div class="algo-card-footer">${achievedAt}</div>
                     `;
-                    algoBestBody.appendChild(row);
+                    algoBestCards.appendChild(card);
                 });
             }
         });
@@ -1114,20 +1270,33 @@ function loadItemsList() {
         .then(items => {
             container.innerHTML = '';
             const table = document.createElement('table');
-            table.style.width = '100%';
-            table.style.borderCollapse = 'collapse';
+            table.className = 'compact-table';
+            table.style.marginTop = '8px';
 
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr style="color:var(--accent-primary); border-bottom:1px solid #444;">
+                    <th style="width: 40%;">Name</th>
+                    <th style="width: 30%;">Dim</th>
+                    <th style="width: 20%;">Cat</th>
+                    <th style="width: 10%;">F</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
             items.forEach(item => {
                 const tr = document.createElement('tr');
-                tr.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+                tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
                 tr.innerHTML = `
-                    <td style="padding: 8px;">${item.name || item.id}</td>
-                    <td style="padding: 8px; color: var(--accent-primary)">${item.width}x${item.height}x${item.length}</td>
-                    <td style="padding: 8px;">${item.category}</td>
-                    <td style="padding: 8px;">${item.fragility ? '⚠️' : '🛡️'}</td>
+                    <td title="${item.name || item.id}">${item.name || item.id}</td>
+                    <td style="color: var(--accent-primary)">${item.width}x${item.height}x${item.length}</td>
+                    <td>${item.category}</td>
+                    <td>${item.fragility ? '⚠️' : '🛡️'}</td>
                 `;
-                table.appendChild(tr);
+                tbody.appendChild(tr);
             });
+            table.appendChild(tbody);
             container.appendChild(table);
         });
 }
@@ -1351,22 +1520,23 @@ function updateZonesList(zones) {
         const itemCountStr = isAlloc ? `<span style="color: var(--accent-primary); font-weight: 600;">📦 ${itemCounts[z.id] || 0} items</span>` : '';
 
         return `
-        <div class="data-card" style="margin-bottom: 5px; padding: 10px; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <strong style="color: ${isAlloc ? 'var(--success)' : 'var(--danger)'}">
-                    ${z.name} (${isAlloc ? 'Alloc' : 'Restr'})
-                </strong>
-                <div style="font-size: 0.7rem; color: var(--text-muted);">
-                    X: ${z.x1}-${z.x2}, Y: ${z.y1}-${z.y2}<br>
-                    Z: ${z.z1 || 0}-${z.z2 || 'Max'} 
-                    ${layerInfo}
+        <div class="data-card" style="margin-bottom: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                <div style="min-width: 0; flex: 1;">
+                    <div style="font-weight: bold; color: ${isAlloc ? 'var(--success)' : 'var(--danger)'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${z.name}">
+                        ${z.name}
+                    </div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 2px;">
+                        ${z.x1}-${z.x2}m × ${z.y1}-${z.y2}m × ${z.z1 || 0}-${z.z2 || 'Max'}m
+                        ${layerInfo}
+                    </div>
                 </div>
-                ${itemCountStr}
+                <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                     <button class="btn" style="padding: 4px 6px; font-size: 0.65rem; background: var(--accent-primary); min-width: 40px;" onclick="editZone(${z.id})">EDIT</button>
+                     <button class="btn btn-danger" style="padding: 4px 6px; font-size: 0.65rem; min-width: 40px;" onclick="deleteZone(${z.id})">DEL</button>
+                </div>
             </div>
-            <div>
-                 <button class="btn" style="padding: 4px 8px; font-size: 0.7rem; margin-right:5px; background: var(--accent-primary);" onclick="editZone(${z.id})">EDIT</button>
-                 <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem;" onclick="deleteZone(${z.id})">DEL</button>
-            </div>
+            ${isAlloc ? `<div style="font-size: 0.7rem; color: var(--accent-primary); font-weight: 600; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 4px;">📦 ${itemCounts[z.id] || 0} items</div>` : ''}
         </div>
     `}).join('');
 }
@@ -1594,35 +1764,76 @@ function applyPreset(name) {
             });
     } else if (name === 'small-room') {
         const newConfig = {
-            name: "Small Room",
-            length: 5, width: 5, height: 3, levels: 1, grid_size: 0.5,
+            name: "Small Room", length: 5, width: 5, height: 3, levels: 2, grid_size: 0.5,
             door_x: 2.5, door_y: 0, id: currentWarehouseId
         };
         fetch(`${API_BASE_URL}/api/warehouse/config`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
-        }).then(() => { clearZones().then(() => { loadWarehouseConfig(); alert('Applied: Small Room (5x5m)'); }); });
+        }).then(() => {
+            clearZones().then(() => {
+                const zones = [];
+                const racks = [
+                    { name: 'Left Rack', x1: 0.5, y1: 0.5, x2: 1.5, y2: 4.5 },
+                    { name: 'Right Rack', x1: 3.5, y1: 0.5, x2: 4.5, y2: 4.5 }
+                ];
+                racks.forEach(r => {
+                    zones.push({ ...r, name: `${r.name} (Bottom)`, z1: 0, z2: 1.5, zone_type: 'allocation', metadata: { levels: 1 } });
+                    zones.push({ ...r, name: `${r.name} (Top)`, z1: 1.5, z2: 3, zone_type: 'allocation', metadata: { levels: 1 } });
+                });
+                const promises = zones.map(z => fetch(`${API_BASE_URL}/api/warehouse/zones`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...z, warehouse_id: currentWarehouseId }) }));
+                Promise.all(promises).then(() => { loadWarehouseConfig(); alert('Applied: Small Room (5x5m, 4 Zones)'); });
+            });
+        });
     } else if (name === 'long-hall') {
         const newConfig = {
-            name: "Long Hall",
-            length: 30, width: 5, height: 4, levels: 1, grid_size: 1,
+            name: "Long Hall", length: 30, width: 5, height: 4, levels: 2, grid_size: 1,
             door_x: 0, door_y: 2.5, id: currentWarehouseId
         };
         fetch(`${API_BASE_URL}/api/warehouse/config`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
-        }).then(() => { clearZones().then(() => { loadWarehouseConfig(); alert('Applied: Long Hall (30x5m)'); }); });
+        }).then(() => {
+            clearZones().then(() => {
+                const zones = [];
+                const racks = [
+                    { name: 'Left Wall', x1: 1, y1: 0.5, x2: 29, y2: 1.5 },
+                    { name: 'Right Wall', x1: 1, y1: 3.5, x2: 29, y2: 4.5 }
+                ];
+                racks.forEach(r => {
+                    zones.push({ ...r, name: `${r.name} (Bottom)`, z1: 0, z2: 2, zone_type: 'allocation', metadata: { levels: 1 } });
+                    zones.push({ ...r, name: `${r.name} (Top)`, z1: 2, z2: 4, zone_type: 'allocation', metadata: { levels: 1 } });
+                });
+                const promises = zones.map(z => fetch(`${API_BASE_URL}/api/warehouse/zones`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...z, warehouse_id: currentWarehouseId }) }));
+                Promise.all(promises).then(() => { loadWarehouseConfig(); alert('Applied: Long Hall (30x5m, 4 Zones)'); });
+            });
+        });
     } else if (name === 'massive-center') {
         const newConfig = {
-            name: "Massive Center",
-            length: 50, width: 50, height: 10, levels: 1, grid_size: 2,
+            name: "Massive Center", length: 50, width: 50, height: 10, levels: 3, grid_size: 2,
             door_x: 25, door_y: 0, id: currentWarehouseId
         };
         fetch(`${API_BASE_URL}/api/warehouse/config`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
-        }).then(() => { clearZones().then(() => { loadWarehouseConfig(); alert('Applied: Massive Center (50x50m)'); }); });
+        }).then(() => {
+            clearZones().then(() => {
+                const zones = [];
+                const blocks = [
+                    { name: 'Block A (NW)', x1: 5, y1: 5, x2: 20, y2: 20 },
+                    { name: 'Block B (NE)', x1: 30, y1: 5, x2: 45, y2: 20 },
+                    { name: 'Block C (SW)', x1: 5, y1: 30, x2: 20, y2: 45 },
+                    { name: 'Block D (SE)', x1: 30, y1: 30, x2: 45, y2: 45 }
+                ];
+                blocks.forEach(b => {
+                    zones.push({ ...b, name: `${b.name} (Floor)`, z1: 0, z2: 3, zone_type: 'allocation', metadata: { levels: 1 } });
+                    zones.push({ ...b, name: `${b.name} (Mid)`, z1: 3, z2: 6, zone_type: 'allocation', metadata: { levels: 1 } });
+                    zones.push({ ...b, name: `${b.name} (High)`, z1: 6, z2: 9, zone_type: 'allocation', metadata: { levels: 1 } });
+                });
+                const promises = zones.map(z => fetch(`${API_BASE_URL}/api/warehouse/zones`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...z, warehouse_id: currentWarehouseId }) }));
+                Promise.all(promises).then(() => { loadWarehouseConfig(); alert('Applied: Massive Center (50x50m, 12 Zones)'); });
+            });
+        });
     } else if (name === 'l-shape') {
         const newConfig = {
-            name: "L-Shape Warehouse",
-            length: 20, width: 20, height: 5, levels: 1, grid_size: 1,
+            name: "L-Shape Warehouse", length: 20, width: 20, height: 5, levels: 2, grid_size: 1,
             door_x: 10, door_y: 0, id: currentWarehouseId
         };
         fetch(`${API_BASE_URL}/api/warehouse/config`, {
@@ -1630,16 +1841,24 @@ function applyPreset(name) {
         }).then(res => res.json()).then(d => {
             if (d.success) {
                 clearZones().then(() => {
-                    const lZone = {
-                        name: "L-Shape Cutout",
-                        x1: 10, y1: 10, x2: 20, y2: 20,
-                        z1: 0, z2: 5,
-                        zone_type: 'exclusion',
-                        warehouse_id: currentWarehouseId
-                    };
-                    fetch(`${API_BASE_URL}/api/warehouse/zones`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lZone)
-                    }).then(() => { loadWarehouseConfig(); alert('Applied: L-Shape Warehouse (20x20m with 10x10m exclusion)'); });
+                    const zones = [];
+                    // The L-Shape Cutout Exclusion Zone
+                    zones.push({
+                        name: "L-Shape Cutout", x1: 10, y1: 10, x2: 20, y2: 20,
+                        z1: 0, z2: 5, zone_type: 'exclusion', metadata: {}
+                    });
+                    
+                    const racks = [
+                        { name: 'Top Arm Rack', x1: 2, y1: 2, x2: 8, y2: 18 },
+                        { name: 'Right Arm Rack', x1: 12, y1: 2, x2: 18, y2: 8 }
+                    ];
+                    racks.forEach(r => {
+                        zones.push({ ...r, name: `${r.name} (Lower)`, z1: 0, z2: 2.5, zone_type: 'allocation', metadata: { levels: 1 } });
+                        zones.push({ ...r, name: `${r.name} (Upper)`, z1: 2.5, z2: 5, zone_type: 'allocation', metadata: { levels: 1 } });
+                    });
+
+                    const promises = zones.map(z => fetch(`${API_BASE_URL}/api/warehouse/zones`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...z, warehouse_id: currentWarehouseId }) }));
+                    Promise.all(promises).then(() => { loadWarehouseConfig(); alert('Applied: L-Shape Warehouse (Exclusion + 4 Allocation Zones)'); });
                 });
             }
         });
@@ -1753,13 +1972,13 @@ function clearZones() {
 function updateWarehouseConfig() {
     const data = {
         name: "Warehouse " + currentWarehouseId,
-        length: parseFloat(document.getElementById('warehouse-length').value),
-        width: parseFloat(document.getElementById('warehouse-width').value),
-        height: parseFloat(document.getElementById('warehouse-height').value),
-        grid_size: parseFloat(document.getElementById('warehouse-grid-size').value) || 1,
-        levels: parseInt(document.getElementById('warehouse-levels').value) || 1,
-        door_x: parseFloat(document.getElementById('warehouse-door-x').value) || 0,
-        door_y: parseFloat(document.getElementById('warehouse-door-y').value) || 0,
+        length: parseFloat(document.getElementById('warehouse-length')?.value || 20),
+        width: parseFloat(document.getElementById('warehouse-width')?.value || 20),
+        height: parseFloat(document.getElementById('warehouse-height')?.value || 5),
+        grid_size: parseFloat(document.getElementById('warehouse-grid-size')?.value || 1),
+        levels: parseInt(document.getElementById('warehouse-levels')?.value || 1),
+        door_x: parseFloat(document.getElementById('warehouse-door-x')?.value || 0),
+        door_y: parseFloat(document.getElementById('warehouse-door-y')?.value || 0),
         id: currentWarehouseId
     };
 
@@ -2118,18 +2337,21 @@ function exportAlgoPerformance() {
 
             // CSV Header
             let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Algorithm,Best Fitness,Time to Best (s),Achieved At,Execution Time (s)\n";
+            csvContent += "Algorithm,Best Fitness,Space Util (%),Accessibility,Stability (%),Grouping,Time to Best (s),Execution Time (s),Achieved At\n";
 
             // CSV Body
             data.forEach(row => {
                 const algo = row.algorithm;
                 const bestFit = row.best_fitness ? row.best_fitness.toFixed(6) : "0";
+                const spaceUtil = row.space_utilization ? (row.space_utilization * 100).toFixed(2) : "0";
+                const access = row.accessibility ? row.accessibility.toFixed(6) : "0";
+                const stab = row.stability ? (row.stability * 100).toFixed(2) : "0";
+                const group = row.grouping ? row.grouping.toFixed(6) : "0";
                 const timeBest = row.time_to_best ? row.time_to_best.toFixed(4) : "0";
-                const timestamp = row.timestamp ? new Date(row.timestamp).toLocaleString() : "-";
                 const execTime = row.execution_time ? row.execution_time.toFixed(4) : "0";
+                const timestamp = row.timestamp ? new Date(row.timestamp).toLocaleString() : "-";
 
-                // Escape commas in fields if any (though these fields shouldn't have them)
-                csvContent += `"${algo}",${bestFit},${timeBest},"${timestamp}",${execTime}\n`;
+                csvContent += `"${algo}",${bestFit},${spaceUtil},${access},${stab},${group},${timeBest},${execTime},"${timestamp}"\n`;
             });
 
             // Trigger download

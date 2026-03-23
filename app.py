@@ -1,8 +1,4 @@
-import flask
-import pandas as pd
 import numpy as np
-import json
-import math
 import random
 import threading
 import time
@@ -14,20 +10,35 @@ import csv
 import os
 import gc
 import uuid
+from typing import Any
 
 from database import (
-    init_db, migrate_db, get_all_items, get_item_by_id, get_warehouse_config,
-    get_all_warehouses, get_exclusion_zones, save_solution, add_warehouse,
-    delete_warehouse, update_warehouse_config, add_item, update_item,
-    delete_item, clear_data, add_exclusion_zone, delete_exclusion_zone,
-    load_sample_data, create_default_sample_data, get_metrics_history,
-    get_item_stats_by_category, load_generated_data, DB_PATH
-)
+    init_db,
+    migrate_db,
+    get_all_items,
+    get_warehouse_config,
+    get_all_warehouses,
+    get_exclusion_zones,
+    save_solution,
+    add_warehouse,
+    delete_warehouse,
+    update_warehouse_config,
+    add_item,
+    update_item,
+    delete_item,
+    clear_data,
+    add_exclusion_zone,
+    delete_exclusion_zone,
+    update_exclusion_zone,
+    load_sample_data,
+    get_metrics_history,
+    get_item_stats_by_category,
+    load_generated_data,
+    DB_PATH)
 from optimizer import (
-    fitness_function, calculate_center_of_gravity, get_valid_z_positions
+    fitness_function, calculate_center_of_gravity
 )
 from ml_utils import MLOptimizer
-from optimizer_physics import physics_settle
 
 app = Flask(__name__)
 # Allow CORS configuration from env, default to *
@@ -35,7 +46,7 @@ cors_origins = os.environ.get('FLASK_CORS_ORIGINS', '*').split(',')
 CORS(app, resources={r"/api/*": {"origins": cors_origins}})
 
 # Global state for optimization
-optimization_state = {
+optimization_state: dict[str, Any] = {
     'running': False,
     'algorithm': None,
     'progress': 0,
@@ -49,7 +60,9 @@ optimization_state = {
 }
 
 # Global state for algorithm comparison
-comparison_state = {
+optimization_thread: threading.Thread | None = None
+
+comparison_state: dict[str, Any] = {
     'running': False,
     'current_algorithm': None,
     'current_algorithm_index': 0,
@@ -60,7 +73,14 @@ comparison_state = {
     'current_algo_progress': 0
 }
 
-def finalize_optimization(solution, algorithm, weights, start_time, warehouse_id=1, time_to_best=0):
+
+def finalize_optimization(
+        solution,
+        algorithm,
+        weights,
+        start_time,
+        warehouse_id=1,
+        time_to_best=0):
     if not optimization_state['running']:
         return
 
@@ -72,10 +92,10 @@ def finalize_optimization(solution, algorithm, weights, start_time, warehouse_id
     try:
         items = get_all_items(warehouse_id)
         warehouse = get_warehouse_config(warehouse_id)
-        
+
         with open('thread_debug.log', 'a') as f:
             f.write("Loaded items and warehouse config\n")
-            
+
         # --- PyBullet Physics Refinement ---
         try:
             # Prepare props for physics engine
@@ -86,35 +106,48 @@ def finalize_optimization(solution, algorithm, weights, start_time, warehouse_id
                     item['length'], item['width'], item['height'],
                     item['can_rotate'], item['stackable'],
                     item['access_freq'], item.get('weight', 0),
-                    hash(item.get('category', '')) % 10000 
+                    hash(item.get('category', '')) % 10000
                 ]
-            wh_dims = (warehouse['length'], warehouse['width'], warehouse['height'], 
-                       warehouse.get('door_x', 0), warehouse.get('door_y', 0))
-            layer_heights = warehouse.get('layer_heights', [])
-            
-            # Convert list-based solution (from EO/Hybrid) to numpy array if needed
+
+            layer_heights = (warehouse or {}).get('layer_heights', [])
+
+            # Convert list-based solution (from EO/Hybrid) to numpy array if
+            # needed
             if isinstance(solution, list) and len(solution) > 0:
-                item_id_to_idx = {item['id']: i for i, item in enumerate(items)}
+                item_id_to_idx = {
+                    item['id']: i for i,
+                    item in enumerate(items)}
                 solution_arr = np.zeros((num_items, 4), dtype=np.float32)
                 for sol_item in solution:
                     idx = item_id_to_idx.get(sol_item['id'])
                     if idx is not None:
-                        solution_arr[idx] = [sol_item['x'], sol_item['y'], sol_item['z'], sol_item['rotation']]
+                        solution_arr[idx] = [
+                            sol_item['x'],
+                            sol_item['y'],
+                            sol_item['z'],
+                            sol_item['rotation']]
                 solution = solution_arr
-                print(f"Converted list solution to numpy array ({num_items} items)")
-                with open('thread_debug.log', 'a') as f: f.write(f"Converted list solution to numpy array ({num_items} items)\n")
-            
-            print(f"Running PyBullet Physics Settlement with Layers: {layer_heights}...")
-            with open('thread_debug.log', 'a') as f: f.write(f"Running PyBullet Physics Settlement with Layers: {layer_heights}...\n")
+                print(
+                    f"Converted list solution to numpy array ({num_items} items)")
+                with open('thread_debug.log', 'a') as f:
+                    f.write(
+                        f"Converted list solution to numpy array ({num_items} items)\n")
+
+            print(
+                f"Running PyBullet Physics Settlement with Layers: {layer_heights}...")
+            with open('thread_debug.log', 'a') as f:
+                f.write(
+                    f"Running PyBullet Physics Settlement with Layers: {layer_heights}...\n")
 
             # Update solution with physically settled coordinates
             if isinstance(solution, np.ndarray) and len(solution) > 0:
                 print("Skipping PyBullet Physics Settlement (Bypassed)...")
-                with open('thread_debug.log', 'a') as f: f.write("Skipping PyBullet Physics Settlement (Bypassed)...\n")
+                with open('thread_debug.log', 'a') as f:
+                    f.write("Skipping PyBullet Physics Settlement (Bypassed)...\n")
                 # solution = physics_settle(solution, items_props, wh_dims, layer_heights)
                 # print("PyBullet Settlement Complete.")
                 # with open('thread_debug.log', 'a') as f: f.write("PyBullet Settlement Complete.\n")
-                
+
                 # Convert numpy array back to list of dicts for storage
                 solution = [
                     {
@@ -128,34 +161,46 @@ def finalize_optimization(solution, algorithm, weights, start_time, warehouse_id
                 ]
         except Exception as e:
             print(f"Physics Integration Error: {e}")
-            with open('thread_debug.log', 'a') as f: f.write(f"Physics Integration Error: {e}\n")
+            with open('thread_debug.log', 'a') as f:
+                f.write(f"Physics Integration Error: {e}\n")
         # -----------------------------------
 
         final_fitness, space_util, accessibility, stability, grouping = fitness_function(
-            solution, items, warehouse, weights
-        )
-        
+            solution, items, warehouse, weights)
+
         # Ensure native types
         final_fitness = float(final_fitness)
         space_util = float(space_util)
         accessibility = float(accessibility)
         stability = float(stability)
         grouping = float(grouping)
-        
-        print(f"DEBUG: Fitness={final_fitness}, Space={space_util}, Acc={accessibility}, Stab={stability}, Group={grouping}")
-        with open('thread_debug.log', 'a') as f:
-            f.write(f"Calculated fitness: {final_fitness}, Space={space_util}, Acc={accessibility}, Stab={stability}\n")
 
-        save_solution(solution, algorithm, final_fitness, space_util, accessibility,
-                      stability, grouping, end_time - start_time, warehouse_id, time_to_best)
+        print(
+            f"DEBUG: Fitness={final_fitness}, Space={space_util}, Acc={accessibility}, Stab={stability}, Group={grouping}")
+        with open('thread_debug.log', 'a') as f:
+            f.write(
+                f"Calculated fitness: {final_fitness}, Space={space_util}, Acc={accessibility}, Stab={stability}\n")
+
+        save_solution(
+            solution,
+            algorithm,
+            final_fitness,
+            space_util,
+            accessibility,
+            stability,
+            grouping,
+            end_time -
+            start_time,
+            warehouse_id,
+            time_to_best)
 
         with open('thread_debug.log', 'a') as f:
-             f.write("Saved solution to DB\n")
+            f.write("Saved solution to DB\n")
 
         optimization_state['best_fitness'] = final_fitness
         optimization_state['best_solution'] = solution
         optimization_state['progress'] = 100
-        
+
     except Exception as e:
         import traceback
         with open('thread_debug.log', 'a') as f:
@@ -193,7 +238,7 @@ def get_warehouses_api():
 
 @app.route('/api/warehouses', methods=['POST'])
 def create_warehouse_api():
-    data = request.json
+    data = request.json or {}
     try:
         warehouse_id = add_warehouse(data)
         return jsonify({'success': True, 'id': warehouse_id})
@@ -227,7 +272,7 @@ def get_items_api():
 
 @app.route('/api/items', methods=['POST'])
 def add_item_api():
-    data = request.json
+    data = request.json or {}
     warehouse_id = data.get('warehouse_id', 1)
     try:
         add_item(data, warehouse_id)
@@ -238,7 +283,7 @@ def add_item_api():
 
 @app.route('/api/items/<item_id>', methods=['PUT'])
 def update_item_api(item_id):
-    data = request.json
+    data = request.json or {}
     warehouse_id = data.get('warehouse_id', 1)
     try:
         update_item(item_id, data, warehouse_id)
@@ -276,32 +321,33 @@ def upload_csv():
 
         # Clear items for this warehouse first
         clear_data(warehouse_id)
-        gc.collect() # Force cleanup after clearing data
+        gc.collect()  # Force cleanup after clearing data
 
         headers = next(csv_input, None)
         if headers:
             print(f"CSV Headers: {headers}")  # Debug log
-        
-        items_added = 0
-        
+
+        items_added: int = 0
+
         for row in csv_input:
-            # Support both 12-column (no positions) and 16-column (with positions) formats
+            # Support both 12-column (no positions) and 16-column (with
+            # positions) formats
             if len(row) >= 12:
                 item_data = {
-                    'id': row[0], 
-                    'name': row[1], 
-                    'length': float(row[2]), 
-                    'width': float(row[3]),
-                    'height': float(row[4]), 
-                    'weight': float(row[5]), 
-                    'category': row[6],
-                    'priority': int(row[7]), 
-                    'fragility': 1 if str(row[8]).lower() in ['1', 'true', 'yes'] else 0,
-                    'stackable': 1 if str(row[9]).lower() in ['1', 'true', 'yes'] else 0,
-                    'access_freq': int(row[10]),
-                    'can_rotate': 1 if str(row[11]).lower() in ['1', 'true', 'yes'] else 0,
-                }
-                
+                    'id': row[0], 'name': row[1], 'length': float(
+                        row[2]), 'width': float(
+                        row[3]), 'height': float(
+                        row[4]), 'weight': float(
+                        row[5]), 'category': row[6], 'priority': int(
+                        row[7]), 'fragility': 1 if str(
+                            row[8]).lower() in [
+                                '1', 'true', 'yes'] else 0, 'stackable': 1 if str(
+                                    row[9]).lower() in [
+                                        '1', 'true', 'yes'] else 0, 'access_freq': int(
+                                            row[10]), 'can_rotate': 1 if str(
+                                                row[11]).lower() in [
+                                                    '1', 'true', 'yes'] else 0, }
+
                 # Position columns are optional (default to 0)
                 if len(row) >= 16:
                     item_data['x'] = float(row[12])
@@ -313,11 +359,12 @@ def upload_csv():
                     item_data['y'] = 0.0
                     item_data['z'] = 0.0
                     item_data['rotation'] = 0
-                
+
                 add_item(item_data, warehouse_id)
                 items_added += 1
-                
-        return jsonify({'success': True, 'message': f'CSV data uploaded successfully. {items_added} items added.'})
+
+        return jsonify(
+            {'success': True, 'message': f'CSV data uploaded successfully. {items_added} items added.'})
     except Exception as e:
         import traceback
         print(f"CSV Upload Error: {e}")
@@ -333,17 +380,41 @@ def export_csv():
     output = io.StringIO()
     writer = csv.writer(output)
 
-    writer.writerow(['id', 'name', 'length', 'width', 'height', 'weight', 'category',
-                     'priority', 'fragility', 'stackable', 'access_freq', 'can_rotate',
-                     'x', 'y', 'z', 'rotation'])
+    writer.writerow(['id',
+                     'name',
+                     'length',
+                     'width',
+                     'height',
+                     'weight',
+                     'category',
+                     'priority',
+                     'fragility',
+                     'stackable',
+                     'access_freq',
+                     'can_rotate',
+                     'x',
+                     'y',
+                     'z',
+                     'rotation'])
 
     for item in items:
-        writer.writerow([
-            item['id'], item.get('name', ''), item['length'], item['width'], item['height'],
-            item['weight'], item['category'], item['priority'], item['fragility'],
-            int(item['stackable']), item['access_freq'], int(item['can_rotate']),
-            item['x'], item['y'], item['z'], item['rotation']
-        ])
+        writer.writerow([item['id'],
+                         item.get('name',
+                                  ''),
+                         item['length'],
+                         item['width'],
+                         item['height'],
+                         item['weight'],
+                         item['category'],
+                         item['priority'],
+                         item['fragility'],
+                         int(item['stackable']),
+                         item['access_freq'],
+                         int(item['can_rotate']),
+                         item['x'],
+                         item['y'],
+                         item['z'],
+                         item['rotation']])
 
     output.seek(0)
 
@@ -365,10 +436,17 @@ def export_manifest():
     writer = csv.writer(output)
 
     # Manifest Header
-    writer.writerow(['Manifest Report', f'Warehouse: {warehouse["name"]}'])
+    writer.writerow(['Manifest Report', f'Warehouse: {(warehouse or {}).get("name", "Unknown")}'])
     writer.writerow(['Date', datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
     writer.writerow([])
-    writer.writerow(['Item ID', 'Name', 'Category', 'Position X', 'Position Y', 'Position Z', 'Rotation', 'Dimensions (LxWxH)'])
+    writer.writerow(['Item ID',
+                     'Name',
+                     'Category',
+                     'Position X',
+                     'Position Y',
+                     'Position Z',
+                     'Rotation',
+                     'Dimensions (LxWxH)'])
 
     # Sort by Z, then X, then Y for logical packing order
     sorted_items = sorted(items, key=lambda i: (i['z'], i['x'], i['y']))
@@ -401,44 +479,52 @@ def load_generated():
         warehouse_id = optimization_state['current_warehouse_id']
         success, message = load_generated_data(warehouse_id)
         if success:
-            return jsonify({'success': True, 'message': f'Loaded {message} generated items'})
+            return jsonify({'success': True,
+                            'message': f'Loaded {message} generated items'})
         else:
-            return jsonify({'success': False, 'message': f'Failed to load data: {message}'})
+            return jsonify({'success': False,
+                            'message': f'Failed to load data: {message}'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
-
 
 
 @app.route('/api/items/scramble', methods=['POST'])
 def scramble_items_route():
     try:
         warehouse_id = optimization_state['current_warehouse_id']
-        count = request.json.get('count', 50)
-        
+        count = (request.json or {}).get('count', 50)
+
         # Get warehouse dims for spatial scrambling
         warehouse = get_warehouse_config(warehouse_id)
-        wh_len = warehouse['length'] if warehouse else 10.0
-        wh_wid = warehouse['width'] if warehouse else 10.0
-        
+        wh_len = (warehouse or {})['length'] if warehouse else 10.0
+        wh_wid = (warehouse or {})['width'] if warehouse else 10.0
+
         # Clear existing items
         clear_data(warehouse_id)
-        
-        categories = ['Electronics', 'Furniture', 'Clothing', 'Books', 'Toys', 'Auto Parts']
-        
+
+        categories = [
+            'Electronics',
+            'Furniture',
+            'Clothing',
+            'Books',
+            'Toys',
+            'Auto Parts']
+
         for i in range(count):
             cat = random.choice(categories)
-            fragile = random.choice([True, False]) if cat in ['Electronics', 'Toys'] else False
+            fragile = random.choice([True, False]) if cat in [
+                'Electronics', 'Toys'] else False
             stackable = not fragile and random.random() > 0.3
-            
+
             # Weighted random dimensions (bias towards smaller/medium)
             l = round(random.uniform(0.3, 1.5), 2)
             w = round(random.uniform(0.3, 1.5), 2)
             h = round(random.uniform(0.2, 1.0), 2)
-            
+
             # Random Position (Scramble in warehouse)
             pos_x = round(random.uniform(0, wh_len - l), 2)
             pos_y = round(random.uniform(0, wh_wid - w), 2)
-            
+
             item = {
                 'id': str(uuid.uuid4()),  # Generate ID to fix KeyError
                 'name': f"Random Item {i+1}",
@@ -453,13 +539,15 @@ def scramble_items_route():
                 'x': pos_x, 'y': pos_y, 'z': 0.0, 'rotation': 0
             }
             add_item(item, warehouse_id)
-            
-        return jsonify({'success': True, 'message': f'Scrambled! Generated {count} random items scattered in warehouse.'})
+
+        return jsonify(
+            {'success': True, 'message': f'Scrambled! Generated {count} random items scattered in warehouse.'})
     except Exception as e:
         import traceback
         print(f"Scramble Error: {e}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
+
 
 @app.route('/api/load-sample-data', methods=['POST'])
 def load_sample_data_endpoint():
@@ -467,9 +555,11 @@ def load_sample_data_endpoint():
     try:
         success = load_sample_data(warehouse_id)
         if success:
-             return jsonify({'success': True, 'message': 'Sample data loaded successfully'})
+            return jsonify({'success': True,
+                            'message': 'Sample data loaded successfully'})
         else:
-            return jsonify({'success': False, 'error': 'Failed to load sample data'}), 500
+            return jsonify(
+                {'success': False, 'error': 'Failed to load sample data'}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -480,7 +570,8 @@ def clear_data_api():
     try:
         clear_data(warehouse_id)
         gc.collect()
-        return jsonify({'success': True, 'message': 'Data cleared successfully'})
+        return jsonify({'success': True,
+                        'message': 'Data cleared successfully'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -489,63 +580,84 @@ def clear_data_api():
 def delete_all_items_endpoint():
     warehouse_id = request.args.get('warehouse_id', 1)
     try:
-        # User requested "delete all items". clear_data resets items and results for the warehouse.
+        # User requested "delete all items". clear_data resets items and
+        # results for the warehouse.
         clear_data(warehouse_id)
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
 
-def update_progress(progress, avg_fitness, best_fitness, best_solution, space, access, stability, message=None):
+def update_progress(
+        progress,
+        avg_fitness,
+        best_fitness,
+        best_solution,
+        space,
+        access,
+        stability,
+        message=None):
     optimization_state['progress'] = progress
     optimization_state['best_fitness'] = best_fitness
     if message:
         optimization_state['message'] = message
-    # Only update best_solution if a new valid solution is provided (optimizer throttles updates)
+    # Only update best_solution if a new valid solution is provided (optimizer
+    # throttles updates)
     if best_solution is not None:
         optimization_state['best_solution'] = best_solution
+
 
 @app.route('/api/optimize/ga', methods=['POST'])
 def optimize_ga():
     global optimization_thread
     if optimization_state['running']:
-        return jsonify({'success': False, 'error': 'Optimization already running'})
+        return jsonify({'success': False,
+                        'error': 'Optimization already running'})
 
-    data = request.json
-    weights = data.get('weights', {'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
-    warehouse_id = data.get('warehouse_id', optimization_state['current_warehouse_id'])
+    data = request.json or {}
+    weights = data.get(
+        'weights', {
+            'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
+    warehouse_id = data.get('warehouse_id',
+                            optimization_state['current_warehouse_id'])
 
     items = get_all_items(warehouse_id)
     if not items:
         return jsonify({'success': False, 'error': 'No items to optimize'})
 
     warehouse = get_warehouse_config(warehouse_id)
-    
+
     optimization_state['running'] = True
     optimization_state['progress'] = 0
     optimization_state['algorithm'] = 'GA'
     optimization_state['start_time'] = time.time()
     optimization_state['current_warehouse_id'] = warehouse_id
-    
+
     # Extract params first to populate state correctly
     pop_size = data.get('population_size', 50)
     generations = data.get('generations', 100)
     optimization_state['total_generations'] = generations
-    
+
     def run_optimization():
         with open('thread_debug.log', 'a') as f:
             f.write("Thread started\n")
         print("Thread started")
-        
+
         with open('thread_debug.log', 'a') as f:
-             f.write(f"GA Init: pop_size={pop_size}, generations={generations}\n")
-        
+            f.write(
+                f"GA Init: pop_size={pop_size}, generations={generations}\n")
+
         optimizer = MLOptimizer("fit_ga")
         try:
             best_solution, best_fitness, time_to_best = optimizer.optimize(
-                items, warehouse, weights, callback=update_progress, optimization_state=optimization_state
-            )
-            finalize_optimization(best_solution, 'ML - Genetic Algorithm', weights, optimization_state['start_time'], warehouse_id, time_to_best)
+                items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
+            finalize_optimization(
+                best_solution,
+                'ML - Genetic Algorithm',
+                weights,
+                optimization_state['start_time'],
+                warehouse_id,
+                time_to_best)
             optimization_state['running'] = False
         except Exception as e:
             import traceback
@@ -557,10 +669,10 @@ def optimize_ga():
 
     print("Starting thread...")
     with open('thread_debug.log', 'a') as f:
-            f.write("Starting thread...\n")
+        f.write("Starting thread...\n")
     optimization_thread = threading.Thread(target=run_optimization)
     optimization_thread.start()
-    
+
     gc.collect()
 
     return jsonify({'success': True})
@@ -570,11 +682,15 @@ def optimize_ga():
 def optimize_eo():
     global optimization_thread
     if optimization_state['running']:
-        return jsonify({'success': False, 'error': 'Optimization already running'})
+        return jsonify({'success': False,
+                        'error': 'Optimization already running'})
 
-    data = request.json
-    weights = data.get('weights', {'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
-    warehouse_id = data.get('warehouse_id', optimization_state['current_warehouse_id'])
+    data = request.json or {}
+    weights = data.get(
+        'weights', {
+            'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
+    warehouse_id = data.get('warehouse_id',
+                            optimization_state['current_warehouse_id'])
 
     items = get_all_items(warehouse_id)
     if not items:
@@ -587,24 +703,29 @@ def optimize_eo():
     optimization_state['algorithm'] = 'EO'
     optimization_state['start_time'] = time.time()
     optimization_state['current_warehouse_id'] = warehouse_id
-    
+
     # Extract params
     iterations = data.get('iterations', 1000)
     optimization_state['total_iterations'] = iterations
 
     def run_optimization():
-        iterations = data.get('iterations', 1000)
-        
+        data.get('iterations', 1000)
+
         optimizer = MLOptimizer("fit_eo")
         try:
             best_solution, best_fitness, time_to_best = optimizer.optimize(
-                items, warehouse, weights, callback=update_progress, optimization_state=optimization_state
-            )
-            finalize_optimization(best_solution, 'ML - Extremal Opt', weights, optimization_state['start_time'], warehouse_id, time_to_best)
+                items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
+            finalize_optimization(
+                best_solution,
+                'ML - Extremal Opt',
+                weights,
+                optimization_state['start_time'],
+                warehouse_id,
+                time_to_best)
             optimization_state['running'] = False
         except Exception as e:
-             print(f"Optimization failed: {e}")
-             optimization_state['running'] = False
+            print(f"Optimization failed: {e}")
+            optimization_state['running'] = False
 
     optimization_thread = threading.Thread(target=run_optimization)
     optimization_thread.start()
@@ -616,11 +737,15 @@ def optimize_eo():
 def optimize_hybrid():
     global optimization_thread
     if optimization_state['running']:
-        return jsonify({'success': False, 'error': 'Optimization already running'})
+        return jsonify({'success': False,
+                        'error': 'Optimization already running'})
 
-    data = request.json
-    weights = data.get('weights', {'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
-    warehouse_id = data.get('warehouse_id', optimization_state['current_warehouse_id'])
+    data = request.json or {}
+    weights = data.get(
+        'weights', {
+            'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
+    warehouse_id = data.get('warehouse_id',
+                            optimization_state['current_warehouse_id'])
 
     items = get_all_items(warehouse_id)
     if not items:
@@ -633,23 +758,28 @@ def optimize_hybrid():
     optimization_state['algorithm'] = 'Hybrid'
     optimization_state['start_time'] = time.time()
     optimization_state['current_warehouse_id'] = warehouse_id
-    
+
     # Store params for status display
     gen = data.get('generations', 100)
-    iter = data.get('iterations', 1000)
+    data.get('iterations', 1000)
     optimization_state['total_generations'] = gen
-    
+
     def run_optimization():
         optimizer = MLOptimizer("fit_ga_eo")
         try:
             best_solution, best_fitness, time_to_best = optimizer.optimize(
-                items, warehouse, weights, callback=update_progress, optimization_state=optimization_state
-            )
-            finalize_optimization(best_solution, 'ML - Hybrid GA-EO', weights, optimization_state['start_time'], warehouse_id, time_to_best)
+                items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
+            finalize_optimization(
+                best_solution,
+                'ML - Hybrid GA-EO',
+                weights,
+                optimization_state['start_time'],
+                warehouse_id,
+                time_to_best)
             optimization_state['running'] = False
         except Exception as e:
-             print(f"Optimization failed: {e}")
-             optimization_state['running'] = False
+            print(f"Optimization failed: {e}")
+            optimization_state['running'] = False
 
     optimization_thread = threading.Thread(target=run_optimization)
     optimization_thread.start()
@@ -662,11 +792,15 @@ def optimize_hybrid_eo_ga():
     """Hybrid optimizer: EO first for exploration, then GA for refinement."""
     global optimization_thread
     if optimization_state['running']:
-        return jsonify({'success': False, 'error': 'Optimization already running'})
+        return jsonify({'success': False,
+                        'error': 'Optimization already running'})
 
-    data = request.json
-    weights = data.get('weights', {'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
-    warehouse_id = data.get('warehouse_id', optimization_state['current_warehouse_id'])
+    data = request.json or {}
+    weights = data.get(
+        'weights', {
+            'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
+    warehouse_id = data.get('warehouse_id',
+                            optimization_state['current_warehouse_id'])
 
     items = get_all_items(warehouse_id)
     if not items:
@@ -679,24 +813,29 @@ def optimize_hybrid_eo_ga():
     optimization_state['algorithm'] = 'Hybrid EO-GA'
     optimization_state['start_time'] = time.time()
     optimization_state['current_warehouse_id'] = warehouse_id
-    
+
     # Store params for status display
     gen = data.get('generations', 100)
     iter = data.get('iterations', 1000)
     optimization_state['total_iterations'] = iter
     optimization_state['total_generations'] = gen
-    
+
     def run_optimization():
         optimizer = MLOptimizer("fit_eo_ga")
         try:
             best_solution, best_fitness, time_to_best = optimizer.optimize(
-                items, warehouse, weights, callback=update_progress, optimization_state=optimization_state
-            )
-            finalize_optimization(best_solution, 'ML - Hybrid EO-GA', weights, optimization_state['start_time'], warehouse_id, time_to_best)
+                items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
+            finalize_optimization(
+                best_solution,
+                'ML - Hybrid EO-GA',
+                weights,
+                optimization_state['start_time'],
+                warehouse_id,
+                time_to_best)
             optimization_state['running'] = False
         except Exception as e:
-             print(f"Optimization failed: {e}")
-             optimization_state['running'] = False
+            print(f"Optimization failed: {e}")
+            optimization_state['running'] = False
 
     optimization_thread = threading.Thread(target=run_optimization)
     optimization_thread.start()
@@ -707,25 +846,37 @@ def optimize_hybrid_eo_ga():
 @app.route('/api/optimize/compare', methods=['POST'])
 def optimize_compare():
     global comparison_state
-    
+
     if comparison_state['running']:
-        return jsonify({'success': False, 'error': 'Comparison already running'})
+        return jsonify({'success': False,
+                        'error': 'Comparison already running'})
 
     if optimization_state['running']:
-        return jsonify({'success': False, 'error': 'Standard optimization is currently running. Please wait.'})
-    
-    data = request.json
-    weights = data.get('weights', {'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
-    warehouse_id = data.get('warehouse_id', optimization_state['current_warehouse_id'])
-    
+        return jsonify(
+            {'success': False, 'error': 'Standard optimization is currently running. Please wait.'})
+
+    data = request.json or {}
+    weights = data.get(
+        'weights', {
+            'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
+    warehouse_id = data.get('warehouse_id',
+                            optimization_state['current_warehouse_id'])
+
     # ML algorithms to benchmark
-    algorithms = [
-        {'name': 'ML - GA', 'type': 'fit_ga', 'description': 'ML Model imitating Genetic Algorithm'},
-        {'name': 'ML - EO', 'type': 'fit_eo', 'description': 'ML Model imitating Extremal Optimization'},
-        {'name': 'ML - Hybrid GA-EO', 'type': 'fit_ga_eo', 'description': 'ML Model imitating GA to EO Hybrid'},
-        {'name': 'ML - Hybrid EO-GA', 'type': 'fit_eo_ga', 'description': 'ML Model imitating EO to GA Hybrid'},
-    ]
-    
+    algorithms = [{'name': 'ML - GA',
+                   'type': 'fit_ga',
+                   'description': 'ML Model imitating Genetic Algorithm'},
+                  {'name': 'ML - EO',
+                   'type': 'fit_eo',
+                   'description': 'ML Model imitating Extremal Optimization'},
+                  {'name': 'ML - Hybrid GA-EO',
+                   'type': 'fit_ga_eo',
+                   'description': 'ML Model imitating GA to EO Hybrid'},
+                  {'name': 'ML - Hybrid EO-GA',
+                   'type': 'fit_eo_ga',
+                   'description': 'ML Model imitating EO to GA Hybrid'},
+                  ]
+
     # Reset comparison state
     comparison_state = {
         'running': True,
@@ -742,45 +893,64 @@ def optimize_compare():
         for idx, algo in enumerate(algorithms):
             if not comparison_state['running']:
                 break
-                
+
             comparison_state['current_algorithm'] = algo['name']
             comparison_state['current_algorithm_index'] = idx + 1
             comparison_state['message'] = f"Running {algo['name']}: {algo['description']}"
             comparison_state['current_algo_progress'] = 0
-            
+
             # Calculate overall progress (each algo is 25% of total)
             base_progress = (idx / len(algorithms)) * 100
-            
-            def algo_callback(progress, avg_fit, best_fit, solution, space, access, stability, message=None):
+
+            def algo_callback(
+                    progress,
+                    avg_fit,
+                    best_fit,
+                    solution,
+                    space,
+                    access,
+                    stability,
+                    message=None):
                 comparison_state['current_algo_progress'] = progress
                 algo_contribution = (1 / len(algorithms)) * 100
-                comparison_state['progress'] = base_progress + (progress / 100) * algo_contribution
+                comparison_state['progress'] = base_progress + \
+                    (progress / 100) * algo_contribution
                 if message:
                     comparison_state['message'] = f"{algo['name']}: {message}"
-            
+
             try:
                 items = get_all_items(warehouse_id)
                 if not items:
-                    comparison_state['results'][algo['name']] = {'error': 'No items'}
+                    comparison_state['results'][algo['name']] = {
+                        'error': 'No items'}
                     continue
 
                 warehouse = get_warehouse_config(warehouse_id)
                 start_time = time.time()
-                
+
                 optimizer = MLOptimizer(algo['type'])
                 solution, fitness, time_to_best = optimizer.optimize(
-                    items, warehouse, weights, callback=algo_callback, optimization_state=comparison_state
-                )
-                  
+                    items, warehouse, weights, callback=algo_callback, optimization_state=comparison_state)
+
                 end_time = time.time()
                 execution_time = end_time - start_time
-                
+
                 # Calculate detailed metrics
                 final_fitness, space_util, accessibility, stability, grouping = fitness_function(
-                    solution, items, warehouse, weights
-                )
+                    solution, items, warehouse, weights)
 
-                save_solution(solution, algo['name'] + "_COMPARE", final_fitness, space_util, accessibility, stability, grouping, execution_time, warehouse_id, time_to_best)
+                save_solution(
+                    solution,
+                    algo['name'] +
+                    "_COMPARE",
+                    final_fitness,
+                    space_util,
+                    accessibility,
+                    stability,
+                    grouping,
+                    execution_time,
+                    warehouse_id,
+                    time_to_best)
 
                 comparison_state['results'][algo['name']] = {
                     'fitness': final_fitness,
@@ -792,21 +962,22 @@ def optimize_compare():
                     'grouping': grouping,
                     'status': 'completed'
                 }
-                
+
                 comparison_state['message'] = f"✓ {algo['name']} completed: Fitness={final_fitness:.4f}"
 
             except Exception as e:
                 print(f"Error in {algo['name']}: {e}")
-                comparison_state['results'][algo['name']] = {'error': str(e), 'status': 'error'}
-        
+                comparison_state['results'][algo['name']] = {
+                    'error': str(e), 'status': 'error'}
+
         comparison_state['running'] = False
         comparison_state['progress'] = 100
         comparison_state['message'] = f"Comparison complete! {len(comparison_state['results'])} algorithms tested."
-    
+
     # Run in background thread
     compare_thread = threading.Thread(target=run_comparison)
     compare_thread.start()
-    
+
     return jsonify({'success': True, 'message': 'Comparison started'})
 
 
@@ -843,7 +1014,7 @@ def get_warehouse_config_api():
 
 @app.route('/api/warehouse/config', methods=['PUT'])
 def update_warehouse_config_api():
-    data = request.json
+    data = request.json or {}
     try:
         warehouse_id = data.get('id', 1)
         update_warehouse_config(warehouse_id, data)
@@ -861,7 +1032,7 @@ def get_exclusion_zones_api():
 
 @app.route('/api/warehouse/zones', methods=['POST'])
 def add_exclusion_zone_api():
-    data = request.json
+    data = request.json or {}
     warehouse_id = data.get('warehouse_id', 1)
     try:
         zone_id = add_exclusion_zone(data, warehouse_id)
@@ -882,7 +1053,7 @@ def delete_exclusion_zone_api(zone_id):
 
 @app.route('/api/warehouse/zones/<zone_id>', methods=['PUT'])
 def update_exclusion_zone_api(zone_id):
-    data = request.json
+    data = request.json or {}
     warehouse_id = data.get('warehouse_id', 1)
     try:
         update_exclusion_zone(zone_id, data, warehouse_id)
@@ -900,25 +1071,33 @@ def get_current_metrics():
     if not items or not warehouse:
         return jsonify({'error': 'No data available'})
 
-    solution = [{'id': item['id'], 'x': item.get('x', 0), 'y': item.get('y', 0),
-                 'z': item.get('z', 0), 'rotation': item.get('rotation', 0)}
-                for item in items]
+    solution = [
+        {
+            'id': item['id'], 'x': item.get(
+                'x', 0), 'y': item.get(
+                'y', 0), 'z': item.get(
+                    'z', 0), 'rotation': item.get(
+                        'rotation', 0)} for item in items]
 
-    _, space_util, accessibility, stability, grouping = fitness_function(solution, items, warehouse)
-    
-    cog_x, cog_y, cog_z = calculate_center_of_gravity(solution, {i['id']: i for i in items})
+    _, space_util, accessibility, stability, grouping = fitness_function(
+        solution, items, warehouse)
+
+    cog_x, cog_y, cog_z = calculate_center_of_gravity(
+        solution, {i['id']: i for i in items})
 
     # Additional calculations for Free Space Vol
-    warehouse_volume = warehouse['length'] * warehouse['width'] * warehouse['height']
-    total_items_volume = sum([(i['length'] * i['width'] * i['height']) for i in items if i.get('z', 1000) < 1000]) # only consider items that fit
+    warehouse_volume = warehouse['length'] * \
+        warehouse['width'] * warehouse['height']
+    total_items_volume = sum([(i['length'] * i['width'] * i['height'])
+                             for i in items if i.get('z', 1000) < 1000])  # only consider items that fit
     free_space_vol = warehouse_volume - total_items_volume
     if free_space_vol < 0:
-        free_space_vol = 0 # Safety clamp
+        free_space_vol = 0  # Safety clamp
 
     history = get_metrics_history(warehouse_id)
     latest_run_time = 0.00
     if history and len(history) > 0:
-         latest_run_time = history[-1].get('execution_time', 0.00)
+        latest_run_time = history[-1].get('execution_time', 0.00)
 
     return jsonify({
         'space_utilization': space_util,
@@ -951,13 +1130,13 @@ def get_category_metrics_api():
 def get_algo_best_performance():
     """Get the best performance for each algorithm type."""
     warehouse_id = request.args.get('warehouse_id', default=1, type=int)
-    
+
     import sqlite3
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    
+
     results = []
-    
+
     # Define algorithms to track with their search patterns
     algo_configs = [
         {'name': 'Genetic Algorithm', 'patterns': ['%Genetic Algorithm%', '%GA%'], 'exclude': ['Hybrid', 'EO']},
@@ -965,34 +1144,35 @@ def get_algo_best_performance():
         {'name': 'Hybrid GA+EO', 'patterns': ['%Hybrid GA-EO%', '%GA-EO%', '%ga-eo%']},
         {'name': 'Hybrid EO+GA', 'patterns': ['%Hybrid EO-GA%', '%EO-GA%', '%eo-ga%']},
     ]
-    
+
     for config in algo_configs:
         # Build query for this algorithm
         conditions = []
         params = [warehouse_id]
-        
+
         for pattern in config['patterns']:
             conditions.append('algorithm LIKE ?')
             params.append(pattern)
-        
+
         # Add exclusions for pure algorithms
         exclude_conditions = []
         if 'exclude' in config:
             for exc in config['exclude']:
                 exclude_conditions.append(f"algorithm NOT LIKE '%{exc}%'")
-        
+
         where_clause = f"warehouse_id = ? AND ({' OR '.join(conditions)})"
         if exclude_conditions:
             where_clause += f" AND {' AND '.join(exclude_conditions)}"
-        
+
         c.execute(f'''
-            SELECT algorithm, fitness, time_to_best, timestamp, execution_time
+            SELECT algorithm, fitness, time_to_best, timestamp, execution_time,
+                   space_utilization, accessibility, stability, grouping
             FROM optimization_results
             WHERE {where_clause}
             ORDER BY fitness DESC
             LIMIT 1
         ''', params)
-        
+
         row = c.fetchone()
         if row:
             results.append({
@@ -1000,9 +1180,13 @@ def get_algo_best_performance():
                 'best_fitness': row[1],
                 'time_to_best': row[2] if row[2] else 0,
                 'timestamp': row[3],
-                'execution_time': row[4] if row[4] else 0
+                'execution_time': row[4] if row[4] else 0,
+                'space_utilization': row[5] if row[5] else 0,
+                'accessibility': row[6] if row[6] else 0,
+                'stability': row[7] if row[7] else 0,
+                'grouping': row[8] if row[8] else 0,
             })
-    
+
     conn.close()
     return jsonify(results)
 
@@ -1011,14 +1195,16 @@ def get_algo_best_performance():
 def clear_algo_best_performance():
     """Clear all optimization results for a warehouse."""
     data = request.json or {}
-    warehouse_id = data.get('warehouse_id', optimization_state['current_warehouse_id'])
-    
+    warehouse_id = data.get('warehouse_id',
+                            optimization_state['current_warehouse_id'])
+
     import sqlite3
     conn = sqlite3.connect('warehouse.db')
     c = conn.cursor()
-    
+
     try:
-        c.execute('DELETE FROM optimization_results WHERE warehouse_id = ?', (warehouse_id,))
+        c.execute(
+            'DELETE FROM optimization_results WHERE warehouse_id = ?', (warehouse_id,))
         conn.commit()
         deleted_count = c.rowcount
         conn.close()
@@ -1029,7 +1215,7 @@ def clear_algo_best_performance():
 
 
 # Benchmark state (separate from regular optimization)
-benchmark_state = {
+benchmark_state: dict[str, Any] = {
     'running': False,
     'progress': 0,
     'current_algo': '',
@@ -1039,67 +1225,69 @@ benchmark_state = {
 }
 
 
-
 @app.route('/api/benchmark', methods=['POST'])
 def run_benchmark():
     """Run all ML algorithms multiple times and calculate averages."""
-    global benchmark_state
-    
+
     if benchmark_state['running'] or optimization_state['running']:
-        return jsonify({'success': False, 'error': 'Optimization or benchmark already running'})
-    
+        return jsonify({'success': False,
+                        'error': 'Optimization or benchmark already running'})
+
     data = request.json or {}
     runs_per_algo = data.get('runs', 5)
-    warehouse_id = data.get('warehouse_id', optimization_state['current_warehouse_id'])
-    
+    warehouse_id = data.get('warehouse_id',
+                            optimization_state['current_warehouse_id'])
+
     items = get_all_items(warehouse_id)
     if not items:
         return jsonify({'success': False, 'error': 'No items to optimize'})
-    
+
     warehouse = get_warehouse_config(warehouse_id)
-    weights = data.get('weights', {'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
-    
+    weights = data.get(
+        'weights', {
+            'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
+
     benchmark_state['running'] = True
     benchmark_state['progress'] = 0
     benchmark_state['results'] = {}
-    
+
     algorithms = [
         ('ML-GA', 'ML - Genetic Algorithm', lambda: MLOptimizer("fit_ga")),
         ('ML-EO', 'ML - Extremal Optimization', lambda: MLOptimizer("fit_eo")),
         ('ML-GA-EO', 'ML - Hybrid GA-EO', lambda: MLOptimizer("fit_ga_eo")),
         ('ML-EO-GA', 'ML - Hybrid EO-GA', lambda: MLOptimizer("fit_eo_ga")),
     ]
-    
+
     total_runs = len(algorithms) * runs_per_algo
     benchmark_state['total_runs'] = total_runs
-    
+
     def run_benchmark_thread():
-        run_count = 0
-        
+        run_count: int = 0
+
         for algo_key, algo_name, algo_factory in algorithms:
             benchmark_state['current_algo'] = algo_name
             fitness_scores = []
             time_to_best_scores = []
             exec_times = []
-            
+
             for run in range(runs_per_algo):
                 if not benchmark_state['running']:
                     return
-                
+
                 benchmark_state['current_run'] = run + 1
                 run_count += 1
                 benchmark_state['progress'] = (run_count / total_runs) * 100
-                
+
                 start_time = time.time()
-                
+
                 try:
                     optimizer = algo_factory()
                     solution, fitness, ttb = optimizer.optimize(
-                        items, warehouse, weights, callback=None, optimization_state={'running': True}
-                    )
-                    
+                        items, warehouse, weights, callback=None, optimization_state={
+                            'running': True})
+
                     exec_time = time.time() - start_time
-                    
+
                     fitness_scores.append(fitness)
                     time_to_best_scores.append(ttb)
                     exec_times.append(exec_time)
@@ -1108,7 +1296,7 @@ def run_benchmark():
                     import traceback
                     traceback.print_exc()
                     continue
-            
+
             # Calculate averages
             if fitness_scores:
                 benchmark_state['results'][algo_key] = {
@@ -1118,28 +1306,28 @@ def run_benchmark():
                     'avg_execution_time': sum(exec_times) / len(exec_times),
                     'runs': len(fitness_scores),
                     'min_fitness': min(fitness_scores),
-                    'max_fitness': max(fitness_scores)
-                }
-                
+                    'max_fitness': max(fitness_scores)}
+
                 # Save to database as a benchmark result
                 save_solution(
-                    None, 
-                    f"{algo_name} (Benchmark Avg)", 
+                    None,
+                    f"{algo_name} (Benchmark Avg)",
                     benchmark_state['results'][algo_key]['avg_fitness'],
                     0, 0, 0, 0,
                     benchmark_state['results'][algo_key]['avg_execution_time'],
                     warehouse_id,
                     benchmark_state['results'][algo_key]['avg_time_to_best']
                 )
-        
+
         benchmark_state['running'] = False
         benchmark_state['progress'] = 100
-    
+
     import threading
     thread = threading.Thread(target=run_benchmark_thread)
     thread.start()
-    
+
     return jsonify({'success': True, 'total_runs': total_runs})
+
 
 @app.route('/api/benchmark/status', methods=['GET'])
 def get_benchmark_status():
@@ -1152,10 +1340,12 @@ def get_benchmark_status():
         'results': benchmark_state['results']
     })
 
+
 @app.route('/api/benchmark/stop', methods=['POST'])
 def stop_benchmark():
     benchmark_state['running'] = False
     return jsonify({'success': True})
+
 
 if __name__ == '__main__':
     try:

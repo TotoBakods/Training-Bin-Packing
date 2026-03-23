@@ -226,7 +226,7 @@
                 <div class="panel-section">
                     <div class="section-title">Inventory List</div>
                     <div id="items-list"
-                        style="height: 400px; overflow-y: auto; font-size: 0.8rem; color: var(--text-muted);">
+                        style="overflow-y: auto; font-size: 0.8rem; color: var(--text-muted);">
                         <!-- Items injected here -->
                     </div>
                 </div>
@@ -286,26 +286,9 @@
                 <div class="panel-section">
                     <div class="section-title">Algorithm Best Performance</div>
                     <div id="algo-best-summary" style="margin-bottom: 15px;">
-                        <div class="data-grid" style="grid-template-columns: 1fr;">
-                            <div class="data-card" style="padding: 10px;">
-                                <table
-                                    style="width:100%; text-align:left; border-collapse: collapse; font-size: 0.85rem;">
-                                    <thead>
-                                        <tr style="color:var(--accent-primary); border-bottom:1px solid #444;">
-                                            <th style="padding:6px;">Algorithm</th>
-                                            <th style="padding:6px;">Best Fitness</th>
-                                            <th style="padding:6px;">Time to Best</th>
-                                            <th style="padding:6px;">Achieved At</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="algo-best-body">
-                                        <tr>
-                                            <td colspan="4" style="padding:10px; color:var(--text-muted);">Loading...
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div id="algo-best-cards">
+                            <!-- Cards injected here by script.js -->
+                            <div style="padding:10px; color:var(--text-muted); text-align:center;">Loading performance data...</div>
                         </div>
                         <div style="display: flex; gap: 10px; margin-top: 10px;">
                             <button class="btn" onclick="runBenchmark()" id="benchmark-btn" style="flex: 1;">
@@ -337,13 +320,13 @@
                 <div class="panel-section">
                     <div class="section-title">Optimization Log</div>
                     <div style="max-height: 250px; overflow-y: auto;">
-                        <table style="width:100%; text-align:left; border-collapse: collapse; font-size: 0.8rem;">
+                        <table class="compact-table">
                             <thead>
                                 <tr style="color:var(--accent-primary); border-bottom:1px solid #444;">
-                                    <th style="padding:4px;">Algo</th>
-                                    <th style="padding:4px;">Fit</th>
-                                    <th style="padding:4px;">Time(B)</th>
-                                    <th style="padding:4px;">Total</th>
+                                    <th style="width: 25%;">Algo</th>
+                                    <th style="width: 20%;">Fit</th>
+                                    <th style="width: 25%;">Time(B)</th>
+                                    <th style="width: 30%;">Total</th>
                                 </tr>
                             </thead>
                             <tbody id="analytics-history-body">
@@ -386,6 +369,8 @@
                     </div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 15px; margin-bottom: 5px;">
                         Door Location (Entry Point)</div>
+                    <button id="place-door-btn" class="btn" style="width: 100%; margin-bottom: 5px; border: 1px dashed var(--accent-primary);" onclick="togglePlaceDoorMode()">PLACE DOOR (Click on floor)</button>
+                    <button id="confirm-door-btn" class="btn" style="width: 100%; margin-bottom: 10px; background: var(--success); color: #000; display: none; font-weight: bold;" onclick="confirmDoorPlacement()">SAVE NEW LOCATION</button>
                     <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
                         <div class="input-group"><label>Door X (m)</label><input type="number" id="warehouse-door-x"
                                 step="0.5" value="0">

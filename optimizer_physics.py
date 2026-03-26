@@ -1,8 +1,17 @@
-import pybullet as p
-import pybullet_data
+try:
+    import pybullet as p
+    import pybullet_data
+    PYBULLET_AVAILABLE = True
+except ImportError:
+    PYBULLET_AVAILABLE = False
+    print("Warning: pybullet not found. Physics settlement will be disabled.")
 
 def physics_settle(solution, items_props, wh_dims, layer_heights=None):
     """Settle items using PyBullet physics to resolve overlaps."""
+    if not PYBULLET_AVAILABLE:
+        print("Physics settlement skipped: pybullet not installed.")
+        return solution
+        
     client_id = -1
     try:
         # Initialize headless simulation

@@ -200,24 +200,16 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
         for z in use_zones:
             candidates.add((z['x1'], z['y1']))
         
-        # Spatial-aware candidate generation:
-        # NN prediction (target_x, target_y) usually indicates a good locality.
-        # Instead of O(N^2) candidate generation, we query only nearby items.
-        target_x, target_y = solution[idx, 0], solution[idx, 1]
-        # Use a search radius based on item size to find relevant placement neighbors
-        search_radius = max(l, w, 2.0) * 1.5 
-        near_indices = grid.query(
-            target_x - search_radius, target_y - search_radius,
-            target_x + search_radius, target_y + search_radius
-        )
-
-        for p_idx in near_indices:
-            px, py, pz, pdx, pdy, pdz = placed_items[p_idx]
+        # From placed items (adjacent positions)
+        for (px, py, pz, pdx, pdy, pdz) in placed_items:
             candidates.add((px + pdx, py))  # Right
             candidates.add((px, py + pdy))  # Back
             candidates.add((px, py))        # On top
         
         # Add the gene's target position as a candidate to guide the heuristic
+        # We add candidates for both rotated and unrotated orientations to be safe
+        target_x = solution[idx, 0]
+        target_y = solution[idx, 1]
         
         # Candidate 1: Assuming unrotated (l, w)
         cand1_x = target_x - items_props[idx, 0] / 2

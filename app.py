@@ -70,7 +70,8 @@ comparison_state: dict[str, Any] = {
     'progress': 0,
     'message': 'Idle',
     'results': {},
-    'current_algo_progress': 0
+    'current_algo_progress': 0,
+    'best_solution': None
 }
 
 
@@ -886,7 +887,8 @@ def optimize_compare():
         'progress': 0,
         'message': 'Starting comparison...',
         'results': {},
-        'current_algo_progress': 0
+        'current_algo_progress': 0,
+        'best_solution': None
     }
 
     def run_comparison():
@@ -915,6 +917,7 @@ def optimize_compare():
                 algo_contribution = (1 / len(algorithms)) * 100
                 comparison_state['progress'] = base_progress + \
                     (progress / 100) * algo_contribution
+                comparison_state['best_solution'] = solution
                 if message:
                     comparison_state['message'] = f"{algo['name']}: {message}"
 

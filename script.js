@@ -1027,8 +1027,8 @@ function startPolling() {
                     }
                 }
 
-                // Visual updates only for single mode
-                if (currentOptimizationType !== 'compare') {
+                // Visual updates for both single and comparison mode
+                if (true) {
                     if (statusPlaced && status.best_solution) {
                         const placed = status.best_solution.filter(s => s.z < 1000).length;
                         const total = status.best_solution.length;

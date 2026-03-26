@@ -144,7 +144,7 @@ def get_rotated_dims(l, w, h, rotation_code):
     if code == 5: return h, w, l
     return l, w, h
 
-def repair_solution_compact(solution, items_props=None, warehouse_dims=None, allocation_zones=None, layer_heights=None):
+def repair_solution_compact(solution, items_props=None, warehouse_dims=None, allocation_zones=None, layer_heights=None, callback=None, callback_interval=50):
     """Repair solution by placing items in valid positions with gravity."""
     # Use globals if in worker process
     if items_props is None: items_props = _pool_items_props
@@ -315,6 +315,10 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
         
         placed_items.append((b_x - b_dx/2, b_y - b_dy/2, b_z, b_dx, b_dy, b_dz))
         grid.insert(len(placed_items)-1, b_x - b_dx/2, b_y - b_dy/2, b_x + b_dx/2, b_y + b_dy/2)
+
+        # Periodic Callback for real-time visualization
+        if callback and (len(placed_items) % callback_interval == 0 or len(placed_items) == num_items):
+            callback(solution)
 
     return solution
 

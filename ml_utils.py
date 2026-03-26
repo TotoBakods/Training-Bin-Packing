@@ -149,7 +149,10 @@ class MLOptimizer:
             
             pred_rot = outputs[:, 3] * 6.0
             
-            solution = np.column_stack((pred_x, pred_y, pred_z, pred_rot))
+            # Initialize Z to high value (2000) so items are "hidden" (in overflow) 
+            # until they are actually placed by the repair heuristic.
+            hidden_z = np.full_like(pred_z, 2000.0)
+            solution = np.column_stack((pred_x, pred_y, hidden_z, pred_rot))
             
             # Repair (Physics & Constraints)
             valid_z = get_valid_z_positions(warehouse)
@@ -160,10 +163,25 @@ class MLOptimizer:
                     allocation_zones = alloc_zones
             
             if callback:
-                callback(20, 0, 0, None, 0, 0, 0, message="ML Inference complete. Applying Physics Settlement (Tetris Style)...")
-            
-            # Repair using compact logic
-            solution = repair_solution_compact(solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z)
+                def intermediate_callback(intermediate_sol):
+                    # Convert numpy array to list of dicts for real-time updates
+                    intermediate_list = []
+                    for i in range(num_items):
+                        intermediate_list.append({
+                            'id': items[i]['id'],
+                            'x': float(intermediate_sol[i, 0]),
+                            'y': float(intermediate_sol[i, 1]),
+                            'z': float(intermediate_sol[i, 2]),
+                            'rotation': int(intermediate_sol[i, 3])
+                        })
+                    callback(50, 0, 0, intermediate_list, 0, 0, 0, message="Repairing layout (Tetris Style)...")
+                
+                callback(20, 0, 0, None, 0, 0, 0, message="ML Inference complete. Applying Physics Settlement...")
+                # Repair using compact logic
+                solution = repair_solution_compact(solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, callback=intermediate_callback)
+            else:
+                # Repair using compact logic
+                solution = repair_solution_compact(solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z)
             
             if callback:
                 callback(80, 0, 0, None, 0, 0, 0, message="Physics Settlement Complete.")

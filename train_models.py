@@ -93,11 +93,14 @@ def train_model(csv_path, model_name):
     val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False)
 
     model = PackingModel()
-    criterion = nn.MSELoss()
+    
+    # Weighted Loss: 2.0x for X/Y coordinates to reduce displacement gap
+    weight_v = torch.tensor([2.0, 2.0, 1.0, 1.0]).to(device if 'device' in locals() else 'cpu')
+    def weighted_mse_loss(input, target):
+        return (weight_v * (input - target) ** 2).mean()
+
     optimizer = optim.Adam(model.parameters(), lr=LR)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=7
-    )
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
@@ -115,7 +118,7 @@ def train_model(csv_path, model_name):
             
             optimizer.zero_grad()
             outputs = model(batch_x)
-            loss = criterion(outputs, batch_y)
+            loss = weighted_mse_loss(outputs, batch_y)
             loss.backward()
             optimizer.step()
             
@@ -132,11 +135,11 @@ def train_model(csv_path, model_name):
             for batch_x, batch_y in val_loader:
                 batch_x, batch_y = batch_x.to(device), batch_y.to(device)
                 pred = model(batch_x)
-                val_loss += criterion(pred, batch_y).item()
+                val_loss += weighted_mse_loss(pred, batch_y).item()
                 val_batches += 1
 
         avg_val = val_loss / max(val_batches, 1)
-        scheduler.step(avg_val)
+        scheduler.step()
 
         # Early stopping
         if avg_val < best_val_loss:

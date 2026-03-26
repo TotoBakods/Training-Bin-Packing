@@ -36,6 +36,36 @@ def get_process_pool():
         _global_pool = multiprocessing.Pool(processes=process_count)
     return _global_pool
 
+class SimpleGrid:
+    """A 2D Spatial Grid to speed up item-item overlap and gravity checks."""
+    def __init__(self, wh_l, wh_w, cell_size=2.0):
+        self.cell_size = cell_size
+        self.cols = max(1, math.ceil(wh_l / cell_size))
+        self.rows = max(1, math.ceil(wh_w / cell_size))
+        # Grid of sets containing indices of placed items
+        self.grid = [ [set() for _ in range(self.rows)] for _ in range(self.cols) ]
+
+    def _get_cells(self, x1, y1, x2, y2):
+        c1 = max(0, min(self.cols-1, int(x1 / self.cell_size)))
+        c2 = max(0, min(self.cols-1, int(x2 / self.cell_size)))
+        r1 = max(0, min(self.rows-1, int(y1 / self.cell_size)))
+        r2 = max(0, min(self.rows-1, int(y2 / self.cell_size)))
+        return c1, c2, r1, r2
+
+    def insert(self, idx, x1, y1, x2, y2):
+        c1, c2, r1, r2 = self._get_cells(x1, y1, x2, y2)
+        for c in range(c1, c2 + 1):
+            for r in range(r1, r2 + 1):
+                self.grid[c][r].add(idx)
+
+    def query(self, x1, y1, x2, y2):
+        c1, c2, r1, r2 = self._get_cells(x1, y1, x2, y2)
+        matches = set()
+        for c in range(c1, c2 + 1):
+            for r in range(r1, r2 + 1):
+                matches.update(self.grid[c][r])
+        return matches
+
 def init_worker(*args):
     """Deprecated: Initialization handled via explicit args now."""
     pass
@@ -146,6 +176,8 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
 
     # Tracking placed items: (x, y, z, dx, dy, dz)
     placed_items = []
+    # Spatial Grid for O(1) neighboring item lookup
+    grid = SimpleGrid(wh_len, wh_wid, cell_size=4.0)
     
     # Use provided zones or default to full warehouse
     use_zones = allocation_zones if allocation_zones else [{'x1':0, 'y1':0, 'x2':wh_len, 'y2':wh_wid, 'z1':0, 'z2':wh_hgt}]
@@ -219,8 +251,10 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
                 # Calculate gravity Z
                 gravity_z = 0.0
                 
-                # Find highest item below this footprint
-                for (px, py, pz, pdx, pdy, pdz) in placed_items:
+                # Find highest item below this footprint using Spatial Grid lookup
+                potential_supporters = grid.query(min_x, min_y, max_x, max_y)
+                for p_idx in potential_supporters:
+                    px, py, pz, pdx, pdy, pdz = placed_items[p_idx]
                     if (max_x > px + 0.001 and min_x < px + pdx - 0.001 and
                         max_y > py + 0.001 and min_y < py + pdy - 0.001):
                         top_z = pz + pdz
@@ -280,6 +314,7 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
         solution[idx, 3] = b_rot
         
         placed_items.append((b_x - b_dx/2, b_y - b_dy/2, b_z, b_dx, b_dy, b_dz))
+        grid.insert(len(placed_items)-1, b_x - b_dx/2, b_y - b_dy/2, b_x + b_dx/2, b_y + b_dy/2)
 
     return solution
 

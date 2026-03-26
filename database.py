@@ -550,6 +550,7 @@ def load_sample_data(warehouse_id=1):
                 'rotation': 'rotation'
             }
             
+            chunk_size = 10000
             for chunk in pd.read_csv(dataset_path, chunksize=chunk_size):
                 # Only map columns that actually exist in the CSV
                 column_mapping = {k: v for k, v in potential_columns.items() if k in chunk.columns}
@@ -569,11 +570,18 @@ def load_sample_data(warehouse_id=1):
                     'name': '', 'category': 'General'
                 })
                 
+                # Ensure no duplicate IDs within the chunk before inserting
+                db_df = db_df.drop_duplicates(subset=['id'], keep='first')
+                
                 # Set warehouse_id
                 db_df['warehouse_id'] = warehouse_id
                 
                 # Append each chunk
-                db_df.to_sql('items', conn, if_exists='append', index=False)
+                try:
+                    db_df.to_sql('items', conn, if_exists='append', index=False)
+                except Exception as e:
+                     print(f"Chunk load error: {e}")
+                     continue
             
             conn.close()
             return True
@@ -636,11 +644,18 @@ def load_generated_data(warehouse_id=1):
                     'name': 'Synthetic Item', 'category': 'General'
                 })
                 
+                # Ensure no duplicate IDs within the chunk
+                db_df = db_df.drop_duplicates(subset=['id'], keep='first')
+                
                 # Set warehouse_id
                 db_df['warehouse_id'] = warehouse_id
 
                 # Append chunk
-                db_df.to_sql('items', conn, if_exists='append', index=False)
+                try:
+                    db_df.to_sql('items', conn, if_exists='append', index=False)
+                except Exception as e:
+                    print(f"Chunk load error: {e}")
+                    continue
                 total_items += len(db_df)
 
             conn.close()

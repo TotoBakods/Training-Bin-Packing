@@ -843,26 +843,45 @@ function generatePickerPath() {
 
 
 function startOptimization() {
-    const algo = document.getElementById('algorithm-select').value;
+    console.log("startOptimization() called");
+    const algoSelect = document.getElementById('algorithm-select');
+    if (!algoSelect) {
+        console.error("algorithm-select not found");
+        return;
+    }
+    const algo = algoSelect.value;
 
     const params = {
         warehouse_id: currentWarehouseId,
         weights: {
-            space: parseFloat(document.getElementById('weight-space').value),
-            accessibility: parseFloat(document.getElementById('weight-accessibility').value),
-            stability: parseFloat(document.getElementById('weight-stability').value)
+            space: parseFloat(document.getElementById('weight-space')?.value || 0.5),
+            accessibility: parseFloat(document.getElementById('weight-accessibility')?.value || 0.4),
+            stability: parseFloat(document.getElementById('weight-stability')?.value || 0.1)
         }
     };
+
+    console.log("Optimization parameters:", params);
+
+    const startBtn = document.getElementById('start-btn');
+    if (startBtn) startBtn.disabled = true;
 
     // Load items before starting
     fetch(`${API_BASE_URL}/api/items?warehouse_id=${currentWarehouseId}`)
         .then(res => res.json())
         .then(items => {
+            console.log(`Loaded ${items.length} items for optimization`);
+            if (items.length === 0) {
+                alert("No items found to optimize. Please add items via CSV upload or use the SCRAMBLE button in Item Management.");
+                if (startBtn) startBtn.disabled = false;
+                return;
+            }
             items.forEach(i => allItemsData[i.id] = i);
             startOptimizationRequest(algo, params);
         })
         .catch(err => {
+            console.error("Optimization failed to start:", err);
             alert(`Failed to load items: ${err}`);
+            if (startBtn) startBtn.disabled = false;
         });
 }
 

@@ -252,14 +252,17 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
                 gravity_z = 0.0
                 
                 # Find highest item below this footprint using Spatial Grid lookup
+                # Find highest item below this footprint using Spatial Grid lookup
                 potential_supporters = grid.query(min_x, min_y, max_x, max_y)
                 for p_idx in potential_supporters:
                     px, py, pz, pdx, pdy, pdz = placed_items[p_idx]
-                    if (max_x > px + 0.001 and min_x < px + pdx - 0.001 and
-                        max_y > py + 0.001 and min_y < py + pdy - 0.001):
-                        top_z = pz + pdz
-                        if top_z > gravity_z:
-                            gravity_z = top_z
+                    # ONLY consider items that are correctly placed (below overflow threshold)
+                    if pz < 1000:
+                        if (max_x > px + 0.001 and min_x < px + pdx - 0.001 and
+                            max_y > py + 0.001 and min_y < py + pdy - 0.001):
+                            top_z = pz + pdz
+                            if top_z > gravity_z:
+                                gravity_z = top_z
                 
                 # Find valid Z in any suitable zone
                 valid_z_found = False
@@ -296,17 +299,21 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
         if best_pos:
             b_x, b_y, b_z, b_rot, b_dx, b_dy, b_dz, _ = best_pos
         else:
-            # Fallback: stack on top of everything
-            b_z = 0
-            if placed_items:
-                max_top = max([p[2]+p[5] for p in placed_items])
+            # Fallback: try to find any spot at Z=0 or stack on top of ONLY valid items
+            b_z = 2000.0  # Default to overflow if even fallback is pushed high
+            valid_placed = [p for p in placed_items if p[2] < 1000]
+            if not valid_placed:
+                b_z = 0.0
+            else:
+                max_top = max([p[2]+p[5] for p in valid_placed])
                 b_z = max_top
             
             b_rot = solution[idx, 3] if not can_rotate else 0
             dims = get_rotated_dims(l, w, h, b_rot)
             b_dx, b_dy, b_dz = dims
-            b_x = dims[0]/2
-            b_y = dims[1]/2
+            # Use original predicted x,y if possible or center
+            b_x = max(b_dx/2, min(wh_len - b_dx/2, solution[idx, 0]))
+            b_y = max(b_dy/2, min(wh_wid - b_dy/2, solution[idx, 1]))
             
         solution[idx, 0] = b_x
         solution[idx, 1] = b_y

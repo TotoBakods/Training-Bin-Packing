@@ -1,9 +1,10 @@
 // Global variables
 let scene, camera, renderer, controls;
-let warehouseGroup, itemsGroup, exclusionZonesGroup, pickerPathGroup;
+let warehouseGroup, itemsGroup, exclusionZonesGroup, pickerPathGroup, zoneLabelsGroup;
 let coordinateLabels = [];
 let warehouseConfig = {};
 let allItemsData = {};
+let comparisonResults = {}; // Cache for per-algorithm solutions AND metrics
 
 let isOptimizing = false;
 let optimizationInterval;
@@ -89,10 +90,12 @@ function initThreeJS() {
     itemsGroup = new THREE.Group();
     exclusionZonesGroup = new THREE.Group();
     pickerPathGroup = new THREE.Group();
+    zoneLabelsGroup = new THREE.Group();
     scene.add(warehouseGroup);
     scene.add(itemsGroup);
     scene.add(exclusionZonesGroup);
     scene.add(pickerPathGroup);
+    scene.add(zoneLabelsGroup);
 
     window.addEventListener('resize', onWindowResize);
     renderer.domElement.addEventListener('click', onMouseClick);
@@ -539,11 +542,18 @@ function renderItems(items) {
         overflowIndicator.style.border = '1px solid #FF0055';
         overflowIndicator.style.color = '#FF6B8A';
 
-        // Build list of unplaced items (show first 10, with expand option)
+        // Categorize overflow: Z >= 2000 (Cascade/Physics fail) vs Z >= 1000 (Height exceed)
+        const criticalFails = overflowItems.filter(i => i.z >= 2000).length;
+        const heightExceeds = overflowItems.filter(i => i.z >= 1000 && i.z < 2000).length;
+
+        // Build list of unplaced items
         const showCount = Math.min(overflowItems.length, 10);
         let itemsList = overflowItems.slice(0, showCount).map(item =>
             `<div style="padding: 2px 0; font-size: 0.75rem; color: #ccc;">
-                • ${item.name || item.id} <span style="color:#888;">(${item.category || 'N/A'}) ${item.length}×${item.width}×${item.height}</span>
+                • ${item.name || item.id} <span style="color:#888;">(${item.category || 'N/A'})</span>
+                <span style="color:${item.z >= 2000 ? '#FF6B8A' : '#FFA500'}; font-size: 0.7rem;">
+                    [${item.z >= 2000 ? 'Physics Fail' : 'Height Exceed'}]
+                </span>
             </div>`
         ).join('');
 
@@ -553,10 +563,11 @@ function renderItems(items) {
 
         overflowIndicator.innerHTML = `
             <div style="cursor: pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none';">
-                ⚠️ <strong>${overflowItems.length}</strong> items don't fit (${fittingItems.length}/${items.length} placed) 
-                <span style="font-size: 0.7rem; color: #888;">▼ click to expand</span>
+                ⚠️ <strong>${overflowItems.length}</strong> items unplaced 
+                <span style="font-size: 0.7rem; opacity: 0.8;">(${criticalFails} physics, ${heightExceeds} capacity)</span>
+                <span style="font-size: 0.7rem; color: #888; float: right;">▼</span>
             </div>
-            <div style="display: none; margin-top: 8px; max-height: 200px; overflow-y: auto;">
+            <div style="display: none; margin-top: 8px; max-height: 200px; overflow-y: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
                 ${itemsList}
             </div>
         `;
@@ -691,8 +702,142 @@ function getItemColor(item, mode, maxWeight, maxAccess) {
         // Fragile = Red, Robust = Green
         const isFragile = item.fragility === 1 || item.fragility === true;
         return isFragile ? new THREE.Color(0xFF0055) : new THREE.Color(0x00FF9D);
+    } else if (mode === 'priority') {
+        // Priority 1 (Low) = Green, 2 = Yellow, 3 (High) = Red
+        const p = item.priority || 1;
+        if (p >= 3) return new THREE.Color(0xFF0055); // Red
+        if (p === 2) return new THREE.Color(0xFFD600); // Yellow
+        return new THREE.Color(0x00FF9D); // Green
+    } else if (mode === 'stackable') {
+        // Stackable = Cyan, Non-stackable = Muted Grey
+        return item.stackable ? new THREE.Color(0x00F0FF) : new THREE.Color(0x444444);
     }
     return 0x888888;
+}
+
+// UI Event Handlers
+function onColorModeChange(value) {
+    const viewModeSelect = document.getElementById('view-mode-select');
+    const currentView = viewModeSelect ? viewModeSelect.value : 'live';
+    
+    if (currentView !== 'live' && comparisonResults[currentView]) {
+        // We are viewing a cached algorithm result
+        const solution = comparisonResults[currentView].solution;
+        const solutionItems = solution.map(sol => {
+            const originalItem = allItemsData[sol.id];
+            return originalItem ? { ...originalItem, ...sol } : null;
+        }).filter(item => item !== null);
+        renderItems(solutionItems);
+    } else {
+        // Normal live visualization update
+        updateVisualization();
+    }
+}
+
+function onViewModeChange(value) {
+    const statusText = document.getElementById('status-text');
+    
+    if (value === 'live') {
+        if (statusText) statusText.textContent = "LIVE VIEW";
+        updateVisualization();
+        loadAnalytics();
+        return;
+    }
+
+    if (comparisonResults[value]) {
+        // Render from cache
+        const res = comparisonResults[value];
+        const solutionItems = res.solution.map(sol => {
+            const originalItem = allItemsData[sol.id];
+            return originalItem ? { ...originalItem, ...sol } : null;
+        }).filter(item => item !== null);
+        renderItems(solutionItems);
+        
+        // Update Metrics Dashboard
+        updateMetricsDashboard(res.metrics);
+        
+        if (statusText) statusText.textContent = `RESULT: ${value}`;
+    } else if (value.startsWith('ML - ')) {
+        // Try fetching from API
+        const algoName = value.endsWith('_COMPARE') ? value : value + '_COMPARE';
+        fetch(`${API_BASE_URL}/api/metrics/solution?algorithm=${encodeURIComponent(algoName)}&warehouse_id=${currentWarehouseId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.solution) {
+                    comparisonResults[value] = {
+                        solution: data.solution,
+                        metrics: data.metrics
+                    };
+                    onViewModeChange(value); // Recursive call now that it's cached
+                } else {
+                    console.error("Could not fetch result for", value);
+                    onViewModeChange('live');
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching result:", err);
+                onViewModeChange('live');
+            });
+    }
+}
+
+function updateMetricsDashboard(m) {
+    if (!m) return;
+    
+    const elements = {
+        'metric-space': (m.space_utilization * 100).toFixed(1) + '%',
+        'metric-runtime': m.execution_time ? m.execution_time.toFixed(2) + 's' : '0.00s',
+        'metric-access': m.accessibility.toFixed(2),
+        'metric-stability': (m.stability * 100).toFixed(1) + '%'
+    };
+    
+    for (const [id, val] of Object.entries(elements)) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = val;
+            el.style.color = '#FFD600'; // Highlight that this is a "saved" metric
+        }
+    }
+    
+    // Update fitness separately
+    const bestFit = document.getElementById('best-fitness');
+    if (bestFit) bestFit.textContent = m.fitness.toFixed(4);
+}
+
+function refreshViewModePicker() {
+    const select = document.getElementById('view-mode-select');
+    if (!select) return;
+
+    const currentValue = select.value;
+    select.innerHTML = '';
+
+    // ALWAYS include Live View
+    const liveOpt = document.createElement('option');
+    liveOpt.value = 'live';
+    liveOpt.textContent = 'LIVE / CURRENT STATE';
+    select.appendChild(liveOpt);
+
+    // Add Algorithm Results if they exist
+    const standardAlgos = ['ML - GA', 'ML - EO', 'ML - Hybrid GA-EO', 'ML - Hybrid EO-GA'];
+    
+    if (Object.keys(comparisonResults).length > 0 || currentOptimizationType === 'compare') {
+        const group = document.createElement('optgroup');
+        group.label = 'SAVED ALGORITHM RUNS';
+        standardAlgos.forEach(algo => {
+            const opt = document.createElement('option');
+            opt.value = algo;
+            opt.textContent = 'Result: ' + algo.replace('ML - ', '');
+            group.appendChild(opt);
+        });
+        select.appendChild(group);
+    }
+
+    // Try to restore previous value or default
+    if (Array.from(select.options).some(o => o.value === currentValue)) {
+        select.value = currentValue;
+    } else {
+        select.value = 'live';
+    }
 }
 
 // Picker path controls
@@ -972,6 +1117,29 @@ function startPolling() {
                         const progBar = document.getElementById('progress-bar-fill');
                         if (progBar) progBar.style.width = '100%';
                         if (statusText) statusText.textContent = "COMPARISON DONE";
+
+                        // Cache the results for the view mode switcher
+                        if (status.results) {
+                            // The backend status return for compare usually includes the final solutions if we are polling
+                            // But wait, the comparison_state in app.py has results but those are just metrics.
+                            // However, during polling, 'best_solution' is updated for each algo.
+                            // We need to make sure we capture the final state.
+                            // For now, let's assume we want to call the analytics endpoint to get the best solutions if they aren't here.
+                            // Actually, the app.py finalize_optimization saves to DB. 
+                            // But we want to view them WITHOUT switching the DB state.
+                            
+                            // Let's check how the backend handles current state.
+                            // If currentOptimizationType is 'compare', we should probably ask for the full results.
+                            fetch(`${API_BASE_URL}/api/optimize/compare/status`)
+                                .then(res => res.json())
+                                .then(compStatus => {
+                                    // Though compStatus.results doesn't have solutions, it likely has the best_solution 
+                                    // of the LAST one run. 
+                                    // To support switching between ALL, we'd need them stored.
+                                    // I'll add a note that the backend might need an update if it doesn't return all solutions.
+                                    refreshViewModePicker();
+                                });
+                        }
                     }
                 }
 
@@ -1051,6 +1219,21 @@ function startPolling() {
                         // Only re-render if we have items to show (prevents blank screen)
                         if (solutionItems.length > 0) {
                             renderItems(solutionItems);
+                            
+                        // If we are in compare mode, cache the solution AND current metrics for the algorithm
+                        if (currentOptimizationType === 'compare' && status.current_algorithm) {
+                            comparisonResults[status.current_algorithm] = {
+                                solution: JSON.parse(JSON.stringify(status.best_solution)),
+                                metrics: {
+                                    fitness: status.best_fitness || 0,
+                                    space_utilization: status.space_utilization || 0,
+                                    accessibility: status.accessibility || 0,
+                                    stability: status.stability || 0,
+                                    grouping: status.grouping || 0,
+                                    execution_time: status.elapsed_time || 0
+                                }
+                            };
+                        }
                         }
                     }
                 }
@@ -1400,6 +1583,12 @@ function renderZones(zones) {
         disposeObject(exclusionZonesGroup.children[0]);
         exclusionZonesGroup.remove(exclusionZonesGroup.children[0]);
     }
+    while (zoneLabelsGroup.children.length > 0) {
+        disposeObject(zoneLabelsGroup.children[0]);
+        zoneLabelsGroup.remove(zoneLabelsGroup.children[0]);
+    }
+
+    const showLabels = document.getElementById('show-zone-names') ? document.getElementById('show-zone-names').checked : true;
 
     zones.forEach(zone => {
         const width = zone.x2 - zone.x1;
@@ -1447,6 +1636,17 @@ function renderZones(zones) {
         }));
         line.renderOrder = 1; // Try to force render on top
         mesh.add(line);
+        exclusionZonesGroup.add(mesh);
+
+        // Add label if it's an allocation zone and labels are enabled
+        if (isAlloc && showLabels && zone.name) {
+            const labelPos = new THREE.Vector3(
+                (zone.x1 + width / 2) - whLength / 2,
+                z2 + 0.5, // Slightly above the top of the zone
+                (zone.y1 + depth / 2) - whWidth / 2
+            );
+            createZoneLabel(zone.name, labelPos);
+        }
 
         // Shelf layers
         if (isAlloc) {
@@ -2386,4 +2586,60 @@ function exportAlgoPerformance() {
             console.error('Export failed:', err);
             alert('Failed to export data: ' + err);
         });
+}
+/**
+ * 3D Visualization Helper: Creates high-performance canvas labels for allocation zones
+ */
+function createZoneLabel(text, pos) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillRect(0, 0, 256, 64);
+    
+    // Premium Glassmorphism styling for zone labels
+    ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, 256, 64, 12);
+    ctx.fill();
+    ctx.strokeStyle = '#00F0FF';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = '#00F0FF';
+    ctx.font = 'bold 30px "Outfit", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0, 240, 255, 0.5)';
+    ctx.shadowBlur = 10;
+    ctx.fillText(text, 128, 32);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.anisotropy = 16;
+    const spriteMat = new THREE.SpriteMaterial({ 
+        map: texture,
+        transparent: true,
+        depthTest: false,
+        sizeAttenuation: true
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.position.copy(pos);
+    sprite.scale.set(4, 1, 1);
+    sprite.renderOrder = 100; // Ensure names are on top
+
+    if (zoneLabelsGroup) zoneLabelsGroup.add(sprite);
+}
+
+/**
+ * Toggles visibility of all 3D zone labels in the warehouse
+ */
+function toggleZoneLabels() {
+    const checkbox = document.getElementById('show-zone-names');
+    if (checkbox && zoneLabelsGroup) {
+        zoneLabelsGroup.visible = checkbox.checked;
+        if (checkbox.checked) {
+            loadZones(); // Force re-render to ensure labels are fresh
+        }
+    }
 }

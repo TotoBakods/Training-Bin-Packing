@@ -58,14 +58,10 @@
                         <option value="1">Loading...</option>
                     </select>
                 </div>
-                <div class="select-wrapper">
-                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 5px;">VIEW MODE</span>
-                    <select id="color-scheme" onchange="updateVisualization()">
-                        <option value="category">Category</option>
-                        <option value="weight">Weight</option>
-                        <option value="priority">Priority</option>
-                        <option value="access">Access Frequency</option>
-                        <option value="fragility">Fragility</option>
+                <div class="select-wrapper" id="view-mode-wrapper">
+                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 5px;">RESULT VIEW</span>
+                    <select id="view-mode-select" onchange="onViewModeChange(this.value)">
+                        <option value="live">LIVE RESULTS</option>
                     </select>
                 </div>
             </div>
@@ -146,17 +142,26 @@
                     <div class="section-title">Visualization</div>
                     <div class="input-group">
                         <label>Color Items By</label>
-                        <select id="color-mode" onchange="updateVisualization()"
+                        <select id="color-mode" onchange="onColorModeChange(this.value)"
                             style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px;">
                             <option value="category">Category</option>
                             <option value="weight">Weight Heatmap</option>
                             <option value="access">Access Frequency</option>
+                            <option value="fragility">Fragility</option>
+                            <option value="priority">Priority</option>
+                            <option value="stackable">Stackable</option>
                         </select>
                     </div>
                     <div style="margin-top: 10px;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                             <input type="checkbox" id="show-path" onchange="togglePickerPath()">
                             <span>Show Picker Path</span>
+                        </label>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="show-zone-names" onchange="toggleZoneLabels()" checked>
+                            <span>Show Zone Names</span>
                         </label>
                     </div>
                     <div id="picker-path-config"

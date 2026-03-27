@@ -689,6 +689,36 @@ def get_metrics_history(warehouse_id=1):
             'time_to_best': row[7] if len(row) > 7 else 0
         })
     return history
+    
+def get_latest_algo_solution(algorithm, warehouse_id=1):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''SELECT solution_data, fitness, space_utilization, accessibility, 
+                 stability, grouping, execution_time, time_to_best 
+                 FROM optimization_results 
+                 WHERE algorithm = ? AND warehouse_id = ? 
+                 ORDER BY timestamp DESC LIMIT 1''', (algorithm, warehouse_id))
+    row = c.fetchone()
+    conn.close()
+    
+    if row and row[0]:
+        try:
+            return {
+                'solution': json.loads(row[0]),
+                'metrics': {
+                    'fitness': row[1],
+                    'space_utilization': row[2],
+                    'accessibility': row[3],
+                    'stability': row[4],
+                    'grouping': row[5],
+                    'execution_time': row[6],
+                    'time_to_best': row[7]
+                }
+            }
+        except Exception as e:
+            print(f"Error parsing solution: {e}")
+            return None
+    return None
 
 
 def get_item_stats_by_category(warehouse_id=1):

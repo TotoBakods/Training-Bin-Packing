@@ -33,6 +33,7 @@ from database import (
     load_sample_data,
     get_metrics_history,
     get_item_stats_by_category,
+    get_latest_algo_solution,
     load_generated_data,
     DB_PATH)
 from optimizer import (
@@ -1348,6 +1349,21 @@ def get_benchmark_status():
 def stop_benchmark():
     benchmark_state['running'] = False
     return jsonify({'success': True})
+
+
+@app.route('/api/metrics/solution', methods=['GET'])
+def get_algo_solution_api():
+    algorithm = request.args.get('algorithm')
+    warehouse_id = request.args.get('warehouse_id', default=1, type=int)
+
+    if not algorithm:
+        return jsonify({'error': 'Algorithm name required'}), 400
+
+    result = get_latest_algo_solution(algorithm, warehouse_id)
+    if result:
+        return jsonify({'success': True, 'solution': result['solution'], 'metrics': result['metrics']})
+    else:
+        return jsonify({'success': False, 'error': 'No solution found for this algorithm'}), 404
 
 
 if __name__ == '__main__':

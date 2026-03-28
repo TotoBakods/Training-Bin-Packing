@@ -321,9 +321,12 @@ def upload_csv():
         text_stream = io.TextIOWrapper(file.stream, encoding='utf-8')
         csv_input = csv.reader(text_stream)
 
-        # Clear items for this warehouse first
-        clear_data(warehouse_id)
-        gc.collect()  # Force cleanup after clearing data
+        append_mode = request.args.get('append', 'false').lower() == 'true'
+
+        if not append_mode:
+            # Clear items for this warehouse first
+            clear_data(warehouse_id)
+            gc.collect()  # Force cleanup after clearing data
 
         headers = next(csv_input, None)
         if headers:

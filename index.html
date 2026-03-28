@@ -74,6 +74,8 @@
             <div id="tooltip"></div>
         </main>
 
+        <div id="resizer"></div>
+
         <!-- Inspector / Right Sidebar -->
         <aside id="inspector">
 
@@ -220,8 +222,12 @@
                     <div class="data-grid" style="grid-template-columns: 1fr;">
                         <button class="btn btn-danger" onclick="deleteAllItems()" style="margin-bottom: 10px;">DELETE
                             ALL ITEMS</button>
-                        <button class="btn" onclick="document.getElementById('file-upload').click()">IMPORT CSV</button>
-                        <input type="file" id="file-upload" accept=".csv" style="display:none" onchange="uploadCSV()">
+                        <div style="display: flex; gap: 10px; width: 100%;">
+                            <button class="btn" onclick="document.getElementById('file-upload').click()" style="flex: 1; padding: 10px;">REPLACE (CSV)</button>
+                            <button class="btn" onclick="document.getElementById('file-upload-append').click()" style="flex: 1; padding: 10px;">ADD (CSV)</button>
+                        </div>
+                        <input type="file" id="file-upload" accept=".csv" style="display:none" onchange="uploadCSV(false)">
+                        <input type="file" id="file-upload-append" accept=".csv" style="display:none" onchange="uploadCSV(true)">
                         <button class="btn" onclick="scrambleItems()"
                             style="background: var(--bg-dark-secondary); border: 1px solid var(--accent-primary); color: var(--accent-primary);">SCRAMBLE
                             (RANDOMIZE)</button>
@@ -229,9 +235,45 @@
                     </div>
                 </div>
                 <div class="panel-section">
-                    <div class="section-title">Inventory List</div>
+                    <div class="section-title">Add New Item</div>
+                    <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="input-group">
+                            <label>Name</label>
+                            <input type="text" id="new-item-name" placeholder="Item Name">
+                        </div>
+                        <div class="input-group">
+                            <label>Category</label>
+                            <input type="text" id="new-item-category" placeholder="e.g. Electronics">
+                        </div>
+                        <div class="input-group">
+                            <label>Dimensions (LxWxH)</label>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="number" id="new-item-length" placeholder="L" style="width: 30%;">
+                                <input type="number" id="new-item-width" placeholder="W" style="width: 30%;">
+                                <input type="number" id="new-item-height" placeholder="H" style="width: 30%;">
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Weight (kg)</label>
+                            <input type="number" id="new-item-weight" placeholder="0">
+                        </div>
+                        <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-main);">
+                                <input type="checkbox" id="new-item-fragile"> Fragile
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-main);">
+                                <input type="checkbox" id="new-item-stackable" checked> Stackable
+                            </label>
+                        </div>
+                        <button class="btn" onclick="addNewItem()" style="grid-column: span 2; background: var(--success); color: #000; font-weight: bold;">ADD ITEM</button>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div class="section-title" style="margin-bottom: 0;">Inventory List</div>
+                    </div>
                     <div id="items-list"
-                        style="overflow-y: auto; font-size: 0.8rem; color: var(--text-muted);">
+                        style="overflow-y: auto; font-size: 0.8rem; color: var(--text-muted); max-height: 400px;">
                         <!-- Items injected here -->
                     </div>
                 </div>

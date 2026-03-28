@@ -22,7 +22,44 @@ document.addEventListener('DOMContentLoaded', () => {
     loadZones(); // Ensure zones are loaded on startup
     switchView('controls');
     updateAlgorithmParams(); // Initialize algorithm params
+    initResizer(); // Initialize UI resizer
 });
+
+function initResizer() {
+    const resizer = document.getElementById('resizer');
+    const appContainer = document.getElementById('app-container');
+    let isResizing = false;
+
+    if (!resizer) return;
+
+    resizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        resizer.classList.add('dragging');
+        document.body.style.cursor = 'ew-resize';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        
+        let newWidth = window.innerWidth - e.clientX;
+        newWidth = Math.max(300, Math.min(newWidth, Math.floor(window.innerWidth * 0.5))); // Clamp
+        
+        appContainer.style.setProperty('--inspector-width', `${newWidth}px`);
+        
+        if (typeof onWindowResize === 'function') {
+            onWindowResize(); // Force ThreeJS to adapt
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            resizer.classList.remove('dragging');
+            document.body.style.cursor = '';
+        }
+    });
+}
 
 // Algorithm parameter UI
 function updateAlgorithmParams() {
@@ -757,6 +794,27 @@ function onViewModeChange(value) {
         updateMetricsDashboard(res.metrics);
         
         if (statusText) statusText.textContent = `RESULT: ${value}`;
+        
+        // Update Optimization Tab Status
+        const algoName = value.replace('ML - ', '').replace('_COMPARE', '');
+        const statusAlgo = document.getElementById('status-algo');
+        const statusElapsed = document.getElementById('status-elapsed');
+        const statusGen = document.getElementById('status-gen');
+        const statusPlaced = document.getElementById('status-placed');
+        if (statusAlgo) statusAlgo.textContent = algoName;
+        if (statusElapsed) statusElapsed.textContent = res.metrics.execution_time ? res.metrics.execution_time.toFixed(2) + 's' : '-';
+        if (statusGen) statusGen.textContent = 'Completed';
+        
+        // Calculate placed items (items with Z < 1000)
+        if (statusPlaced && res.solution) {
+            const placedCount = res.solution.filter(i => (i.z || 0) < 1000).length;
+            statusPlaced.textContent = `${placedCount} / ${res.solution.length}`;
+            
+            const progressPercent = document.getElementById('progress-percent');
+            const progressBarFill = document.getElementById('progress-bar-fill');
+            if (progressPercent) progressPercent.textContent = '100%';
+            if (progressBarFill) progressBarFill.style.width = '100%';
+        }
     } else if (value.startsWith('ML - ')) {
         // Try fetching from API
         const algoName = value.endsWith('_COMPARE') ? value : value + '_COMPARE';
@@ -1478,10 +1536,11 @@ function loadItemsList() {
             const thead = document.createElement('thead');
             thead.innerHTML = `
                 <tr style="color:var(--accent-primary); border-bottom:1px solid #444;">
-                    <th style="width: 40%;">Name</th>
-                    <th style="width: 30%;">Dim</th>
-                    <th style="width: 20%;">Cat</th>
+                    <th style="width: 35%;">Name</th>
+                    <th style="width: 25%;">Dim</th>
+                    <th style="width: 15%;">Cat</th>
                     <th style="width: 10%;">F</th>
+                    <th style="width: 15%;">Action</th>
                 </tr>
             `;
             table.appendChild(thead);
@@ -1495,12 +1554,116 @@ function loadItemsList() {
                     <td style="color: var(--accent-primary)">${item.width}x${item.height}x${item.length}</td>
                     <td>${item.category}</td>
                     <td>${item.fragility ? '⚠️' : '🛡️'}</td>
+                    <td><button onclick="deleteItem('${item.id}')" style="background: none; border: none; color: var(--danger, #ff4c4c); cursor: pointer; padding: 0;">🗑️</button></td>
                 `;
                 tbody.appendChild(tr);
             });
             table.appendChild(tbody);
             container.appendChild(table);
         });
+}
+
+function deleteItem(itemId) {
+    if (!confirm('Are you sure you want to delete this item?')) return;
+    fetch(`${API_BASE_URL}/api/items/${itemId}?warehouse_id=${currentWarehouseId}`, { method: 'DELETE' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                loadItemsList();
+                updateVisualization();
+                rerunOptimization();
+            } else {
+                alert('Failed to delete item: ' + data.error);
+            }
+        });
+}
+
+function addNewItem() {
+    const name = document.getElementById('new-item-name').value || 'New Item';
+    const category = document.getElementById('new-item-category').value || 'General';
+    const length = parseFloat(document.getElementById('new-item-length').value) || 1.0;
+    const width = parseFloat(document.getElementById('new-item-width').value) || 1.0;
+    const height = parseFloat(document.getElementById('new-item-height').value) || 1.0;
+    const weight = parseFloat(document.getElementById('new-item-weight').value) || 10.0;
+    const fragile = document.getElementById('new-item-fragile').checked;
+    const stackable = document.getElementById('new-item-stackable').checked;
+
+    const data = {
+        id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+        name,
+        category,
+        length,
+        width,
+        height,
+        weight,
+        fragility: fragile ? 1 : 0,
+        stackable: stackable ? 1 : 0,
+        access_freq: Math.random() * 0.5,
+        can_rotate: !fragile ? 1 : 0,
+        priority: 1,
+        warehouse_id: currentWarehouseId
+    };
+
+    fetch(`${API_BASE_URL}/api/items`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(result => {
+        if (result.success) {
+            loadItemsList();
+            updateVisualization();
+            rerunOptimization();
+            // Clear inputs
+            document.getElementById('new-item-name').value = '';
+            document.getElementById('new-item-category').value = '';
+            document.getElementById('new-item-length').value = '';
+            document.getElementById('new-item-width').value = '';
+            document.getElementById('new-item-height').value = '';
+            document.getElementById('new-item-weight').value = '';
+        } else {
+            alert('Failed to add item: ' + result.error);
+        }
+    });
+}
+
+function rerunOptimization() {
+    const viewModeSelect = document.getElementById('view-mode-select');
+    const currentView = viewModeSelect ? viewModeSelect.value : 'live';
+
+    let targetAlgorithm = 'ga'; // default
+
+    if (currentView === 'live') {
+        const algoSelect = document.getElementById('algorithm-select');
+        if (algoSelect) targetAlgorithm = algoSelect.value;
+    } else {
+        // Parse custom result view name... ML - GA -> ga, ML - EO -> eo...
+        if (currentView.includes('GA-EO')) targetAlgorithm = 'ga-eo';
+        else if (currentView.includes('EO-GA')) targetAlgorithm = 'eo-ga';
+        else if (currentView.includes('GA')) targetAlgorithm = 'ga';
+        else if (currentView.includes('EO')) targetAlgorithm = 'eo';
+    }
+
+    // Set controls to match
+    const algoSelect = document.getElementById('algorithm-select');
+    if (algoSelect) {
+        algoSelect.value = targetAlgorithm;
+    }
+
+    // Switch to live mode temporarily if not already so that startOptimization doesn't get confused
+    if (viewModeSelect && viewModeSelect.value !== 'live') {
+        viewModeSelect.value = 'live';
+        onViewModeChange('live');
+    }
+    
+    // Switch to controls view to show progress
+    switchView('controls');
+    
+    // Start optimization
+    startOptimization();
 }
 
 let editingZoneId = null;
@@ -2214,15 +2377,17 @@ function updateWarehouseConfig() {
         });
 }
 
-function uploadCSV() {
-    const input = document.getElementById('file-upload');
+function uploadCSV(isAppend = false) {
+    const input = isAppend ? document.getElementById('file-upload-append') : document.getElementById('file-upload');
     const file = input.files[0];
     if (!file) return;
 
     const formData = new FormData();
     formData.append('file', file);
+    
+    const appendParam = isAppend ? '&append=true' : '';
 
-    fetch(`${API_BASE_URL}/api/upload-csv?warehouse_id=${currentWarehouseId}`, {
+    fetch(`${API_BASE_URL}/api/upload-csv?warehouse_id=${currentWarehouseId}${appendParam}`, {
         method: 'POST',
         body: formData
     }).then(res => res.json())
@@ -2231,9 +2396,11 @@ function uploadCSV() {
                 alert('Uploaded Successfully');
                 updateVisualization();
                 if (document.getElementById('view-items').style.display === 'block') loadItemsList();
+                rerunOptimization();
             } else {
                 alert('Error: ' + d.error);
             }
+            input.value = ''; // Reset input so same file can trigger change
         });
 }
 

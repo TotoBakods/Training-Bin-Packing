@@ -35,14 +35,26 @@ body {
 /* Layout */
 #app-container {
     display: grid;
-    grid-template-columns: 64px 1fr 320px;
+    grid-template-columns: 64px 1fr 4px var(--inspector-width, 320px);
     grid-template-rows: 60px minmax(0, 1fr) 40px;
     height: 100vh;
     width: 100vw;
     grid-template-areas:
-        "sidebar header inspector"
-        "sidebar main inspector"
-        "sidebar footer inspector";
+        "sidebar header resizer inspector"
+        "sidebar main resizer inspector"
+        "sidebar footer resizer inspector";
+}
+
+#resizer {
+    grid-area: resizer;
+    cursor: ew-resize;
+    background: rgba(255, 255, 255, 0.05);
+    z-index: 100;
+    transition: background 0.3s;
+}
+
+#resizer:hover, #resizer.dragging {
+    background: var(--accent-primary);
 }
 
 /* 3D Viewport */
@@ -111,7 +123,7 @@ body {
     position: absolute; /* Float over viewport */
     top: 0;
     left: 64px;
-    right: 320px;
+    right: calc(var(--inspector-width, 320px) + 4px);
     height: 60px;
     padding: 0 24px;
     display: flex;

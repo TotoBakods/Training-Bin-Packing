@@ -196,9 +196,21 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
         # Generate candidate positions
         candidates = set()
         
-        # From zone corners
+        # From zone corners and Spatial-Grid Gap Search
         for z in use_zones:
             candidates.add((z['x1'], z['y1']))
+            
+            # Instantiate a 0.5m interval lattice grid over target allocation zones
+            grid_step = 0.5
+            zx1, zx2 = z['x1'], z['x2']
+            zy1, zy2 = z['y1'], z['y2']
+            cx = zx1
+            while cx < zx2:
+                cy = zy1
+                while cy < zy2:
+                    candidates.add((cx, cy))
+                    cy += grid_step
+                cx += grid_step
         
         # From placed items (adjacent positions)
         for (px, py, pz, pdx, pdy, pdz) in placed_items:

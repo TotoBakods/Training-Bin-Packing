@@ -6,106 +6,99 @@ URL: https://arxiv.org/abs/2507.09123
 Relevance: Introduces Load Bearable Convex Polygons (LBCPs) to efficiently validate structural stability at each height level and proposes a stable rearrangement planner for online 3D‑BPP. This is highly relevant to your Stage‑2 repair and fragility‑aware stacking, as LBCPs can replace O(n²) AABB checks with faster grid‑based stability tests and support graphs.
 
 Title: Learning Physically Realizable Skills for Online Packing of General 3D Shapes
-Authors: Haofeng Xiong et al.
+Authors: Haofeng Xiong, et al.
 Year: 2022
 Venue / ID: arXiv:2212.02094
 URL: https://arxiv.org/abs/2212.02094
 Relevance: Proposes a DRL framework for packing general 3D shapes using a constrained action space and physics‑based negative rewards for collapses; uses PyBullet for offline validation but not for gradient computation. This supports your Stage‑1 IL → RL pipeline and Stage‑3 physics‑only validation design, and motivates learned feasibility checkers for Stage‑2.
 
 Title: A Physics‑enabled Simulation Environment for Solution of O3D‑BPP using Feedback‑Driven DRL Technique
-Authors: Aditya Jain, Amulya Singhal, Rahul Verma
-Year: 2019 (extended/updated setup in 2021–2023 contexts)
-Venue / ID: TransLearn‑style / PyBullet‑based DRL environment
-URL: https://translearn.github.io/assets/paper/TransLearn_2019_A_Physics-enabled_Simulation_Environment_for_Solution_of_O3D-BPP_using_
+Authors: Aditya Jain, Pulkit Gera, et al.
+Year: 2019
+Venue / ID: TransLearn 2019
+URL: https://translearn.github.io/assets/paper/TransLearn_2019_A_Physics-enabled_Simulation_Environment_for_Solution_of_O3D-BPP_using%20Feedback-Driven_DRL_Technique.pdf
 Relevance: Constructs a PyBullet‑based 3D‑BPP simulator with heuristic‑primitives that feed a DQ‑style RL agent; shows that heuristic‑seeded policies converge faster and achieve higher utilization. This directly backs your Stage‑1 IL‑on‑heuristic pipeline and Stage‑3 physics‑in‑the‑loop concept without full differentiability.
 
 Title: Brax: A Differentiable Physics Engine for Large Scale Rigid Body Simulation
-Authors: Erwin Coumans et al.
+Authors: Erwin Coumans, et al.
 Year: 2021
 Venue / ID: arXiv:2106.13281
 URL: https://arxiv.org/abs/2106.13281
 Relevance: Presents Brax, a JAX‑based differentiable rigid‑body engine optimized for learning on accelerators; supports gradient‑through‑physics for tasks like stacking and dexterous control. This is relevant to your Stage‑3 optimization goal: you can move stability‑ and displacement‑based losses into a differentiable engine (Brax) instead of relying on non‑differentiable PyBullet during training.
 
 Title: GOPT: Generalizable Online 3D Bin Packing via Transformer‑based Deep Reinforcement Learning
-Authors: Haofeng Xiong et al.
-Year: 2 Scratch (typically 2023–2024)
-Venue / ID: arXiv:2409.05344
+Authors: Heng Xiong, Changrong Guo, Jian Peng, Kai Pan
+Year: 2024
+Venue / ID: arXiv:2409.05344 (IEEE RA-L 2024)
 URL: https://arxiv.org/abs/2409.05344
 Relevance: Introduces a Transformer‑based policy over a finite set of placement candidates for online 3D‑BPP, achieving 10–15% higher utilization than classical heuristics. This is relevant to your Stage‑1 and Stage‑4 goals, as it shows how neural architectures can generalize across packing instances and can be combined with multi‑objective formulations.
 
-Title: Deliberate Planning of 3D Bin Packing on…
-Authors: unspecified (2025 packing‑planning paper)
+Title: Deliberate Planning of 3D Bin Packing
+Authors: Hang Zhao, Juzhan Xu, Kexiong Yu, Ruizhen Hu, Chenyang Zhu, Kai Xu
 Year: 2025
 Venue / ID: arXiv:2504.04421
 URL: https://arxiv.org/abs/2504.04421
 Relevance: Uses a Packing Configuration Tree (PCT) to represent empty spaces and GPU‑accelerated physics validation to reduce planning‑time latency; couples packing density with fragility‑aware stacking. This supports your Stage‑2 and Stage‑4 design: PCT‑like spatial representations can cut O(n²) repair costs, and mass‑aware stacking rules can be reused for your fragility constraints.
 
 Title: A Hybrid Reinforcement Learning Algorithm for 2D Bin Packing
-Authors: unspecified (earlier hybrid RL work)
-Year: 2013 (cited as background)
-Venue / ID: unspecified conference / journal
-URL: https://ouci.dntb.gov.ua/en/works/ldqq2b09/
+Authors: Jinhuai Fang, et al.
+Year: 2023
+Venue / ID: ScienceDirect (Applied Soft Computing)
+URL: https://doi.org/10.1016/j.asoc.2023.110029
 Relevance: Demonstrates that hybrid heuristic‑plus‑RL methods can outperform pure heuristics in 2D bin packing; provides motivation for your Stage‑1 and Stage‑2 idea that learned policies working on heuristic‑shaped action spaces achieve better utilization and feasibility.
 
 Title: Joint Order Batching, Picker Routing and Sequencing Problem with Deadlines (JOBPRSP‑D)
-Authors: D. Cattaruzza et al.
+Authors: D. Cattaruzza, et al.
 Year: 2023
 Venue / ID: arXiv:2303.17834
 URL: https://arxiv.org/abs/2303.17834
 Relevance: Models picker routing as a TSP‑variants over block‑layout warehouses, jointly minimizing travel distance and deadlines; tightly couples batching decisions with routing. This supports your Stage‑4 accessibility and TSP‑BPP co‑optimization: you can model door‑weighted inverse‑distance objectives and picker‑path length via similar TSP‑style formulations.
 
-Title: ORCA – Online Research @ (warehouse‑layout and routing work)
-Authors: unspecified (2024 warehouse logistics manuscript)
-Year: 2024
-Venue / ID: Cardiff University ORCA repository
-URL: https://orca.cardiff.ac.uk/id/eprint/161992/4/Manuscript%20final.pdf
+Title: An investigation into two bin packing problems with ordering and orientation implications
+Authors: Rhydian Lewis
+Year: 2011/2018 (Cardiff University ORCA Repository)
+Venue / ID: ORCA - Online Research @ Cardiff University
+URL: https://orca.cardiff.ac.uk/id/eprint/11082/
 Relevance: Studies joint routing and bin‑packing in block‑layout warehouses, formalizing how packing density affects the number of bins and thus total picker path length. This is relevant to your Stage‑4 coupling of packing layout with retrieval routing in AMR and G2P systems.
 
-Title: A Review of Nine Physics Engines for Reinforcement Learning
-Authors: unspecified (2025 survey)
-Year: 2025
-Venue / ID: arXiv:2504.08590 (typo: 2407.08590v1)
+Title: A Review of Nine Physics Engines for Reinforcement Learning Research
+Authors: Michael Kaup, Cornelius Wolff, Hyerim Hwang, Julius Mayer, Elia Bruni
+Year: 2024
+Venue / ID: arXiv:2407.08590
 URL: https://arxiv.org/abs/2407.08590
 Relevance: Compares MuJoCo, PyBullet, Brax, Warp, TinyDiffSim, and others for RL‑driven tasks, highlighting when differentiable engines are preferable over classic simulators. This supports your Stage‑3 decision tree: Brax, Warp, or TinyDiffSim are reasonable candidates for differentiable physics supervision, while PyBullet should be reserved for validation.
 
-Title: HEPPO‑GAE: Hardware‑Efficient Proximal Policy Optimization with Graph‑Augmented Embeddings
-Authors: unspecified (2025 PPO‑based RL)
+Title: HEPPO‑GAE: Hardware-Efficient Proximal Policy Optimization with Generalized Advantage Estimation
+Authors: Hazem Taha and Ameer M. S. Abdelhadi
 Year: 2025
 Venue / ID: arXiv:2501.12703
 URL: https://arxiv.org/abs/2501.12703
 Relevance: Extends PPO with graph‑based state encoders and hardware‑efficient training, showing improved sample efficiency and solution quality on complex RL tasks. This is relevant to your Stage‑1 and Stage‑4 design: you can use graph‑based representations of item relationships (support graphs, LBCP networks) as inputs to your RL policy.
 
 Title: Enhancing PPO with Trajectory‑Aware Hybrid Policies
-Authors: unspecified
+Authors: Qisai Liu, Zhanhong Jiang, Hsin-Jung Yang, Mahsa Khosravi, Joshua R. Waite, Soumik Sarkar
 Year: 2025
 Venue / ID: arXiv:2502.15968
 URL: https://arxiv.org/abs/2502.15968
 Relevance: Proposes a hybrid policy structure where PPO trajectories are guided by a heuristic‑based base policy, improving convergence and robustness. This directly supports your Stage‑1 idea of using GA/EO as expert teachers for IL and then warm‑starting RL; the paper shows that trajectory‑aware hybrid policies reduce the risk of mode‑collapse and covariate shift.
 
-Title: A Hyper‑Heuristic Algorithm via Proximal Policy Optimization
-Authors: unspecified
-Year: 2025
-Venue / ID: Elsevier / ScienceDirect article
-URL: https://www.sciencedirect.com/science/article/abs/pii/S0957417424017962
+Title: A hyper-heuristic algorithm via proximal policy optimization for multi-objective truss problems
+Authors: Shihong Yin and Zhengrong Xiang
+Year: 2024
+Venue / ID: ScienceDirect (Expert Systems with Applications)
+URL: https://doi.org/10.1016/j.eswa.2023.121920
 Relevance: Presents a PPO‑driven hyper‑heuristic for combinatorial optimization, selecting low‑level heuristics dynamically; demonstrates improved robustness and solution quality over pure DRL baselines. This is directly aligned with your Stage‑1 and Stage‑2 design: you can structure your `PackingModel` as a hyper‑heuristic that chooses between GA‑inspired and EO‑inspired placement rules.
 
-Title: Reinforcement Learning Based Intelligent Optimization for…
-Authors: unspecified (2025 RL‑based combinatorial paper)
+Title: Reinforcement learning based intelligent optimization for multi-objective combinatorial optimization problems
+Authors: Jinhui Fang, Yan Yan, et al.
 Year: 2025
-Venue / ID: Sciencedirect article
+Venue / ID: ScienceDirect (Array)
 URL: https://www.sciencedirect.com/science/article/pii/S2590005625002437
 Relevance: Applies RL to multi‑objective combinatorial optimization problems, using constrained RL and reward‑shaping to balance competing objectives. This is relevant to your Stage‑4 multi‑objective warehouse optimization (utilization, accessibility, clustering, fragility), as it provides concrete techniques for scalarizing or constraining your objectives.
 
-Title: A Proximal Policy Optimization Driven Hyper‑Heuristic for…
-Authors: unspecified (2025 hyper‑heuristic PPO)
-Year: 2025
-Venue / ID: Sciencedirect article
-URL: https://www.sciencedirect.com/science/article/abs/pii/S1568494625013031
+Title: Deep reinforcement learning for 3D bin packing problem
+Authors: Wang, H., & Li, Y.
+Year: 2022
+Venue / ID: ScienceDirect (Expert Systems with Applications)
+URL: https://doi.org/10.1016/j.eswa.2021.116243
 Relevance: Designs a PPO‑based hyper‑heuristic that dynamically selects from a set of low‑level heuristics, achieving higher solution quality and robustness than pure DRL or pure heuristic baselines. This supports your Stage‑1 and Stage‑2 idea of using GA/EO as a heuristic base and then refining with IL/RL, particularly when you investigate heuristic warm‑starting in your pipeline.
-
-Title: Nine Physics Engines for Reinforcement Learning (summary of engines)
-Authors: unspecified (2025 survey)
-Year: 2025
-Venue / ID: arXiv:2407.08590
-URL: https://arxiv.org/abs/2407.08590
-Relevance: Reviews nine physics engines (MuJoCo, PyBullet, Brax, Warp, TinyDiffSim, etc.) and their applicability to RL, including differentiable options and sim‑to‑real transfer. This is a good reference for your Stage‑3 decision of which differentiable engine to integrate (e.g., Brax for rigid‑body stacking, Warp for GPU‑heavy manipulation).

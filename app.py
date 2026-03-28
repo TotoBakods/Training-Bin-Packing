@@ -918,7 +918,8 @@ def optimize_compare():
                 algo_contribution = (1 / len(algorithms)) * 100
                 comparison_state['progress'] = base_progress + \
                     (progress / 100) * algo_contribution
-                comparison_state['best_solution'] = solution
+                if solution is not None:
+                    comparison_state['best_solution'] = solution
                 if message:
                     comparison_state['message'] = f"{algo['name']}: {message}"
 
@@ -938,6 +939,10 @@ def optimize_compare():
 
                 end_time = time.time()
                 execution_time = end_time - start_time
+
+                # Update the comparison state with the absolute final solution so UI caches the 100% placed output
+                if solution is not None:
+                    comparison_state['best_solution'] = solution
 
                 # Calculate detailed metrics
                 final_fitness, space_util, accessibility, stability, grouping = fitness_function(

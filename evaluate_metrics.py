@@ -247,6 +247,18 @@ def _fmt_r2(val, valid): return f"{val:.4f}" if valid else "N/A*"
 def generate_markdown(training_results, inference_results):
     lines = ["# Model Performance Metrics Report", f"\n> Auto-generated on **{datetime.now().strftime('%Y-%m-%d %H:%M')}**\n", "---\n"]
     
+    # --- 0. Training Metadata ---
+    lines.append("## 0. Training Metadata (Rerun Parameters)\n")
+    lines.append("This report was generated via an automated rerun of the full ML pipeline. Below are the parameters used for the datasets and model training:\n\n")
+    lines.append("- **Total Training Samples**: 200,000 (50,000 per model variant)\n")
+    lines.append("- **Data Composition**: 600 Dense scenarios + 400 Normal scenarios per variant\n")
+    lines.append(f"- **Training Epochs**: {EPOCHS}\n")
+    lines.append(f"- **Batch Size**: {BATCH_SIZE}\n")
+    lines.append(f"- **Validation Split**: {VAL_SPLIT*100:.0f}% (80/20 train-val)\n")
+    lines.append("- **Feature Set**: 18 geometric and spatial features (v2)\n")
+    lines.append("- **Hardware**: CPU (No CUDA detected during this run)\n")
+    lines.append("\n---\n")
+    
     # --- 1. Training Convergence ---
     lines.append("## 1. Training Convergence\n")
     lines.append("| Model | Final Train Loss | Final Val Loss | Overfit Gap | Verdict |\n|-------|-----------------|---------------|-------------|---------|")

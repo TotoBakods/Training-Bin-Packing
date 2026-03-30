@@ -659,6 +659,7 @@ def generate_ml_metrics_report(training_results, inference_results, physics_resu
     report_path = os.path.join(METRICS_BASE_DIR, "model_metrics_ml.md")
     
     # Generate Visuals
+    save_stability_heatmap(physics_results)
     save_convergence_plot(training_results)
     save_loss_curves_grid(training_results)
     save_error_comparison_plot(training_results)

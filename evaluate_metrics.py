@@ -839,27 +839,39 @@ def generate_gan_metrics_report():
         
         lines.append("\n*(Format: Length, Width, Height, Weight)*\n")
         
-        lines.append("\n## 5. Sample Fidelity Dashboard (Organized)")
-        lines.append("This section tracks 5 random items throughout the synthetic lifecycle, with attributes grouped by physical dimensions and SKU metadata.\n")
+        lines.append("\n## 5. Phase-Based Sample Fidelity Dashboard (Summary)")
+        lines.append("This section compares 5 random samples across the three major generation phases. Full metadata is provided at the source phase.\n")
         
         orig_df = samples["original_df"]
+        n_vals = samples["synth_norm"]
+        d_vals = samples["synth_denorm"]
+        
+        # Table 1: Original (Real Source)
+        lines.append("### Phase 1: Original (Real-World Source)")
+        lines.append("| Smp | Len (m) | Wid (m) | Hei (m) | Wgt (kg) | Category | Fragile | Stack | Rotate |")
+        lines.append("|:---| :---: | :---: | :---: | :---: | :--- | :---: | :---: | :---: |")
         for i in range(5):
-            o_row = orig_df.iloc[i]
-            n = samples["synth_norm"][i]
-            d = samples["synth_denorm"][i]
-            
-            lines.append(f"### Sample {i+1} Fidelity Profile")
-            lines.append("| Component | Attribute | Original (Real) | GAN Latent [0-1] | GAN Denormalized | Metadata |")
-            lines.append("| :--- | :--- | :---: | :---: | :---: | :--- |")
-            lines.append(f"| **Physical** | Length     | {o_row['length']:.3f} | {n[0]:.6f} | {d[0]:.3f} | meters (f32) |")
-            lines.append(f"| **Physical** | Width      | {o_row['width']:.3f}  | {n[1]:.6f} | {d[1]:.3f} | meters (f32) |")
-            lines.append(f"| **Physical** | Height     | {o_row['height']:.3f} | {n[2]:.6f} | {d[2]:.3f} | meters (f32) |")
-            lines.append(f"| **Physical** | Weight     | {o_row['weight']:.3f} | {n[3]:.6f} | {d[3]:.3f} | kg (f32)     |")
-            lines.append(f"| **SKU Meta** | Category   | {o_row['category']}   | -- | -- | object (str) |")
-            lines.append(f"| **SKU Meta** | Fragility  | {bool(o_row['fragility'])} | -- | -- | int64 (bool) |")
-            lines.append(f"| **SKU Meta** | Stackable  | {bool(o_row['stackable'])} | -- | -- | int64 (bool) |")
-            lines.append(f"| **SKU Meta** | Can Rotate | {bool(o_row['can_rotate'])} | -- | -- | int64 (bool) |")
-            lines.append("\n---\n")
+            r = orig_df.iloc[i]
+            lines.append(f"| {i+1} | {r['length']:.3f} | {r['width']:.3f} | {r['height']:.3f} | {r['weight']:.2f} | {r['category']} | {bool(r['fragility'])} | {bool(r['stackable'])} | {bool(r['can_rotate'])} |")
+        lines.append("\n")
+        
+        # Table 2: GAN Latent Space [0-1]
+        lines.append("### Phase 2: GAN Latent Space (Normalized [0, 1])")
+        lines.append("| Smp | Item_L | Item_W | Item_H | Item_Wt | Data Type | Range |")
+        lines.append("|:---| :---: | :---: | :---: | :---: | :---: | :---: |")
+        for i in range(5):
+            n = n_vals[i]
+            lines.append(f"| {i+1} | {n[0]:.6f} | {n[1]:.6f} | {n[2]:.6f} | {n[3]:.6f} | float32 | [0.0, 1.0] |")
+        lines.append("\n")
+        
+        # Table 3: GAN Denormalized (Reconstructed)
+        lines.append("### Phase 3: GAN Denormalized (Reconstructed Source)")
+        lines.append("| Smp | Rec_Len | Rec_Wid | Rec_Hei | Rec_Wgt | Data Type | Unit |")
+        lines.append("|:---| :---: | :---: | :---: | :---: | :---: | :---: |")
+        for i in range(5):
+            d = d_vals[i]
+            lines.append(f"| {i+1} | {d[0]:.3f} | {d[1]:.3f} | {d[2]:.3f} | {d[3]:.2f} | float32 | Physical |")
+        lines.append("\n---\n")
 
 
     with open(report_path, "w", encoding="utf-8") as f:

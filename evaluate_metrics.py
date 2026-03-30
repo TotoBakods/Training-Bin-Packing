@@ -22,6 +22,18 @@ from optimizer import (
     fitness_function_numpy,
     get_valid_z_positions,
 )
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Visuals directory
+VISUALS_DIR = os.path.join("Documents", "metrics_visuals")
+if not os.path.exists(VISUALS_DIR):
+    os.makedirs(VISUALS_DIR)
+
+# Styling
+sns.set_theme(style="darkgrid")
+plt.rcParams['figure.dpi'] = 150
+plt.rcParams['font.family'] = 'sans-serif'
 
 # --- Configuration  -----------------------------------------------------------
 TRAINING_DIR   = "training_data"
@@ -241,10 +253,89 @@ def run_inference(model_name, items_df, warehouse):
     return { "fitness":fit, "su_pct":su*100, "access":acc, "stability":sta, "grouping":grp, "inference_ms":infer_ms, "repair_ms":repair_ms, "total_ms":infer_ms+repair_ms, "mean_disp":np.mean(disp), "max_disp":np.max(disp), "in_bounds":np.sum((sol[:,0]>=0)&(sol[:,0]<=wh_l)&(sol[:,1]>=0)&(sol[:,1]<=wh_w))/num, "total_items":num, "total_vol":total_item_vol, "wh_vol":wh_vol, "max_z":np.max(sol[:,2]+items_props[:,2]), "z_dist":z_dist, "clustering":clustering, "frag_compliance":frag_compliance, "cog_x":cog_x, "cog_y":cog_y, "cog_z":cog_z, "bbox_eff":bbox_eff, "rot_pct":rot_pct }
 
 
+# --- Visualizations ---
+def save_convergence_plot(training_results):
+    plt.figure(figsize=(12, 6))
+    colors = sns.color_palette("husl", len(training_results))
+    for i, (name, res) in enumerate(training_results.items()):
+        hist = res["history"]
+        plt.plot(hist["epoch"], hist["train_loss"], label=f"{name} (Train)", color=colors[i], linewidth=2)
+        plt.plot(hist["epoch"], hist["val_loss"], label=f"{name} (Val)", color=colors[i], linestyle="--", alpha=0.7)
+    
+    plt.title("Model Training Convergence (Weighted MSE Loss)", fontsize=14, fontweight='bold')
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(VISUALS_DIR, "convergence_comparison.png"))
+    plt.close()
+
+def save_error_comparison_plot(training_results):
+    models = list(training_results.keys())
+    # MAE Comparison
+    mae_data = []
+    for name, res in training_results.items():
+        for i, val in enumerate(res["per_output_mae"]):
+            mae_data.append({"Model": name, "Axis": OUTPUT_LABELS[i], "MAE": val})
+    
+    df_mae = pd.DataFrame(mae_data)
+    plt.figure(figsize=(10, 6))
+    sns.barplot(data=df_mae[df_mae['Axis'] != 'rotation'], x="Axis", y="MAE", hue="Model", palette="viridis")
+    plt.title("Coordinate Prediction Error (MAE in Meters)", fontsize=14, fontweight='bold')
+    plt.ylabel("Mean Absolute Error (m)")
+    plt.tight_layout()
+    plt.savefig(os.path.join(VISUALS_DIR, "mae_coords.png"))
+    plt.close()
+
+    # Rotation MAE
+    plt.figure(figsize=(8, 5))
+    sns.barplot(data=df_mae[df_mae['Axis'] == 'rotation'], x="Model", y="MAE", palette="magma")
+    plt.title("Rotation Prediction Error (MAE in Code Units)", fontsize=14, fontweight='bold')
+    plt.ylabel("Mean Absolute Error (units)")
+    plt.tight_layout()
+    plt.savefig(os.path.join(VISUALS_DIR, "mae_rotation.png"))
+    plt.close()
+
+def save_performance_trends_plot(inference_results):
+    plot_data = []
+    for ds_name, models in inference_results.items():
+        n_items = int(ds_name.replace("_items.csv", ""))
+        for name, res in models.items():
+            plot_data.append({
+                "Items": n_items,
+                "Model": name,
+                "Fitness": res["fitness"],
+                "Space_Efficiency": res["su_pct"],
+                "BBox_Efficiency": res["bbox_eff"]
+            })
+    
+    df = pd.DataFrame(plot_data)
+    
+    # Fitness Trend
+    plt.figure(figsize=(10, 6))
+    sns.lineplot(data=df, x="Items", y="Fitness", hue="Model", marker="o", linewidth=2.5)
+    plt.title("Optimization Fitness vs. Data Scaling", fontsize=14, fontweight='bold')
+    plt.ylabel("Fitness Score (Normalized)")
+    plt.savefig(os.path.join(VISUALS_DIR, "fitness_trends.png"))
+    plt.close()
+
+    # Efficiency Trend
+    plt.figure(figsize=(10, 6))
+    sns.lineplot(data=df, x="Items", y="Space_Efficiency", hue="Model", marker="s", linewidth=2.5)
+    plt.title("Warehouse Space Utilization %", fontsize=14, fontweight='bold')
+    plt.ylabel("Space %")
+    plt.savefig(os.path.join(VISUALS_DIR, "space_efficiency.png"))
+    plt.close()
+
 # --- Report ---
 def _fmt_r2(val, valid): return f"{val:.4f}" if valid else "N/A*"
 
 def generate_markdown(training_results, inference_results):
+    # Generate Visuals First
+    save_convergence_plot(training_results)
+    save_error_comparison_plot(training_results)
+    save_performance_trends_plot(inference_results)
+
     lines = ["# Model Performance Metrics Report", f"\n> Auto-generated on **{datetime.now().strftime('%Y-%m-%d %H:%M')}**\n", "---\n"]
     
     # --- 0. Training Metadata ---
@@ -261,7 +352,8 @@ def generate_markdown(training_results, inference_results):
     
     # --- 1. Training Convergence ---
     lines.append("## 1. Training Convergence\n")
-    lines.append("| Model | Final Train Loss | Final Val Loss | Overfit Gap | Verdict |\n|-------|-----------------|---------------|-------------|---------|")
+    lines.append("![Training Convergence Trends](Documents/metrics_visuals/convergence_comparison.png)\n")
+    lines.append("\n| Model | Final Train Loss | Final Val Loss | Overfit Gap | Verdict |\n|-------|-----------------|---------------|-------------|---------|")
     for name, m in training_results.items():
         gap = m["final_val"] - m["final_train"]
         v = "✅ Good fit" if abs(gap) < 0.003 else "⚠️ Slight overfit"
@@ -280,6 +372,8 @@ def generate_markdown(training_results, inference_results):
 
     # --- 3. Per-Output Metrics (MSE & MAE) ---
     lines.append("## 3. Per-Output Error Metrics (Validation Set)\n")
+    lines.append("![Coordinate MAE Comparison](Documents/metrics_visuals/mae_coords.png)\n")
+    lines.append("![Rotation MAE Comparison](Documents/metrics_visuals/mae_rotation.png)\n")
     lines.append("### Normalised MSE (Lower is better)\n")
     lines.append("| Model | MSE x | MSE y | MSE z | MSE rot |\n|-------|-------|-------|-------|---------|")
     for name, m in training_results.items():
@@ -315,6 +409,8 @@ def generate_markdown(training_results, inference_results):
 
     # --- 6. Inference Performance ---
     lines.append("## 6. Inference Performance Summary\n")
+    lines.append("![Optimization Fitness Trends](Documents/metrics_visuals/fitness_trends.png)\n")
+    lines.append("![Space Utilization Trends](Documents/metrics_visuals/space_efficiency.png)\n")
     for ds_name in INFERENCE_DATASETS:
         if ds_name in inference_results:
             n_items = ds_name.replace('_items.csv', '')

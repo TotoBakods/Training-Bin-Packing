@@ -101,4 +101,4 @@ Authors: Wang, H., & Li, Y.
 Year: 2022
 Venue / ID: ScienceDirect (Expert Systems with Applications)
 URL: https://doi.org/10.1016/j.eswa.2021.116243
-Relevance: Designs a PPO‑based hyper‑heuristic that dynamically selects from a set of low‑level heuristics, achieving higher solution quality and robustness than pure DRL or pure heuristic baselines. This supports your Stage‑1 and Stage‑2 idea of using GA/EO as a heuristic base and then refining with IL/RL, particularly when you investigate heuristic warm‑starting in your pipeline.
+ Relevance: Designs a PPO‑based hyper‑heuristic that dynamically selects from a set of low‑level heuristics, achieving higher solution quality and robustness than pure DRL or pure heuristic baselines. This supports your Stage‑1 and Stage‑2 idea of using GA/EO as a heuristic base and then refining with IL/RL, particularly when you investigate heuristic warm‑starting in your pipeline.

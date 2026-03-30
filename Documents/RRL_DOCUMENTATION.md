@@ -7,7 +7,7 @@ This document provides the academic and technical justification for the methodol
 ### 0.1 BED-BPP (Benchmarking Dataset for Robotic Bin Packing)
 The system's primary training and evaluation data is derived from the **BED-BPP** dataset, a large-scale, industry-relevant repository designed to fill the "data gap" in robotic warehouse automation.
 *   **Justification:** Unlike synthetic datasets, BED-BPP contains real-world e-commerce order distributions, article metadata, and arrival sequences, providing a realistic benchmark for 3D-BPP solvers.
-*   **Reference:** Kagerer F, Beinhofer M, Stricker S, Nüchter A. "BED-BPP: Benchmarking dataset for robotic bin packing problems." *The International Journal of Robotics Research*. 2023; 42(11): 1007-1014. [Link: SAGE Journals / DOI: 10.1177/02783649231193048](https://doi.org/10.1177/02783649231193048) / [Link: floriankagerer.github.io/dataset/](https://floriankagerer.github.io/dataset/)
+*   **Reference:** Kagerer F, Beinhofer M, Stricker S, Nüchter A. "BED-BPP: Benchmarking dataset for robotic bin packing problems." *The International Journal of Robotics Research*. 2023; 42(11): 1007-1014. [Link: SAGE Journals / DOI: 10.1177/02783649231193048](https://doi.org/10.1177/02783649231193048) / [Link: Repository PDF](https://robotik.informatik.uni-wuerzburg.de/telematics/download/ijrr2023.pdf) / [Link: floriankagerer.github.io/dataset/](https://floriankagerer.github.io/dataset/)
 
 ### 0.2 Computer Vision for 3D Dimension Estimation
 Before packing, the system can utilize **Computer Vision (CV)** to estimate the dimensions of uncatalogued or irregular items.
@@ -74,7 +74,7 @@ Optimized 3D packing is a core lever for sustainable logistics by reducing shipp
 
 | Source | Title / URL | Relevance |
 | :--- | :--- | :--- |
-| **IJRR** | [Kagerer et al. (2023)](https://doi.org/10.1177/02783649231193048) | BED-BPP benchmark dataset for robotic packing. |
+| **IJRR** | [Kagerer et al. (2023)](https://robotik.informatik.uni-wuerzburg.de/telematics/download/ijrr2023.pdf) | BED-BPP benchmark dataset for robotic packing (Direct PDF). |
 | **arXiv** | [2507.09123](https://arxiv.org/abs/2507.09123) | Stability validation and stable rearrangement. |
 | **arXiv** | [2202.03326](https://arxiv.org/abs/2202.03326) | Optimal ratio for data splitting (80/20). |
 | **arXiv** | [2409.05344](https://arxiv.org/abs/2409.05344) | Online 3D-BPP with Transformer RL. |

@@ -839,8 +839,8 @@ def generate_gan_metrics_report():
         
         lines.append("\n*(Format: Length, Width, Height, Weight)*\n")
         
-        lines.append("\n## 5. Sample Fidelity Dashboard (Compact Matrix)")
-        lines.append("This section maps the transformation of 5 random samples from their physical source to the latent model space and back to the reconstructed synthetic item.\n")
+        lines.append("\n## 5. Sample Fidelity Dashboard (Organized)")
+        lines.append("This section tracks 5 random items throughout the synthetic lifecycle, with attributes grouped by physical dimensions and SKU metadata.\n")
         
         orig_df = samples["original_df"]
         for i in range(5):
@@ -848,17 +848,17 @@ def generate_gan_metrics_report():
             n = samples["synth_norm"][i]
             d = samples["synth_denorm"][i]
             
-            lines.append(f"### Sample {i+1} Fidelity Trace")
-            lines.append("| Attribute | Real Value | Latent [0-1] | Reconstructed | Type / Unit |")
-            lines.append("|:---|:---:|:---:|:---:|:---|")
-            lines.append(f"| **Length**     | {o_row['length']:.3f} | {n[0]:.6f} | {d[0]:.3f} | f32 / meters |")
-            lines.append(f"| **Width**      | {o_row['width']:.3f} | {n[1]:.6f} | {d[1]:.3f} | f32 / meters |")
-            lines.append(f"| **Height**     | {o_row['height']:.3f} | {n[2]:.6f} | {d[2]:.3f} | f32 / meters |")
-            lines.append(f"| **Weight**     | {o_row['weight']:.3f} | {n[3]:.6f} | {d[3]:.3f} | f32 / kg     |")
-            lines.append(f"| Category       | {o_row['category']} | -- | -- | obj / str    |")
-            lines.append(f"| Fragility      | {bool(o_row['fragility'])} | -- | -- | i64 / bool   |")
-            lines.append(f"| Stackable      | {bool(o_row['stackable'])} | -- | -- | i64 / bool   |")
-            lines.append(f"| Can Rotate     | {bool(o_row['can_rotate'])} | -- | -- | i64 / bool   |")
+            lines.append(f"### Sample {i+1} Fidelity Profile")
+            lines.append("| Component | Attribute | Original (Real) | GAN Latent [0-1] | GAN Denormalized | Metadata |")
+            lines.append("| :--- | :--- | :---: | :---: | :---: | :--- |")
+            lines.append(f"| **Physical** | Length     | {o_row['length']:.3f} | {n[0]:.6f} | {d[0]:.3f} | meters (f32) |")
+            lines.append(f"| **Physical** | Width      | {o_row['width']:.3f}  | {n[1]:.6f} | {d[1]:.3f} | meters (f32) |")
+            lines.append(f"| **Physical** | Height     | {o_row['height']:.3f} | {n[2]:.6f} | {d[2]:.3f} | meters (f32) |")
+            lines.append(f"| **Physical** | Weight     | {o_row['weight']:.3f} | {n[3]:.6f} | {d[3]:.3f} | kg (f32)     |")
+            lines.append(f"| **SKU Meta** | Category   | {o_row['category']}   | -- | -- | object (str) |")
+            lines.append(f"| **SKU Meta** | Fragility  | {bool(o_row['fragility'])} | -- | -- | int64 (bool) |")
+            lines.append(f"| **SKU Meta** | Stackable  | {bool(o_row['stackable'])} | -- | -- | int64 (bool) |")
+            lines.append(f"| **SKU Meta** | Can Rotate | {bool(o_row['can_rotate'])} | -- | -- | int64 (bool) |")
             lines.append("\n---\n")
 
 

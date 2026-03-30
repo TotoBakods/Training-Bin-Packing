@@ -1,6 +1,6 @@
 # GAN Performance & Generation Report
 
-> Auto-generated on **2026-03-31 05:28**
+> Auto-generated on **2026-03-31 05:33**
 
 ---
 
@@ -40,10 +40,10 @@ Comparing Gaussian density overlaps and statistical moments between real and syn
 
 | Dimension | Real Mean (μ) | GAN Mean (μ) | Real Std (σ) | GAN Std (σ) | Wasserstein Dist |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| Item Length | 0.443 | 0.447 | 0.108 | 0.108 | **0.00744** |
-| Item Width | 0.248 | 0.249 | 0.069 | 0.068 | **0.00430** |
-| Item Height | 0.227 | 0.230 | 0.053 | 0.050 | **0.00410** |
-| Item Weight | 6.827 | 6.793 | 2.579 | 2.598 | **0.08562** |
+| Item Length | 0.443 | 0.445 | 0.108 | 0.110 | **0.00684** |
+| Item Width | 0.248 | 0.247 | 0.069 | 0.068 | **0.00364** |
+| Item Height | 0.227 | 0.228 | 0.053 | 0.050 | **0.00405** |
+| Item Weight | 6.827 | 6.797 | 2.579 | 2.665 | **0.11774** |
 
 > **Note**: A lower Wasserstein Distance indicates higher distributional realism.
 
@@ -55,84 +55,84 @@ This table provides a 4-way comparison of 5 random item samples tracking the syn
 
 | Sample | Original (Real) | GAN Normalized [0-1] | GAN Denormalized | Synthetic (2x Scaled) |
 |:---|:---|:---|:---|:---|
-| 1 | (0.59, 0.20, 0.21, 7.7) | (0.383, 0.322, 0.213, 0.196) | (0.33, 0.20, 0.29, 5.6) | (0.67, 0.41, 0.57, 11.1) |
-| 2 | (0.55, 0.28, 0.11, 8.4) | (0.479, 0.926, 0.126, 0.159) | (0.39, 0.40, 0.19, 4.6) | (0.78, 0.79, 0.37, 9.3) |
-| 3 | (0.55, 0.28, 0.11, 8.4) | (0.382, 0.336, 0.216, 0.187) | (0.33, 0.21, 0.29, 5.3) | (0.67, 0.42, 0.58, 10.7) |
-| 4 | (0.49, 0.13, 0.21, 5.1) | (0.447, 0.401, 0.200, 0.207) | (0.37, 0.23, 0.27, 5.8) | (0.75, 0.46, 0.54, 11.7) |
-| 5 | (0.49, 0.13, 0.21, 5.1) | (0.263, 0.191, 0.139, 0.083) | (0.26, 0.16, 0.20, 2.7) | (0.52, 0.32, 0.40, 5.5) |
+| 1 | (0.59, 0.20, 0.21, 7.7) | (0.415, 0.314, 0.188, 0.145) | (0.35, 0.20, 0.26, 4.3) | (0.71, 0.40, 0.52, 8.6) |
+| 2 | (0.55, 0.28, 0.11, 8.4) | (0.361, 0.276, 0.216, 0.151) | (0.32, 0.19, 0.29, 4.5) | (0.64, 0.38, 0.58, 8.9) |
+| 3 | (0.55, 0.28, 0.11, 8.4) | (0.380, 0.278, 0.218, 0.172) | (0.33, 0.19, 0.29, 5.0) | (0.66, 0.38, 0.58, 9.9) |
+| 4 | (0.49, 0.13, 0.21, 5.1) | (0.468, 0.577, 0.150, 0.162) | (0.39, 0.28, 0.21, 4.7) | (0.77, 0.57, 0.43, 9.4) |
+| 5 | (0.49, 0.13, 0.21, 5.1) | (0.799, 0.308, 0.150, 0.246) | (0.59, 0.20, 0.21, 6.8) | (1.17, 0.40, 0.43, 13.6) |
 
 *(Format: Length, Width, Height, Weight)*
 
 
-## 5. Sample Fidelity Dashboard (Compact Matrix)
-This section maps the transformation of 5 random samples from their physical source to the latent model space and back to the reconstructed synthetic item.
+## 5. Sample Fidelity Dashboard (Organized)
+This section tracks 5 random items throughout the synthetic lifecycle, with attributes grouped by physical dimensions and SKU metadata.
 
-### Sample 1 Fidelity Trace
-| Attribute | Real Value | Latent [0-1] | Reconstructed | Type / Unit |
-|:---|:---:|:---:|:---:|:---|
-| **Length**     | 0.590 | 0.382591 | 0.333 | f32 / meters |
-| **Width**      | 0.200 | 0.322347 | 0.203 | f32 / meters |
-| **Height**     | 0.210 | 0.212936 | 0.287 | f32 / meters |
-| **Weight**     | 7.670 | 0.196205 | 5.569 | f32 / kg     |
-| Category       | bakery products | -- | -- | obj / str    |
-| Fragility      | False | -- | -- | i64 / bool   |
-| Stackable      | True | -- | -- | i64 / bool   |
-| Can Rotate     | True | -- | -- | i64 / bool   |
-
----
-
-### Sample 2 Fidelity Trace
-| Attribute | Real Value | Latent [0-1] | Reconstructed | Type / Unit |
-|:---|:---:|:---:|:---:|:---|
-| **Length**     | 0.550 | 0.479437 | 0.392 | f32 / meters |
-| **Width**      | 0.280 | 0.926063 | 0.396 | f32 / meters |
-| **Height**     | 0.110 | 0.125990 | 0.186 | f32 / meters |
-| **Weight**     | 8.400 | 0.158898 | 4.640 | f32 / kg     |
-| Category       | confectionery | -- | -- | obj / str    |
-| Fragility      | False | -- | -- | i64 / bool   |
-| Stackable      | True | -- | -- | i64 / bool   |
-| Can Rotate     | True | -- | -- | i64 / bool   |
+### Sample 1 Fidelity Profile
+| Component | Attribute | Original (Real) | GAN Latent [0-1] | GAN Denormalized | Metadata |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Physical** | Length     | 0.590 | 0.415037 | 0.353 | meters (f32) |
+| **Physical** | Width      | 0.200  | 0.313882 | 0.200 | meters (f32) |
+| **Physical** | Height     | 0.210 | 0.187908 | 0.258 | meters (f32) |
+| **Physical** | Weight     | 7.670 | 0.145461 | 4.305 | kg (f32)     |
+| **SKU Meta** | Category   | bakery products   | -- | -- | object (str) |
+| **SKU Meta** | Fragility  | False | -- | -- | int64 (bool) |
+| **SKU Meta** | Stackable  | True | -- | -- | int64 (bool) |
+| **SKU Meta** | Can Rotate | True | -- | -- | int64 (bool) |
 
 ---
 
-### Sample 3 Fidelity Trace
-| Attribute | Real Value | Latent [0-1] | Reconstructed | Type / Unit |
-|:---|:---:|:---:|:---:|:---|
-| **Length**     | 0.550 | 0.381959 | 0.333 | f32 / meters |
-| **Width**      | 0.280 | 0.336348 | 0.208 | f32 / meters |
-| **Height**     | 0.110 | 0.215530 | 0.290 | f32 / meters |
-| **Weight**     | 8.400 | 0.186649 | 5.331 | f32 / kg     |
-| Category       | confectionery | -- | -- | obj / str    |
-| Fragility      | False | -- | -- | i64 / bool   |
-| Stackable      | True | -- | -- | i64 / bool   |
-| Can Rotate     | True | -- | -- | i64 / bool   |
+### Sample 2 Fidelity Profile
+| Component | Attribute | Original (Real) | GAN Latent [0-1] | GAN Denormalized | Metadata |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Physical** | Length     | 0.550 | 0.360815 | 0.320 | meters (f32) |
+| **Physical** | Width      | 0.280  | 0.275562 | 0.188 | meters (f32) |
+| **Physical** | Height     | 0.110 | 0.216027 | 0.291 | meters (f32) |
+| **Physical** | Weight     | 8.400 | 0.151292 | 4.450 | kg (f32)     |
+| **SKU Meta** | Category   | confectionery   | -- | -- | object (str) |
+| **SKU Meta** | Fragility  | False | -- | -- | int64 (bool) |
+| **SKU Meta** | Stackable  | True | -- | -- | int64 (bool) |
+| **SKU Meta** | Can Rotate | True | -- | -- | int64 (bool) |
 
 ---
 
-### Sample 4 Fidelity Trace
-| Attribute | Real Value | Latent [0-1] | Reconstructed | Type / Unit |
-|:---|:---:|:---:|:---:|:---|
-| **Length**     | 0.490 | 0.447398 | 0.373 | f32 / meters |
-| **Width**      | 0.130 | 0.400756 | 0.228 | f32 / meters |
-| **Height**     | 0.210 | 0.199667 | 0.272 | f32 / meters |
-| **Weight**     | 5.110 | 0.207451 | 5.850 | f32 / kg     |
-| Category       | candy | -- | -- | obj / str    |
-| Fragility      | False | -- | -- | i64 / bool   |
-| Stackable      | True | -- | -- | i64 / bool   |
-| Can Rotate     | True | -- | -- | i64 / bool   |
+### Sample 3 Fidelity Profile
+| Component | Attribute | Original (Real) | GAN Latent [0-1] | GAN Denormalized | Metadata |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Physical** | Length     | 0.550 | 0.380225 | 0.332 | meters (f32) |
+| **Physical** | Width      | 0.280  | 0.278101 | 0.189 | meters (f32) |
+| **Physical** | Height     | 0.110 | 0.217579 | 0.292 | meters (f32) |
+| **Physical** | Weight     | 8.400 | 0.171955 | 4.965 | kg (f32)     |
+| **SKU Meta** | Category   | confectionery   | -- | -- | object (str) |
+| **SKU Meta** | Fragility  | False | -- | -- | int64 (bool) |
+| **SKU Meta** | Stackable  | True | -- | -- | int64 (bool) |
+| **SKU Meta** | Can Rotate | True | -- | -- | int64 (bool) |
 
 ---
 
-### Sample 5 Fidelity Trace
-| Attribute | Real Value | Latent [0-1] | Reconstructed | Type / Unit |
-|:---|:---:|:---:|:---:|:---|
-| **Length**     | 0.490 | 0.262661 | 0.260 | f32 / meters |
-| **Width**      | 0.130 | 0.190584 | 0.161 | f32 / meters |
-| **Height**     | 0.210 | 0.138657 | 0.201 | f32 / meters |
-| **Weight**     | 5.110 | 0.082635 | 2.739 | f32 / kg     |
-| Category       | candy | -- | -- | obj / str    |
-| Fragility      | False | -- | -- | i64 / bool   |
-| Stackable      | True | -- | -- | i64 / bool   |
-| Can Rotate     | True | -- | -- | i64 / bool   |
+### Sample 4 Fidelity Profile
+| Component | Attribute | Original (Real) | GAN Latent [0-1] | GAN Denormalized | Metadata |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Physical** | Length     | 0.490 | 0.467556 | 0.385 | meters (f32) |
+| **Physical** | Width      | 0.130  | 0.577093 | 0.285 | meters (f32) |
+| **Physical** | Height     | 0.210 | 0.150028 | 0.214 | meters (f32) |
+| **Physical** | Weight     | 5.110 | 0.162233 | 4.723 | kg (f32)     |
+| **SKU Meta** | Category   | candy   | -- | -- | object (str) |
+| **SKU Meta** | Fragility  | False | -- | -- | int64 (bool) |
+| **SKU Meta** | Stackable  | True | -- | -- | int64 (bool) |
+| **SKU Meta** | Can Rotate | True | -- | -- | int64 (bool) |
+
+---
+
+### Sample 5 Fidelity Profile
+| Component | Attribute | Original (Real) | GAN Latent [0-1] | GAN Denormalized | Metadata |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Physical** | Length     | 0.490 | 0.799002 | 0.587 | meters (f32) |
+| **Physical** | Width      | 0.130  | 0.308023 | 0.199 | meters (f32) |
+| **Physical** | Height     | 0.210 | 0.149714 | 0.214 | meters (f32) |
+| **Physical** | Weight     | 5.110 | 0.246071 | 6.812 | kg (f32)     |
+| **SKU Meta** | Category   | candy   | -- | -- | object (str) |
+| **SKU Meta** | Fragility  | False | -- | -- | int64 (bool) |
+| **SKU Meta** | Stackable  | True | -- | -- | int64 (bool) |
+| **SKU Meta** | Can Rotate | True | -- | -- | int64 (bool) |
 
 ---

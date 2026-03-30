@@ -109,9 +109,9 @@ def physics_settle(solution, items_props, wh_dims, layer_heights=None):
         for b in body_ids:
             p.changeDynamics(b, -1, activationState=p.ACTIVATION_STATE_DISABLE_SLEEPING, physicsClientId=client_id)
 
-        for step in range(1000): # More steps
-            if step % 100 == 0:
-                print(f"PyBullet: Step {step}/1000")
+        for step in range(5000): # More steps
+            if step % 500 == 0:
+                print(f"PyBullet: Step {step}/5000")
             p.stepSimulation(physicsClientId=client_id)
         print("PyBullet: Simulation complete.")
             

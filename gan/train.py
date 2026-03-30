@@ -3,13 +3,13 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import argparse
-from data_loader import get_dataloader
+from data_loader import get_dataloaders
 from model import Generator, Discriminator
 import pickle
 
 # Parameters
 LATENT_DIM = 100
-EPOCHS = 10
+EPOCHS = 500
 BATCH_SIZE = 64
 LR = 0.0002
 B1 = 0.5
@@ -32,7 +32,7 @@ def train():
     
     # Data
     print(f"Loading data from {DATA_FILE}...")
-    dataloader, scaler = get_dataloader(DATA_FILE, BATCH_SIZE)
+    train_loader, val_loader, scaler = get_dataloaders(DATA_FILE, BATCH_SIZE)
     
     # Save scaler for generation
     with open(SCALER_PATH, 'wb') as f:
@@ -49,7 +49,7 @@ def train():
     # Loss
     adversarial_loss = nn.BCELoss()
     
-    history = {"d_loss": [], "g_loss": []}
+    history = {"d_loss": [], "g_loss": [], "val_d_loss": [], "val_g_loss": [], "epochs": EPOCHS, "batch_size": BATCH_SIZE, "lr": LR}
     
     print("Starting training...")
     
@@ -58,7 +58,7 @@ def train():
         epoch_g_loss = 0
         batch_count = 0
         
-        for i, imgs in enumerate(dataloader):
+        for i, imgs in enumerate(train_loader):
             
             # Configure input
             real_imgs = imgs.to(device)
@@ -93,11 +93,44 @@ def train():
 
             # Log progress
             if i % 100 == 0:
-                print(f"[Epoch {epoch}/{EPOCHS}] [Batch {i}/{len(dataloader)}] [D loss: {d_loss.item():.4f}] [G loss: {g_loss.item():.4f}]")
+                print(f"[Epoch {epoch}/{EPOCHS}] [Batch {i}/{len(train_loader)}] [D loss: {d_loss.item():.4f}] [G loss: {g_loss.item():.4f}]")
         
         # Save average epoch loss
-        history["d_loss"].append(epoch_d_loss / batch_count)
-        history["g_loss"].append(epoch_g_loss / batch_count)
+        history["d_loss"].append(epoch_d_loss / max(1, batch_count))
+        history["g_loss"].append(epoch_g_loss / max(1, batch_count))
+
+        # --- Validation Loop ---
+        generator.eval()
+        discriminator.eval()
+        val_d_loss, val_g_loss = 0, 0
+        val_batches = 0
+        with torch.no_grad():
+            for v_imgs in val_loader:
+                real_imgs = v_imgs.to(device)
+                b_size = real_imgs.size(0)
+                
+                valid = torch.ones(b_size, 1).to(device)
+                fake = torch.zeros(b_size, 1).to(device)
+                
+                # Gen loss
+                z = torch.randn(b_size, LATENT_DIM).to(device)
+                gen_imgs = generator(z)
+                g_loss = adversarial_loss(discriminator(gen_imgs), valid)
+                val_g_loss += g_loss.item()
+                
+                # Disc loss
+                real_loss = adversarial_loss(discriminator(real_imgs), valid)
+                fake_loss = adversarial_loss(discriminator(gen_imgs.detach()), fake)
+                d_loss = (real_loss + fake_loss) / 2
+                val_d_loss += d_loss.item()
+                
+                val_batches += 1
+                
+        history["val_d_loss"].append(val_d_loss / max(1, val_batches))
+        history["val_g_loss"].append(val_g_loss / max(1, val_batches))
+        
+        generator.train()
+        discriminator.train()
 
         # Save checkpoint periodically
         if epoch % 5 == 0:

@@ -46,6 +46,21 @@ def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_fac
         seed: Random seed for reproducibility
         output_file: Path to save the generated CSV
     """
+    # Guard: Ensure GAN training is finished
+    if not os.path.exists(CHECKPOINT_PATH):
+        print(f"Error: GAN checkpoint not found at {CHECKPOINT_PATH}. Aborting generator.")
+        return
+    
+    # Check if history exists and reached 500 epochs
+    history_path = os.path.join(current_dir, 'loss_history.json')
+    if os.path.exists(history_path):
+        import json
+        with open(history_path, 'r') as f:
+            hist = json.load(f)
+            if hist.get('epochs', 0) < 500:
+                print(f"Warning: GAN training only reached {hist.get('epochs')} epochs. Pipeline requires 500. Aborting.")
+                return
+
     if seed is not None:
         random.seed(seed)
         np.random.seed(seed)

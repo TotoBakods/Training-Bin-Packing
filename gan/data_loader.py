@@ -45,7 +45,14 @@ class WarehouseItemDataset(Dataset):
     def get_scaler(self):
         return self.scaler
 
-def get_dataloader(csv_file, batch_size=32):
+def get_dataloaders(csv_file, batch_size=32, val_split=0.2):
     dataset = WarehouseItemDataset(csv_file)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    return dataloader, dataset.get_scaler()
+    n_val = max(1, int(len(dataset) * val_split))
+    n_train = len(dataset) - n_val
+    train_ds, val_ds = torch.utils.data.random_split(
+        dataset, [n_train, n_val],
+        generator=torch.Generator().manual_seed(42)
+    )
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+    return train_loader, val_loader, dataset.get_scaler()

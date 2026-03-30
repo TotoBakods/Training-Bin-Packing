@@ -11,7 +11,7 @@ from ml_utils import PackingModel
 # Configuration
 DATA_DIR = "training_data"
 MODELS_DIR = "models"
-EPOCHS = 100
+EPOCHS = 200
 BATCH_SIZE = 128
 LR = 0.001
 VAL_SPLIT = 0.2

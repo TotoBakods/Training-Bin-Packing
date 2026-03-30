@@ -1,0 +1,11 @@
+{
+    "variant": "fit_eo_ga",
+    "rows": 50000,
+    "stacking_pct": 40.95,
+    "avg_l": 0.89,
+    "avg_w": 0.498,
+    "avg_h": 0.456,
+    "dense_scenarios": 600,
+    "normal_scenarios": 400,
+    "timestamp": "2026-03-31 00:35:30"
+}

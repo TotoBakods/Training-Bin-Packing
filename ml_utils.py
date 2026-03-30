@@ -9,6 +9,23 @@ from optimizer import (
     fitness_function_numpy, 
     get_valid_z_positions
 )
+import platform
+import psutil
+
+def get_system_metadata():
+    """Captures hardware and software environment details for documentation."""
+    metadata = {
+        "os": platform.system(),
+        "os_release": platform.release(),
+        "cpu": platform.processor(),
+        "ram_gb": round(psutil.virtual_memory().total / (1024**3), 2),
+        "python_version": platform.python_version(),
+        "gpu_available": torch.cuda.is_available(),
+        "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "N/A",
+        "cuda_version": torch.version.cuda if torch.cuda.is_available() else "N/A",
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    return metadata
 
 class PackingModel(nn.Module):
     def __init__(self, input_dim=18, output_dim=4):

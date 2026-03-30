@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 import torch
 import pickle
+import json
+import time
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -251,7 +253,24 @@ def generate_dataset_for_variant(variant_name, generator, scaler, device):
     df = pd.DataFrame(all_rows)
     out_path = os.path.join(TRAINING_DIR, f"{variant_name}.csv")
     df.to_csv(out_path, index=False)
+    
+    # Log Summary
     pct_z = z_positive_count / max(total_count, 1) * 100
+    summary = {
+        "variant": variant_name,
+        "rows": len(df),
+        "stacking_pct": round(pct_z, 2),
+        "avg_l": round(df["item_l"].mean(), 3),
+        "avg_w": round(df["item_w"].mean(), 3),
+        "avg_h": round(df["item_h"].mean(), 3),
+        "dense_scenarios": NUM_DENSE_SCENARIOS,
+        "normal_scenarios": NUM_NORMAL_SCENARIOS,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    summary_path = os.path.join(TRAINING_DIR, f"{variant_name}_summary.json")
+    with open(summary_path, 'w') as f:
+        json.dump(summary, f, indent=4)
+
     print(f"  [OK] Saved {len(df)} rows to {out_path}  ({pct_z:.1f}% with Z>0)")
     return df
 

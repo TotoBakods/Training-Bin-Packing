@@ -9,7 +9,7 @@ import pickle
 
 # Parameters
 LATENT_DIM = 100
-EPOCHS = 5
+EPOCHS = 10
 BATCH_SIZE = 64
 LR = 0.0002
 B1 = 0.5
@@ -20,6 +20,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(current_dir, '..', 'datasets', 'datasets.csv')
 CHECKPOINT_DIR = os.path.join(current_dir, 'checkpoints')
 SCALER_PATH = os.path.join(current_dir, 'scaler.pkl')
+LOSS_HISTORY_PATH = os.path.join(current_dir, 'loss_history.json')
 
 def train():
     # Setup directories
@@ -48,9 +49,15 @@ def train():
     # Loss
     adversarial_loss = nn.BCELoss()
     
+    history = {"d_loss": [], "g_loss": []}
+    
     print("Starting training...")
     
     for epoch in range(EPOCHS):
+        epoch_d_loss = 0
+        epoch_g_loss = 0
+        batch_count = 0
+        
         for i, imgs in enumerate(dataloader):
             
             # Configure input
@@ -64,16 +71,9 @@ def train():
             #  Train Generator
             # -----------------
             optimizer_G.zero_grad()
-            
-            # Sample noise as generator input
             z = torch.randn(batch_size, LATENT_DIM).to(device)
-            
-            # Generate a batch of images
             gen_imgs = generator(z)
-            
-            # Loss measures generator's ability to fool the discriminator
             g_loss = adversarial_loss(discriminator(gen_imgs), valid)
-            
             g_loss.backward()
             optimizer_G.step()
             
@@ -81,19 +81,24 @@ def train():
             #  Train Discriminator
             # ---------------------
             optimizer_D.zero_grad()
-            
-            # Measure discriminator's ability to classify real from generated samples
             real_loss = adversarial_loss(discriminator(real_imgs), valid)
             fake_loss = adversarial_loss(discriminator(gen_imgs.detach()), fake)
             d_loss = (real_loss + fake_loss) / 2
-            
             d_loss.backward()
             optimizer_D.step()
             
+            epoch_d_loss += d_loss.item()
+            epoch_g_loss += g_loss.item()
+            batch_count += 1
+
             # Log progress
             if i % 100 == 0:
-                print(f"[Epoch {epoch}/{EPOCHS}] [Batch {i}/{len(dataloader)}] [D loss: {d_loss.item()}] [G loss: {g_loss.item()}]")
+                print(f"[Epoch {epoch}/{EPOCHS}] [Batch {i}/{len(dataloader)}] [D loss: {d_loss.item():.4f}] [G loss: {g_loss.item():.4f}]")
         
+        # Save average epoch loss
+        history["d_loss"].append(epoch_d_loss / batch_count)
+        history["g_loss"].append(epoch_g_loss / batch_count)
+
         # Save checkpoint periodically
         if epoch % 5 == 0:
              torch.save(generator.state_dict(), os.path.join(CHECKPOINT_DIR, "generator.pth"))
@@ -101,7 +106,13 @@ def train():
 
     # Final save
     torch.save(generator.state_dict(), os.path.join(CHECKPOINT_DIR, "generator.pth"))
-    print("Training finished. Model saved.")
+    
+    # Save loss history
+    import json
+    with open(LOSS_HISTORY_PATH, 'w') as f:
+        json.dump(history, f)
+        
+    print(f"Training finished. Model saved. Loss history saved to {LOSS_HISTORY_PATH}")
 
 if __name__ == "__main__":
     train()

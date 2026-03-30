@@ -17,7 +17,7 @@ LATENT_DIM = 100
 current_dir = os.path.dirname(os.path.abspath(__file__))
 CHECKPOINT_PATH = os.path.join(current_dir, 'checkpoints', 'generator.pth')
 SCALER_PATH = os.path.join(current_dir, 'scaler.pkl')
-OUTPUT_FILE = os.path.join(current_dir, 'generated_items.csv')
+DEFAULT_OUTPUT_FILE = os.path.join(current_dir, 'generated_items.csv')
 REAL_DATA_FILE = os.path.join(current_dir, '..', 'datasets', 'datasets.csv')
 
 # Heuristics
@@ -34,7 +34,7 @@ def get_category_distribution():
         print(f"Warning: Could not load categories from {REAL_DATA_FILE}: {e}")
         return {'General': 1.0}
 
-def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_factor=2.0):
+def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_factor=2.0, seed=None, output_file=None):
     """
     Generate synthetic items using the trained GAN.
     
@@ -43,7 +43,17 @@ def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_fac
         warehouse_length: Warehouse length for position calculation
         warehouse_width: Warehouse width for position calculation  
         scale_factor: Multiplier for item dimensions (default 2.0 for larger items)
+        seed: Random seed for reproducibility
+        output_file: Path to save the generated CSV
     """
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        print(f"Using random seed: {seed}")
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # Load Scaler
@@ -142,12 +152,20 @@ def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_fac
             'priority', 'fragility', 'stackable', 'access_freq', 'can_rotate']
     df = df[cols]
     
-    df.to_csv(OUTPUT_FILE, index=False)
-    print(f"Generated {n_items} items with positions and saved to {OUTPUT_FILE}")
+    save_path = output_file if output_file else DEFAULT_OUTPUT_FILE
+    df.to_csv(save_path, index=False)
+    print(f"Generated {n_items} items with positions and saved to {save_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--n', type=int, default=1000, help='Number of items to generate')
+    parser.add_argument('--output', type=str, default=None, help='Output filename or absolute path')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     args = parser.parse_args()
     
-    generate(args.n)
+    # If output is just a filename, put it in the gan directory
+    out_path = args.output
+    if out_path and not os.path.isabs(out_path):
+        out_path = os.path.join(current_dir, out_path)
+
+    generate(args.n, output_file=out_path, seed=args.seed)

@@ -52,7 +52,7 @@ The main **Model Training Script**:
 The **Performance Audit Tool**:
 - Re-trains models and evaluates them against unseen GAN-generated datasets (200, 400, and 600 items).
 - Calculates deep logistics metrics like **Bounding Box Efficiency**, **Center of Gravity (CoG)**, and **Fragility Compliance**.
-- Generates the comprehensive `MODEL_METRICS.md` report.
+- Generates the comprehensive `Documents/MODEL_METRICS.md` report.
 
 ### generate_training_data.py
 The **Synthetic Data Generator**:

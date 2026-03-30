@@ -25,10 +25,11 @@ from optimizer import (
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Visuals directory
-VISUALS_DIR = os.path.join("Documents", "metrics_visuals")
+# Directory setup for organized documentation
+METRICS_BASE_DIR = os.path.join("Documents", "04_Machine_Learning", "Performance_Metrics")
+VISUALS_DIR = os.path.join(METRICS_BASE_DIR, "metrics_visuals")
 if not os.path.exists(VISUALS_DIR):
-    os.makedirs(VISUALS_DIR)
+    os.makedirs(VISUALS_DIR, exist_ok=True)
 
 # Styling
 sns.set_theme(style="darkgrid")
@@ -270,6 +271,34 @@ def save_convergence_plot(training_results):
     plt.savefig(os.path.join(VISUALS_DIR, "convergence_comparison.png"))
     plt.close()
 
+def save_loss_curves_grid(training_results):
+    """Generates a grid of individual loss curves for each model variant."""
+    num_models = len(training_results)
+    cols = 2
+    rows = (num_models + 1) // cols
+    
+    fig, axes = plt.subplots(rows, cols, figsize=(14, 5 * rows))
+    axes = axes.flatten()
+    
+    for i, (name, res) in enumerate(training_results.items()):
+        ax = axes[i]
+        hist = res["history"]
+        ax.plot(hist["epoch"], hist["train_loss"], 'b-', label='Training Loss', linewidth=2)
+        ax.plot(hist["epoch"], hist["val_loss"], 'r--', label='Validation Loss', linewidth=2)
+        ax.set_title(f"Loss Curve: {name}", fontsize=13, fontweight='bold')
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Loss")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+    # Hide unused axes
+    for j in range(i + 1, len(axes)):
+        axes[j].axis('off')
+        
+    plt.tight_layout()
+    plt.savefig(os.path.join(VISUALS_DIR, "training_loss_curves.png"))
+    plt.close()
+
 def save_error_comparison_plot(training_results):
     models = list(training_results.keys())
     # MAE Comparison
@@ -333,6 +362,7 @@ def _fmt_r2(val, valid): return f"{val:.4f}" if valid else "N/A*"
 def generate_markdown(training_results, inference_results):
     # Generate Visuals First
     save_convergence_plot(training_results)
+    save_loss_curves_grid(training_results)
     save_error_comparison_plot(training_results)
     save_performance_trends_plot(inference_results)
 
@@ -352,7 +382,9 @@ def generate_markdown(training_results, inference_results):
     
     # --- 1. Training Convergence ---
     lines.append("## 1. Training Convergence\n")
-    lines.append("![Training Convergence Trends](Documents/metrics_visuals/convergence_comparison.png)\n")
+    lines.append("![Training Convergence Trends](metrics_visuals/convergence_comparison.png)\n")
+    lines.append("\n### Detailed Training Loss Curves\n")
+    lines.append("![Detailed Loss Curves Grid](metrics_visuals/training_loss_curves.png)\n")
     lines.append("\n| Model | Final Train Loss | Final Val Loss | Overfit Gap | Verdict |\n|-------|-----------------|---------------|-------------|---------|")
     for name, m in training_results.items():
         gap = m["final_val"] - m["final_train"]
@@ -372,8 +404,8 @@ def generate_markdown(training_results, inference_results):
 
     # --- 3. Per-Output Metrics (MSE & MAE) ---
     lines.append("## 3. Per-Output Error Metrics (Validation Set)\n")
-    lines.append("![Coordinate MAE Comparison](Documents/metrics_visuals/mae_coords.png)\n")
-    lines.append("![Rotation MAE Comparison](Documents/metrics_visuals/mae_rotation.png)\n")
+    lines.append("![Coordinate MAE Comparison](metrics_visuals/mae_coords.png)\n")
+    lines.append("![Rotation MAE Comparison](metrics_visuals/mae_rotation.png)\n")
     lines.append("### Normalised MSE (Lower is better)\n")
     lines.append("| Model | MSE x | MSE y | MSE z | MSE rot |\n|-------|-------|-------|-------|---------|")
     for name, m in training_results.items():
@@ -409,8 +441,8 @@ def generate_markdown(training_results, inference_results):
 
     # --- 6. Inference Performance ---
     lines.append("## 6. Inference Performance Summary\n")
-    lines.append("![Optimization Fitness Trends](Documents/metrics_visuals/fitness_trends.png)\n")
-    lines.append("![Space Utilization Trends](Documents/metrics_visuals/space_efficiency.png)\n")
+    lines.append("![Optimization Fitness Trends](metrics_visuals/fitness_trends.png)\n")
+    lines.append("![Space Utilization Trends](metrics_visuals/space_efficiency.png)\n")
     for ds_name in INFERENCE_DATASETS:
         if ds_name in inference_results:
             n_items = ds_name.replace('_items.csv', '')
@@ -462,7 +494,8 @@ def main():
         for name in training_results: metrics[name] = run_inference(name, df, DEFAULT_WAREHOUSE)
         inference_results[ds] = metrics
 
-    with open("MODEL_METRICS.md", "w", encoding="utf-8") as f: f.write(generate_markdown(training_results, inference_results))
-    print("Done! Report saved to MODEL_METRICS.md")
+    report_path = os.path.join(METRICS_BASE_DIR, "MODEL_METRICS.md")
+    with open(report_path, "w", encoding="utf-8") as f: f.write(generate_markdown(training_results, inference_results))
+    print(f"Done! Report saved to {report_path}")
 
 if __name__ == "__main__": main()

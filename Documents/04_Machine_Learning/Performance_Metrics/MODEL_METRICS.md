@@ -28,7 +28,7 @@ This report was generated via an automated rerun of the full ML pipeline. Below 
 
 ## 1. Training Convergence
 
-![Training Convergence Trends](Documents/metrics_visuals/convergence_comparison.png)
+![Training Convergence Trends](metrics_visuals/convergence_comparison.png)
 
 
 | Model | Final Train Loss | Final Val Loss | Overfit Gap | Verdict |
@@ -86,9 +86,9 @@ This report was generated via an automated rerun of the full ML pipeline. Below 
 
 ## 3. Per-Output Error Metrics (Validation Set)
 
-![Coordinate MAE Comparison](Documents/metrics_visuals/mae_coords.png)
+![Coordinate MAE Comparison](metrics_visuals/mae_coords.png)
 
-![Rotation MAE Comparison](Documents/metrics_visuals/mae_rotation.png)
+![Rotation MAE Comparison](metrics_visuals/mae_rotation.png)
 
 ### Normalised MSE (Lower is better)
 
@@ -148,9 +148,9 @@ This report was generated via an automated rerun of the full ML pipeline. Below 
 
 ## 6. Inference Performance Summary
 
-![Optimization Fitness Trends](Documents/metrics_visuals/fitness_trends.png)
+![Optimization Fitness Trends](metrics_visuals/fitness_trends.png)
 
-![Space Utilization Trends](Documents/metrics_visuals/space_efficiency.png)
+![Space Utilization Trends](metrics_visuals/space_efficiency.png)
 
 ### 200 Items (`200_items.csv`)
 

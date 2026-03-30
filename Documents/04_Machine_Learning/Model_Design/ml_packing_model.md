@@ -49,4 +49,8 @@ def weighted_mse_loss(input, target):
     """Wait and bias X/Y coordinate predictions to reduce displacement."""
     weight_v = torch.tensor([2.0, 2.0, 1.0, 1.0]) # Weights: X=2.0, Y=2.0, Z=1.0, R=1.0
     return (weight_v * (input - target) ** 2).mean()
+
+---
+
+For more details on the input preprocessing and output scaling, see the [Feature Engineering & Normalization Pipeline](feature_engineering_pipeline.md).
 ```

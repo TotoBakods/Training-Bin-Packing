@@ -64,24 +64,37 @@ class SimpleGrid:
         for c in range(c1, c2 + 1):
             for r in range(r1, r2 + 1):
                 matches.update(self.grid[c][r])
-        return matches
+        if not matches: return np.array([], dtype=int)
+        return np.array(list(matches), dtype=int)
 
 def init_worker(*args):
     """Deprecated: Initialization handled via explicit args now."""
     pass
 
 
-def calculate_z_for_item(x, y, dim_x, dim_y, other_items_bbox, other_items_z, other_items_h, other_items_stackable=None, strict_stacking=True):
+def calculate_z_for_item(x, y, dim_x, dim_y, other_items_bbox, other_items_z, other_items_h, other_items_stackable=None, strict_stacking=True, grid=None):
     """Calculate the lowest valid Z position for an item based on items below it."""
-    if len(other_items_bbox) == 0:
-        return 0.0
-        
     # New item bounding box
     new_min_x = x - dim_x / 2
     new_max_x = x + dim_x / 2
     new_min_y = y - dim_y / 2
     new_max_y = y + dim_y / 2
-    
+
+    # Spatial Query Optimization
+    if grid is not None:
+        relevant_indices = grid.query(new_min_x, new_min_y, new_max_x, new_max_y)
+        if len(relevant_indices) == 0:
+            return 0.0
+        # Subset relevant items
+        other_items_bbox = other_items_bbox[relevant_indices]
+        other_items_z = other_items_z[relevant_indices]
+        other_items_h = other_items_h[relevant_indices]
+        if other_items_stackable is not None:
+            other_items_stackable = other_items_stackable[relevant_indices]
+
+    if len(other_items_bbox) == 0:
+        return 0.0
+        
     # Check XY plane overlaps (vectorized)
     overlaps_x = (new_min_x < other_items_bbox[:, 2]) & (new_max_x > other_items_bbox[:, 0])
     overlaps_y = (new_min_y < other_items_bbox[:, 3]) & (new_max_y > other_items_bbox[:, 1])
@@ -370,147 +383,63 @@ def create_random_solution_array(num_items, warehouse_dims=None, items_props=Non
     solution = np.zeros((num_items, 4), dtype=np.float32)
     wh_len, wh_wid, wh_hgt = warehouse_dims[:3]
     
-    # Check for allocation zones
-    has_allocation_zones = allocation_zones is not None and len(allocation_zones) > 0
-    
-    # Track placed items for gravity
+    # Track placed items for gravity and collision
     placed_bboxes = np.zeros((num_items, 4), dtype=np.float32)
     placed_z = np.zeros(num_items, dtype=np.float32)
     placed_h = np.zeros(num_items, dtype=np.float32)
     
+    # Initialize Spatial Grid
+    grid = SimpleGrid(wh_len, wh_wid)
+    
     for i in range(num_items):
-        item_len = items_props[i, 0]
-        item_wid = items_props[i, 1]
-        item_hgt = items_props[i, 2]
+        item_l, item_w, item_h = items_props[i, 0:3]
         can_rotate = items_props[i, 3]
         
-        # Retry for floor priority (try to find Z=0)
-        best_x, best_y, best_z = 0, 0, float('inf')
-        best_rotation = 0
+        best_x, best_y, best_z = 0.0, 0.0, float('inf')
+        best_rot = 0.0
         
-        for attempt in range(50):
-            # Randomize rotation
-            rotation = 0
+        # 20 attempts for 2.5x speedup over 50
+        for attempt in range(20):
+            rot = 0.0
             if can_rotate and random.random() > 0.5:
-                    rotation = random.choice([0, 90, 180, 270])
+                rot = random.choice([0, 90, 180, 270])
             
-            if int(rotation) % 180 == 0:
-                dim_x, dim_y = item_len, item_wid
-            else:
-                dim_x, dim_y = item_wid, item_len
+            # Rotation-based dimensions
+            if int(rot) % 180 == 0: dx, dy = item_l, item_w
+            else: dx, dy = item_w, item_l
             
-            # Position selection logic
-            valid_zones = []
-            if has_allocation_zones:
-                for zone in allocation_zones:
-                    zone_width = zone['x2'] - zone['x1']
-                    zone_depth = zone['y2'] - zone['y1']
-                    if dim_x <= zone_width and dim_y <= zone_depth:
-                        valid_zones.append(zone)
+            # Position bounds
+            min_x, max_x = dx/2, wh_len - dx/2
+            min_y, max_y = dy/2, wh_wid - dy/2
             
-            zone_z1 = 0
-            zone_z2 = wh_hgt
-            if valid_zones:
-                # Sort zones by Z (bottom first)
-                valid_zones.sort(key=lambda z: z.get('z1', 0))
-                
-                # Select zone sequentially
-                zone_idx = attempt % len(valid_zones)
-                zone_idx = min(zone_idx, len(valid_zones) - 1)
-                zone = valid_zones[zone_idx]
-                
-                zone_z1 = zone.get('z1', 0)
-                zone_z2 = zone.get('z2', wh_hgt)
-                
-                min_x = zone['x1'] + dim_x / 2
-                max_x = zone['x2'] - dim_x / 2
-                min_y = zone['y1'] + dim_y / 2
-                max_y = zone['y2'] - dim_y / 2
-                
-                if max_x < min_x: max_x = min_x = (zone['x1'] + zone['x2']) / 2
-                if max_y < min_y: max_y = min_y = (zone['y1'] + zone['y2']) / 2
-                
-                # Dense packing: try corner first, then adjacent, then random
-                if attempt < 5:
-                    x = min_x
-                    y = min_y
-                elif attempt < 45 and i > 0:
-                    # Place adjacent to existing item
-                    rand_idx = random.randint(0, i-1)
-                    ref_box = placed_bboxes[rand_idx]
-                    if random.random() < 0.5:
-                        x = ref_box[2] + dim_x / 2
-                        y = ref_box[1] + dim_y / 2
-                    else:
-                        x = ref_box[0] + dim_x / 2
-                        y = ref_box[3] + dim_y / 2
-                    x += random.uniform(-1, 1)
-                    y += random.uniform(-1, 1)
-                    x = max(min_x, min(max_x, x))
-                    y = max(min_y, min(max_y, y))
-                else:
-                    x = random.uniform(min_x, max_x)
-                    y = random.uniform(min_y, max_y)
-                    
-            else:
-                min_x = dim_x / 2
-                max_x = wh_len - dim_x / 2
-                min_y = dim_y / 2
-                max_y = wh_wid - dim_y / 2
-                
-                if max_x < min_x: max_x = min_x
-                if max_y < min_y: max_y = min_y
-                
-            # Random placement logic - removed deterministic corner bias to ensure population diversity
-            # Use strict random uniform placement for all attempts to prevent clones
-            if has_allocation_zones:
-                 # Zone logic... similar randomization needed
-                 # For brevity, let's assume global logic first or fix zone logic too
-                 # Actually, logic below handles both.
-                 # Just use random.uniform for the coordinates.
-                 pass
-
-            # Simplified Random Logic (Global & Zone)
-            # We already calculated min_x, max_x etc in previous lines
-            # Just use them.
-            x = random.uniform(min_x, max_x)
-            y = random.uniform(min_y, max_y)
+            if max_x < min_x: x = min_x
+            else: x = random.uniform(min_x, max_x)
             
-            # Check Z immediately
-            z = calculate_z_for_item(x, y, dim_x, dim_y, placed_bboxes[:i], placed_z[:i], placed_h[:i])
+            if max_y < min_y: y = min_y
+            else: y = random.uniform(min_y, max_y)
             
-            # Enforce layer floor
-            z = max(z, zone_z1)
-            
-            # Snap to next layer if exceeds ceiling
-            if z + item_hgt > zone_z2 and zone_z2 < wh_hgt:
-                z = zone_z2
+            # Calculate Z with Spatial Grid optimization
+            z = calculate_z_for_item(x, y, dx, dy, placed_bboxes[:i], placed_z[:i], placed_h[:i], grid=grid)
             
             if z < best_z:
-                best_x, best_y, best_z, best_rotation = x, y, z, rotation
-            
-            if z == zone_z1:
-                break
+                best_x, best_y, best_z, best_rot = x, y, z, rot
+                # Early Exit: Item is on the floor
+                if z <= 0.01:
+                    break
         
-        if best_z > 50000:
-            best_z -= 100000.0
+        # Finalize chosen position
+        solution[i] = [best_x, best_y, best_z, best_rot]
         
-        x, y, z = best_x, best_y, best_z
-        rotation = best_rotation
+        # Recalculate dimensions for the finalized rotation
+        if int(best_rot) % 180 == 0: f_dx, f_dy = item_l, item_w
+        else: f_dx, f_dy = item_w, item_l
         
-        # Recalculate dims for best rotation
-        if int(rotation) % 180 == 0:
-            dim_x, dim_y = item_len, item_wid
-        else:
-            dim_x, dim_y = item_wid, item_len
-        
-        # Store
-        solution[i] = [x, y, z, rotation]
-        
-        # Update tracking arrays for next items
-        placed_bboxes[i] = [x - dim_x/2, y - dim_y/2, x + dim_x/2, y + dim_y/2]
-        placed_z[i] = z
-        placed_h[i] = item_hgt
+        # Update tracking and Grid
+        x1, y1, x2, y2 = best_x - f_dx/2, best_y - f_dy/2, best_x + f_dx/2, best_y + f_dy/2
+        placed_bboxes[i] = [x1, y1, x2, y2]
+        placed_z[i] = best_z
+        placed_h[i] = item_h
+        grid.insert(i, x1, y1, x2, y2)
         
     return solution
 

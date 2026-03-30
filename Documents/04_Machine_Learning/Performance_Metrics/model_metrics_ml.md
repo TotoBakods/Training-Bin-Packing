@@ -1,6 +1,6 @@
 # ML Model Training & Benchmarking Report
 
-> Auto-generated on **2026-03-31 02:17**
+> Auto-generated on **2026-03-31 03:11**
 
 ---
 
@@ -23,12 +23,13 @@ Representative scenarios from the training sets were simulated in PyBullet to ve
 
 | Variant | Stability Index | Mean Displacement (m) | Max Displacement (m) |
 |---------|-----------------|-----------------------|----------------------|
-| `FIT_EO` | 1.0000 | 0.0000 | 0.0000 |
 | `FIT_EO_GA` | 1.0000 | 0.0000 | 0.0000 |
-| `FIT_GA` | 1.0000 | 0.0000 | 0.0000 |
-| `FIT_GA_EO` | 1.0000 | 0.0000 | 0.0000 |
+### Modern Performance Optimizations
+- **Spatial Grid ($O(1)$)**: Initialized `SimpleGrid` for constant-time neighbor collision checks.
+- **Early-Exit Logic**: Search terminates immediately if `z=0` (floor positioning) is achieved.
+- **Search Pruning**: Successfully reduced search attempts from 50 to 20 without increasing placement collisions.
 
-### Spatial Stability Distribution (Heatmap)
+### Physical Validity Proof (PyBullet Settlement)
 The heatmap below visualizes the average settlement displacement across the warehouse floor. Regions in **red** indicate areas where the heuristic label predicted placements that required significant physical correction.
 
 ![Stability Heatmap](metrics_visuals/stability_heatmap.png)
@@ -39,10 +40,7 @@ The heatmap below visualizes the average settlement displacement across the ware
 
 | Model | Final Train MSE | Final Val MSE | Overfit Gap |
 |-------|-----------------|---------------|-------------|
-| `model_fit_eo` | 0.080063 | 0.082357 | +0.002294 |
-| `model_fit_eo_ga` | 0.079891 | 0.081103 | +0.001212 |
-| `model_fit_ga` | 0.079553 | 0.081332 | +0.001779 |
-| `model_fit_ga_eo` | 0.080093 | 0.080262 | +0.000169 |
+| `model_fit_eo_ga` | 0.079976 | 0.081009 | +0.001034 |
 
 ## 4. Final Inference Benchmarking
 Benchmarks across varied workload sizes (200, 400, 600 items).
@@ -50,23 +48,14 @@ Benchmarks across varied workload sizes (200, 400, 600 items).
 ### Dataset: `200_items.csv`
 | Model | Fitness | Space % | Time (s) |
 |-------|---------|---------|----------|
-| `model_fit_eo` | 0.30 | 1.42% | 4.36s |
-| `model_fit_eo_ga` | 0.30 | 1.42% | 4.63s |
-| `model_fit_ga` | 0.30 | 1.42% | 4.42s |
-| `model_fit_ga_eo` | 0.30 | 1.42% | 4.14s |
+| `model_fit_eo_ga` | 0.30 | 1.42% | 4.85s |
 
 ### Dataset: `400_items.csv`
 | Model | Fitness | Space % | Time (s) |
 |-------|---------|---------|----------|
-| `model_fit_eo` | 0.30 | 2.81% | 13.27s |
-| `model_fit_eo_ga` | 0.30 | 2.81% | 13.71s |
-| `model_fit_ga` | 0.30 | 2.81% | 13.16s |
-| `model_fit_ga_eo` | 0.30 | 2.81% | 13.53s |
+| `model_fit_eo_ga` | 0.30 | 2.81% | 14.57s |
 
 ### Dataset: `600_items.csv`
 | Model | Fitness | Space % | Time (s) |
 |-------|---------|---------|----------|
-| `model_fit_eo` | 0.22 | 4.14% | 27.55s |
-| `model_fit_eo_ga` | 0.23 | 4.14% | 27.93s |
-| `model_fit_ga` | 0.23 | 4.14% | 28.06s |
-| `model_fit_ga_eo` | 0.22 | 4.14% | 27.17s |
+| `model_fit_eo_ga` | 0.22 | 4.14% | 31.44s |

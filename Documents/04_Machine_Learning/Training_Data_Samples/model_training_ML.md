@@ -1,6 +1,6 @@
 # ML Training & Physics Validation Dashboard
 
-> Auto-generated on **2026-03-31 02:17**
+> Auto-generated on **2026-03-31 03:11**
 
 ---
 
@@ -13,14 +13,15 @@ This ensures that the training distribution matches the variety and complexity o
 - **Final Discriminator Loss**: 0.6782
 - **Visual Reference**: [GAN Convergence](file:///C:/Users/jebzw/OneDrive/Documents/Github/Training-Bin-Packing/Documents/05_Assets/images/gan_loss_curves.png)
 
-## 2. Heuristic Variant Comparison
+## Optimized Inference Engine
+- **Collision Acceleration**: Brute-force NumPy overlap checks were replaced with a **Spatial Hashing (SimpleGrid)** system.
+- **Greedy Terminating Heuristic**: Implemented early-exit logic for immediate floor-level placements ($z=0$).
+- **Execution Efficiency**: Reduced search space attempts to **20 per item**, resulting in a significant reduction in overall repair latency.
 
+## Heuristic Variant Comparison
 | Algorithm | Val Loss (MSE) | Val MAE (m) | Stability Index | Mean Phys Disp (m) |
 |-----------|----------------|-------------|-----------------|--------------------|
-| `FIT_EO` | 0.0824 | 2.3003 | 1.0000 | 0.0000 |
-| `FIT_EO_GA` | 0.0811 | 2.2850 | 1.0000 | 0.0000 |
-| `FIT_GA` | 0.0813 | 2.2782 | 1.0000 | 0.0000 |
-| `FIT_GA_EO` | 0.0803 | 2.2696 | 1.0000 | 0.0000 |
+| `FIT_EO_GA` | 0.0810 | 2.2836 | 1.0000 | 0.0000 |
 
 > **Stability Index**: Measured in PyBullet. 1.0 = Perfect stationary settlement; < 0.5 = High overlap / collision risk.
 

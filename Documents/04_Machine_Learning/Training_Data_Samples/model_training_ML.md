@@ -1,6 +1,6 @@
 # ML Training & Physics Validation Dashboard
 
-> Auto-generated on **2026-03-31 03:11**
+> Auto-generated on **2026-03-31 05:02**
 
 ---
 
@@ -21,7 +21,10 @@ This ensures that the training distribution matches the variety and complexity o
 ## Heuristic Variant Comparison
 | Algorithm | Val Loss (MSE) | Val MAE (m) | Stability Index | Mean Phys Disp (m) |
 |-----------|----------------|-------------|-----------------|--------------------|
-| `FIT_EO_GA` | 0.0810 | 2.2836 | 1.0000 | 0.0000 |
+| `FIT_EO` | 0.0818 | 2.2953 | 1.0000 | 0.0000 |
+| `FIT_EO_GA` | 0.0805 | 2.2798 | 1.0000 | 0.0000 |
+| `FIT_GA` | 0.0803 | 2.2695 | 1.0000 | 0.0000 |
+| `FIT_GA_EO` | 0.0795 | 2.2632 | 1.0000 | 0.0000 |
 
 > **Stability Index**: Measured in PyBullet. 1.0 = Perfect stationary settlement; < 0.5 = High overlap / collision risk.
 

@@ -104,32 +104,32 @@ The test set is structurally independent from the training data. These samples r
 ## Test Dataset: 200 Items
 **Source File**: `gan/200_items.csv`
 
-|   length |   width |   height |   weight | category         |
-|---------:|--------:|---------:|---------:|:-----------------|
-|     1.12 |    0.48 |     0.43 |    15.21 | candy            |
-|     0.76 |    0.52 |     0.69 |    23.11 | pizza            |
-|     1    |    0.47 |     0.5  |     8.08 | potatoe products |
-|     0.79 |    0.53 |     0.31 |    15.26 | fish             |
-|     0.79 |    0.59 |     0.55 |    25.13 | confectionery    |
+|   length |   width |   height |   weight | category        |
+|---------:|--------:|---------:|---------:|:----------------|
+|     0.78 |    0.53 |     0.5  |    21.39 | bakery products |
+|     1.11 |    0.46 |     0.47 |    14.76 | pizza           |
+|     1.18 |    0.79 |     0.26 |    16.81 | candy           |
+|     0.91 |    0.53 |     0.47 |    16.67 | side dish       |
+|     1.18 |    0.79 |     0.55 |    12.58 | bakery products |
 
 ## Test Dataset: 400 Items
 **Source File**: `gan/400_items.csv`
 
-|   length |   width |   height |   weight | category         |
-|---------:|--------:|---------:|---------:|:-----------------|
-|     1.12 |    0.48 |     0.43 |    15.21 | candy            |
-|     0.76 |    0.52 |     0.69 |    23.11 | pizza            |
-|     1    |    0.47 |     0.5  |     8.08 | potatoe products |
-|     0.79 |    0.53 |     0.31 |    15.26 | fish             |
-|     0.79 |    0.59 |     0.55 |    25.13 | confectionery    |
+|   length |   width |   height |   weight | category        |
+|---------:|--------:|---------:|---------:|:----------------|
+|     1.17 |    0.79 |     0.51 |    14.29 | bakery products |
+|     1.1  |    0.5  |     0.27 |    17.56 | confectionery   |
+|     0.8  |    0.59 |     0.5  |    19.46 | confectionery   |
+|     1.16 |    0.42 |     0.36 |    15.34 | confectionery   |
+|     1.09 |    0.56 |     0.21 |    16.36 | ice cream       |
 
 ## Test Dataset: 600 Items
 **Source File**: `gan/600_items.csv`
 
-|   length |   width |   height |   weight | category         |
-|---------:|--------:|---------:|---------:|:-----------------|
-|     1.12 |    0.48 |     0.43 |    15.21 | candy            |
-|     0.76 |    0.52 |     0.69 |    23.11 | pizza            |
-|     1    |    0.47 |     0.5  |     8.08 | potatoe products |
-|     0.79 |    0.53 |     0.31 |    15.26 | fish             |
-|     0.79 |    0.59 |     0.55 |    25.13 | confectionery    |
+|   length |   width |   height |   weight | category      |
+|---------:|--------:|---------:|---------:|:--------------|
+|     0.77 |    0.57 |     0.38 |    10.59 | confectionery |
+|     1.1  |    0.51 |     0.56 |     8.5  | vegetables    |
+|     0.59 |    0.2  |     0.2  |     8.25 | snack         |
+|     1.11 |    0.35 |     0.47 |     8.94 | candy         |
+|     1.13 |    0.3  |     0.45 |    13.74 | confectionery |

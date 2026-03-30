@@ -34,7 +34,7 @@ def get_category_distribution():
         print(f"Warning: Could not load categories from {REAL_DATA_FILE}: {e}")
         return {'General': 1.0}
 
-def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_factor=2.0, seed=None, output_file=None):
+def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_factor=2.0, seed=None, mix_real=0.2, output_file=None):
     """
     Generate synthetic items using the trained GAN.
     
@@ -91,8 +91,12 @@ def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_fac
     categories = list(cat_dist.keys())
     probs = list(cat_dist.values())
     
-    # Generate
-    z = torch.randn(n_items, LATENT_DIM).to(device)
+    # Calculate splits
+    n_real = int(n_items * mix_real)
+    n_synthetic = n_items - n_real
+    
+    # Generate Synthetic
+    z = torch.randn(n_synthetic, LATENT_DIM).to(device)
     with torch.no_grad():
         generated_data = model(z).cpu().numpy()
         
@@ -100,7 +104,7 @@ def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_fac
     original_scale_data = scaler.inverse_transform(generated_data)
     
     items = []
-    for i in range(n_items):
+    for i in range(n_synthetic):
         l, w, h, weight = original_scale_data[i]
         
         # Ensure positive and apply scale factor for larger items
@@ -167,15 +171,52 @@ def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_fac
             'priority', 'fragility', 'stackable', 'access_freq', 'can_rotate']
     df = df[cols]
     
+    # Mix with Real Data
+    if n_real > 0 and os.path.exists(REAL_DATA_FILE):
+        try:
+            real_df = pd.read_csv(REAL_DATA_FILE)
+            # Ensure we only pick as many as available
+            available_real = len(real_df)
+            n_real = min(n_real, available_real)
+            
+            real_sample = real_df.sample(n=n_real, random_state=seed).copy()
+            # Relabel IDs to prevent collisions and identify them as REAL
+            real_sample['id'] = [f'REAL-{uuid.uuid4().hex[:8]}' for _ in range(n_real)]
+            # Reorder real sample to match cols
+            for c in cols:
+                if c not in real_sample.columns:
+                    real_sample[c] = 0 # Fallback
+            real_sample = real_sample[cols]
+            
+            df = pd.concat([df, real_sample], ignore_index=True)
+            # Shuffle the combined dataset
+            if seed is not None:
+                df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
+            else:
+                df = df.sample(frac=1).reset_index(drop=True)
+                
+            print(f"Mixed dataset: {n_synthetic} Synthetic / {n_real} Real")
+        except Exception as e:
+            print(f"Warning: Could not mix real data: {e}")
+            
+    # Fix types for integer columns
+    int_cols = ['priority', 'fragility', 'stackable', 'access_freq', 'can_rotate']
+    for c in int_cols:
+        df[c] = df[c].astype(int)
+    
     save_path = output_file if output_file else DEFAULT_OUTPUT_FILE
-    df.to_csv(save_path, index=False)
-    print(f"Generated {n_items} items with positions and saved to {save_path}")
+    if output_file:
+        df.to_csv(save_path, index=False)
+        print(f"Generated {n_items} items with positions and saved to {save_path}")
+        
+    return df
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--n', type=int, default=1000, help='Number of items to generate')
     parser.add_argument('--output', type=str, default=None, help='Output filename or absolute path')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--mix', type=float, default=0.2, help='Ratio of real items to mix (default: 0.2)')
     args = parser.parse_args()
     
     # If output is just a filename, put it in the gan directory
@@ -183,4 +224,4 @@ if __name__ == "__main__":
     if out_path and not os.path.isabs(out_path):
         out_path = os.path.join(current_dir, out_path)
 
-    generate(args.n, output_file=out_path, seed=args.seed)
+    generate(args.n, output_file=out_path, seed=args.seed, mix_real=args.mix)

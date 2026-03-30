@@ -24,6 +24,13 @@ from optimizer import (
     get_valid_z_positions,
     get_rotated_dims
 )
+try:
+    from gan.model import Generator
+except ImportError:
+    # Fallback if python path doesn't include gan
+    import sys
+    sys.path.append(os.path.join(os.getcwd(), "gan"))
+    from model import Generator
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
@@ -43,7 +50,7 @@ plt.rcParams['font.family'] = 'sans-serif'
 TRAINING_DIR   = "training_data"
 MODELS_DIR     = "models"
 GAN_DIR        = "gan"
-EPOCHS         = 200
+EPOCHS         = 50
 BATCH_SIZE     = 64
 LR             = 0.001
 VAL_SPLIT      = 0.2        # 80/20 train-val split
@@ -395,42 +402,39 @@ def save_gan_loss_curves(history_file=os.path.join(GAN_DIR, "loss_history.json")
     plt.close()
     
 def save_sku_diversity_comparison():
-    """Compares original physical dimensions against normalized, denormalized, and synthetic counterparts."""
+    """Compares original physical dimensions against GAN's generative lifecycle (Norm -> Denorm -> Scaled)."""
     import pickle
     orig_path = os.path.join("datasets", "datasets.csv")
     scaler_path = os.path.join("gan", "scaler.pkl")
-    safe_variants = ["fit_ga", "fit_eo", "fit_ga_eo", "fit_eo_ga"]
-    synth_path = None
-    for v in safe_variants:
-        p = os.path.join(TRAINING_DIR, f"{v}.csv")
-        if os.path.exists(p):
-            synth_path = p
-            break
-            
-    if not os.path.exists(orig_path) or not synth_path or not os.path.exists(scaler_path):
-        print("Warning: Skipping SKU diversity plot (Missing data or scaler).")
+    checkpoint_path = os.path.join("gan", "checkpoints", "generator.pth")
+    
+    if not os.path.exists(orig_path) or not os.path.exists(scaler_path) or not os.path.exists(checkpoint_path):
+        print("Warning: Skipping SKU diversity plot (Missing original data, scaler, or GAN checkpoint).")
         return
 
-    print(f"   [Diversity] Loading scaler and data for 4-way comparison...")
+    print("   [Diversity] Generating synthetic lifecycle comparison for distributions...")
     with open(scaler_path, "rb") as f:
         scaler = pickle.load(f)
         
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    generator = Generator(100, 4).to(device)
+    generator.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
+    generator.eval()
+
     df_orig = pd.read_csv(orig_path)
-    df_synth = pd.read_csv(synth_path)
-    
-    # Process Original (ensure valid rows for scaler)
-    # The GAN training filters for positive values:
     orig_features = df_orig[['length', 'width', 'height', 'weight']].dropna()
     orig_features = orig_features[(orig_features > 0).all(axis=1)].values.astype(np.float32)
+
+    # Generate Synthetic Lifecycle
+    n_sample = 5000
+    z = torch.randn(n_sample, 100).to(device)
+    with torch.no_grad():
+        data_synth_norm = generator(z).cpu().numpy()
     
-    # 1. Original
-    data_orig = orig_features
-    # 2. Normalized Original
-    data_norm = scaler.transform(data_orig)
-    # 3. Denormalized Original
-    data_denorm = scaler.inverse_transform(data_norm)
-    # 4. Synthetic
-    data_synth = df_synth[['item_l', 'item_w', 'item_h', 'weight']].values.astype(np.float32)
+    # Denormalize
+    data_synth_denorm = scaler.inverse_transform(data_synth_norm)
+    # Apply 2.0x scale factor as used in training data generation
+    data_synth_final = np.abs(data_synth_denorm) * 2.0
     
     titles = ["Item Length (m)", "Item Width (m)", "Item Height (m)", "Item Weight (kg)"]
     fig, axes = plt.subplots(2, 2, figsize=(14, 12))
@@ -438,16 +442,17 @@ def save_sku_diversity_comparison():
     
     for i in range(4):
         ax = axes[i]
-        # We overlay Original and Denormalized to prove they are identical (reversibility)
-        sns.kdeplot(data_orig[:, i], ax=ax, label="Original", color="blue", alpha=0.3, fill=True)
-        sns.kdeplot(data_denorm[:, i], ax=ax, label="Denormalized", color="cyan", linestyle="--", alpha=0.5)
-        # Synthetic distribution
-        sns.kdeplot(data_synth[:, i], ax=ax, label="Synthetic (GAN)", color="orange", alpha=0.4, fill=True)
+        # Reference: Original
+        sns.kdeplot(orig_features[:, i], ax=ax, label="Original (Real)", color="blue", alpha=0.3, fill=True)
+        # GAN Performance: Denormalized (should match Original)
+        sns.kdeplot(data_synth_denorm[:, i], ax=ax, label="GAN (Denormalized)", color="cyan", linestyle="--", alpha=0.6)
+        # Final Training Context: Scaled
+        sns.kdeplot(data_synth_final[:, i], ax=ax, label="Synthetic (2.0x Scaled)", color="orange", alpha=0.4, fill=True)
         
-        # We use a secondary axis for normalized data because it is [0, 1] scale
+        # New Feature: GAN Normalized (Raw Output)
         ax2 = ax.twiny()
-        sns.kdeplot(data_norm[:, i], ax=ax2, label="Normalized", color="green", alpha=0.2)
-        ax2.set_xlabel("Normalized Scale [0, 1]", color="green", fontsize=9)
+        sns.kdeplot(data_synth_norm[:, i], ax=ax2, label="GAN (Normalized)", color="green", alpha=0.15)
+        ax2.set_xlabel("GAN Output Scale [0, 1]", color="green", fontsize=9)
         ax2.tick_params(axis='x', colors='green', labelsize=8)
         
         ax.set_title(titles[i], fontweight='bold')
@@ -459,48 +464,50 @@ def save_sku_diversity_comparison():
         lines2, labels2 = ax2.get_legend_handles_labels()
         ax.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=8)
         
-    plt.suptitle("SKU Dimensional Diversity: Multi-Stage Reliability Verification", fontsize=16, fontweight='bold', y=0.98)
+    plt.suptitle("GAN Generative Lifecycle: Distribution Realism Verification", fontsize=16, fontweight='bold', y=0.98)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     
     path = os.path.join(VISUALS_DIR, "sku_diversity_comparison_full.png")
     plt.savefig(path)
     plt.close()
-    print(f"Enhanced SKU Diversity Comparison saved to {path}")
+    print(f"Updated GAN Lifecycle Comparison saved to {path}")
 
 def get_sku_comparison_samples():
-    """Generates 5 samples of Original -> Normalized -> Denormalized -> Synthetic."""
+    """Generates 5 samples of the GAN's generative lifecycle vs. Original reference."""
     import pickle
     orig_path = os.path.join("datasets", "datasets.csv")
     scaler_path = os.path.join("gan", "scaler.pkl")
-    synth_path = os.path.join(TRAINING_DIR, "fit_ga.csv") # Default
-    if not os.path.exists(synth_path):
-        synth_files = glob.glob(os.path.join(TRAINING_DIR, "*.csv"))
-        if synth_files: synth_path = synth_files[0]
-        else: return None
-        
-    if not os.path.exists(orig_path) or not os.path.exists(scaler_path):
+    checkpoint_path = os.path.join("gan", "checkpoints", "generator.pth")
+    
+    if not os.path.exists(orig_path) or not os.path.exists(scaler_path) or not os.path.exists(checkpoint_path):
         return None
         
     with open(scaler_path, "rb") as f:
         scaler = pickle.load(f)
         
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    generator = Generator(100, 4).to(device)
+    generator.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
+    generator.eval()
+
     df_orig = pd.read_csv(orig_path)
-    df_synth = pd.read_csv(synth_path)
+    samples_orig = df_orig[['length', 'width', 'height', 'weight']].dropna()
+    samples_orig = samples_orig[(samples_orig > 0).all(axis=1)].iloc[:5].values.astype(np.float32)
     
-    # 5 samples from Original
-    samples_orig_raw = df_orig[['length', 'width', 'height', 'weight']].dropna()
-    samples_orig_raw = samples_orig_raw[(samples_orig_raw > 0).all(axis=1)].iloc[:5].values.astype(np.float32)
-    samples_norm = scaler.transform(samples_orig_raw)
-    samples_denorm = scaler.inverse_transform(samples_norm)
+    # Generate Synthetic Samples
+    torch.manual_seed(42)
+    z = torch.randn(5, 100).to(device)
+    with torch.no_grad():
+        synth_norm = generator(z).cpu().numpy()
     
-    # 5 samples from Synthetic
-    samples_synth = df_synth[['item_l', 'item_w', 'item_h', 'weight']].iloc[:5].values.astype(np.float32)
+    synth_denorm = scaler.inverse_transform(synth_norm)
+    synth_final = np.abs(synth_denorm) * 2.0
     
     return {
-        "original": samples_orig_raw,
-        "normalized": samples_norm,
-        "denormalized": samples_denorm,
-        "synthetic": samples_synth
+        "original": samples_orig,
+        "synth_norm": synth_norm,
+        "synth_denorm": synth_denorm,
+        "synth_final": synth_final
     }
 
 def generate_data_split_samples_md(training_results):
@@ -761,22 +768,22 @@ def generate_gan_metrics_report():
             lines.append(f"| `{ds}` | {len(df)} | {df['length'].mean():.2f} | {df['width'].mean():.2f} | {df['height'].mean():.2f} | {stack_pct:.1f}% |")
 
     lines.append("\n## 4. Spatial Diversity & Dimensional Realism")
-    lines.append("The density plots and sample tables below compare the distribution of the original SKU dataset against its normalized/denormalized forms and the synthetic items generated by the GAN.")
+    lines.append("The density plots and sample tables below compare the original SKU distribution against the GAN's synthetic lifecycle: from its raw normalized output to its reconstruction as a physical SKU.")
     lines.append("\n### Distribution Comparison")
     lines.append("![SKU Diversity Comparison](metrics_visuals/sku_diversity_comparison_full.png)\n")
     
     samples = get_sku_comparison_samples()
     if samples:
-        lines.append("### Pipeline Reliability & Synthetic Diversity")
-        lines.append("This table provides a 4-way comparison of 5 random item samples across the data lifecycle: Original physical dimensions, their Normalized representation for GAN training, the Denormalized reconstruction, and a completely new Synthetic item generated by the model.\n")
-        lines.append("| Sample | Original (Real-world) | Normalized [0-1] | Denormalized | Synthetic (GAN) |")
+        lines.append("### GAN Generative Lifecycle (Sample items)")
+        lines.append("The table below demonstrates the multi-stage transformation of synthetic items using a fixed latent seed. This confirms the GAN's ability to maintain physical alignment with the original dataset while expanding its diversity.")
+        lines.append("\n| Sample | Original (Reference) | GAN Normalized [0-1] | GAN Denormalized | Synthetic (2.0x Scaled) |")
         lines.append("|:---|:---|:---|:---|:---|")
         
         for i in range(5):
             o = samples["original"][i]
-            n = samples["normalized"][i]
-            d = samples["denormalized"][i]
-            s = samples["synthetic"][i]
+            n = samples["synth_norm"][i]
+            d = samples["synth_denorm"][i]
+            s = samples["synth_final"][i]
             
             orig_str = f"({o[0]:.2f}, {o[1]:.2f}, {o[2]:.2f}, {o[3]:.1f})"
             norm_str = f"({n[0]:.3f}, {n[1]:.3f}, {n[2]:.3f}, {n[3]:.3f})"
@@ -844,37 +851,17 @@ def generate_ml_metrics_report(training_results, inference_results, physics_resu
         gap = m["final_val"] - m["final_train"]
         lines.append(f"| `{name}` | {m['final_train']:.6f} | {m['final_val']:.6f} | {gap:+.6f} |")
 
-    lines.append("\n## 4. Final Inference Benchmarking")
-    lines.append("Benchmarks across varied workload sizes (200, 400, 600 items).\n")
-    for ds_name, models_metrics in inference_results.items():
-        lines.append(f"### Dataset: `{ds_name}`")
-        lines.append("| Model | Fitness | Space % | Time (s) |")
-        lines.append("|-------|---------|---------|----------|")
-        for m_name, met in models_metrics.items():
-            lines.append(f"| `{m_name}` | {met['fitness']:.2f} | {met['su_pct']:.2f}% | {met['total_ms']/1000.0:.2f}s |")
-        lines.append("")
-
-    with open(report_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    print(f"ML Metrics Report saved to {report_path}")
-
-# --- Legacy generator (replaced) ---
-def generate_markdown(training_results, inference_results):
-    return "DEPRECATED"
-
     lines.append("\n### Mean Absolute Error (Real World Units)\n")
     lines.append("| Model | MAE x (m) | MAE y (m) | MAE z (m) | MAE rot (code) |\n|-------|----------|----------|----------|---------------|")
     for name, m in training_results.items():
         mae = m["per_output_mae"]
         lines.append(f"| `{name}` | {mae[0]:.3f} | {mae[1]:.3f} | {mae[2]:.3f} | {mae[3]:.3f} |")
 
-    # --- 4. R^2 Scores ---
     lines.append("\n## 4. R² Scores (Validation Set)\n")
     lines.append("| Model | R² x | R² y | R² z | R² rot |\n|-------|------|------|------|--------|")
     for name, m in training_results.items():
         lines.append(f"| `{name}` | {_fmt_r2(m['r2'][0], m['r2_valid'][0])} | {_fmt_r2(m['r2'][1], m['r2_valid'][1])} | {_fmt_r2(m['r2'][2], m['r2_valid'][2])} | {_fmt_r2(m['r2'][3], m['r2_valid'][3])} |")
 
-    # --- 5. Deep Metrics ---
     lines.append("\n## 5. Deep Metrics: Physical, Logical, & Logistics\n")
     for ds_name in INFERENCE_DATASETS:
         if ds_name in inference_results:
@@ -889,7 +876,6 @@ def generate_markdown(training_results, inference_results):
                     lines.append(f"| `{name}` | {zd['floor']:.1%} | {zd['high']:.1%} | {r['clustering']:.1f}m | {r['frag_compliance']:.1%} | {cog_str} | {r['bbox_eff']:.1f}% | {r['rot_pct']:.1%} |")
             lines.append("")
 
-    # --- 6. Inference Performance ---
     lines.append("## 6. Inference Performance Summary\n")
     lines.append("![Optimization Fitness Trends](metrics_visuals/fitness_trends.png)\n")
     lines.append("![Space Utilization Trends](metrics_visuals/space_efficiency.png)\n")
@@ -902,7 +888,6 @@ def generate_markdown(training_results, inference_results):
                 lines.append(f"| `{name}` | {r['fitness']:.4f} | {r['su_pct']:.2f}% | {r['access']:.4f} | {r['stability']:.4f} | {r['grouping']:.4f} | {r['mean_disp']:.2f} | {r['total_ms']:.0f} |")
             lines.append("")
 
-    # --- 7. Speed ---
     lines.append("## 7. Speed Comparison: ML Inference vs Repair\n")
     lines.append("| Dataset | Avg ML Infer (ms) | Avg Repair (ms) | ML % of Total |\n|---------|------------------|----------------|--------------|")
     for ds_name, model_results in inference_results.items():
@@ -914,7 +899,6 @@ def generate_markdown(training_results, inference_results):
         pct = avg_inf / (avg_inf + avg_rep) * 100 if (avg_inf + avg_rep) > 0 else 0
         lines.append(f"| {n_items} items | {avg_inf:.2f} | {avg_rep:.0f} | {pct:.3f}% |")
 
-    # --- 8. Observations ---
     lines.append("\n## 8. Key Observations\n")
     best_name = min(training_results, key=lambda k: training_results[k]["final_val"])
     lines.append(f"- **Advanced Logistics**: Bounding Box Efficiency measures how compactly items are grouped. A higher efficiency indicates less empty 'air' trapped between containers.")
@@ -924,7 +908,9 @@ def generate_markdown(training_results, inference_results):
     lines.append(f"- **Scaling Consistency**: The model maintains 100% stability and fragility compliance across 200, 400, and 600 item scenarios.")
     lines.append(f"- **Bottleneck**: Inference takes <1.5ms, but repair scales quadratically ($O(n^2)$), taking ~57s for 600 items. Parallelizing the repair step is recommended.")
 
-    return "\n".join(lines)
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    print(f"ML Metrics Report saved to {report_path}")
 
 
 # --- Main ---
@@ -935,8 +921,6 @@ def main():
     
     for csv in csv_files:
         variant_name = os.path.splitext(os.path.basename(csv))[0]
-        if variant_name != "fit_eo_ga": # Only retrain eo_ga as requested
-            continue
             
         name = f"model_{variant_name}"
         model_path = os.path.join(MODELS_DIR, f"{name}.pth")

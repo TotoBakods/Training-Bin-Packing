@@ -24,17 +24,11 @@ from optimizer import (
     get_valid_z_positions,
     get_rotated_dims
 )
-try:
-    from gan.model import Generator
-except ImportError:
-    # Fallback if python path doesn't include gan
-    import sys
-    sys.path.append(os.path.join(os.getcwd(), "gan"))
-    from model import Generator
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
 import shutil
+from scipy.stats import wasserstein_distance
 
 # Directory setup for organized documentation
 METRICS_BASE_DIR = os.path.join("Documents", "04_Machine_Learning", "Performance_Metrics")
@@ -402,17 +396,24 @@ def save_gan_loss_curves(history_file=os.path.join(GAN_DIR, "loss_history.json")
     plt.close()
     
 def save_sku_diversity_comparison():
-    """Compares original physical dimensions against GAN's generative lifecycle (Norm -> Denorm -> Scaled)."""
+    """Compares original physical dimensions against GAN synthetic lifecycle (Normalized, Denormalized, Scaled)."""
     import pickle
+    import torch
+    import sys
+    gan_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gan")
+    if gan_path not in sys.path:
+        sys.path.insert(0, gan_path)
+    from model import Generator
+
     orig_path = os.path.join("datasets", "datasets.csv")
     scaler_path = os.path.join("gan", "scaler.pkl")
     checkpoint_path = os.path.join("gan", "checkpoints", "generator.pth")
     
     if not os.path.exists(orig_path) or not os.path.exists(scaler_path) or not os.path.exists(checkpoint_path):
-        print("Warning: Skipping SKU diversity plot (Missing original data, scaler, or GAN checkpoint).")
-        return
+        print("Warning: Skipping SKU diversity plot (Missing data, scaler or checkpoint).")
+        return {}
 
-    print("   [Diversity] Generating synthetic lifecycle comparison for distributions...")
+    print(f"   [Diversity] Loading GAN model and data for lifecycle comparison...")
     with open(scaler_path, "rb") as f:
         scaler = pickle.load(f)
         
@@ -420,42 +421,64 @@ def save_sku_diversity_comparison():
     generator = Generator(100, 4).to(device)
     generator.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
     generator.eval()
-
+    
+    # 1. Original Data Distribution (Reference)
     df_orig = pd.read_csv(orig_path)
-    orig_features = df_orig[['length', 'width', 'height', 'weight']].dropna()
-    orig_features = orig_features[(orig_features > 0).all(axis=1)].values.astype(np.float32)
-
-    # Generate Synthetic Lifecycle
-    n_sample = 5000
-    z = torch.randn(n_sample, 100).to(device)
+    data_orig = df_orig[['length', 'width', 'height', 'weight']].dropna()
+    data_orig = data_orig[(data_orig > 0).all(axis=1)].values.astype(np.float32)
+    
+    # 2. Generate Synthetic Data Lifecycle
+    num_samples = 2000
+    z = torch.randn(num_samples, 100).to(device)
     with torch.no_grad():
         data_synth_norm = generator(z).cpu().numpy()
-    
-    # Denormalize
+        
     data_synth_denorm = scaler.inverse_transform(data_synth_norm)
-    # Apply 2.0x scale factor as used in training data generation
-    data_synth_final = np.abs(data_synth_denorm) * 2.0
+    data_synth_final = np.abs(data_synth_denorm) * 2.0  # Training scale factor
     
     titles = ["Item Length (m)", "Item Width (m)", "Item Height (m)", "Item Weight (kg)"]
     fig, axes = plt.subplots(2, 2, figsize=(14, 12))
     axes = axes.flatten()
     
+    stats_log = {}
+    
     for i in range(4):
         ax = axes[i]
-        # Reference: Original
-        sns.kdeplot(orig_features[:, i], ax=ax, label="Original (Real)", color="blue", alpha=0.3, fill=True)
-        # GAN Performance: Denormalized (should match Original)
-        sns.kdeplot(data_synth_denorm[:, i], ax=ax, label="GAN (Denormalized)", color="cyan", linestyle="--", alpha=0.6)
-        # Final Training Context: Scaled
-        sns.kdeplot(data_synth_final[:, i], ax=ax, label="Synthetic (2.0x Scaled)", color="orange", alpha=0.4, fill=True)
+        real = data_orig[:, i]
+        synth = data_synth_denorm[:, i]
         
-        # New Feature: GAN Normalized (Raw Output)
+        # Calculate Fidelity Stats
+        w_dist = wasserstein_distance(real, synth)
+        real_m, real_s = np.mean(real), np.std(real)
+        synth_m, synth_s = np.mean(synth), np.std(synth)
+        
+        stats_log[titles[i].split(" (")[0]] = {
+            "real_mean": real_m, "real_std": real_s,
+            "synth_mean": synth_m, "synth_std": synth_s,
+            "wasserstein": w_dist
+        }
+
+        # Reference distribution
+        sns.kdeplot(real, ax=ax, label="Original (Real)", color="#1F77B4", alpha=0.3, fill=True)
+        # GAN reconstruction (Denormalized)
+        sns.kdeplot(synth, ax=ax, label=f"GAN Denorm (W={w_dist:.4f})", color="#2CA02C", linestyle="--", alpha=0.5)
+        # Final scaled items used in training
+        sns.kdeplot(data_synth_final[:, i], ax=ax, label="Target Scaled (2x)", color="#FF7F0E", alpha=0.4, fill=True)
+        
+        # Secondary axis for normalized GAN output [0, 1]
         ax2 = ax.twiny()
-        sns.kdeplot(data_synth_norm[:, i], ax=ax2, label="GAN (Normalized)", color="green", alpha=0.15)
-        ax2.set_xlabel("GAN Output Scale [0, 1]", color="green", fontsize=9)
-        ax2.tick_params(axis='x', colors='green', labelsize=8)
+        sns.kdeplot(data_synth_norm[:, i], ax=ax2, label="GAN Latent (Norm)", color="#9467BD", alpha=0.2)
+        ax2.set_xlabel("Latent Output Range [0, 1]", color="#9467BD", fontsize=9)
+        ax2.tick_params(axis='x', colors='#9467BD', labelsize=8)
         
-        ax.set_title(titles[i], fontweight='bold')
+        # Add Statistical Overlay Text
+        stats_text = (f"Real: μ={real_m:.2f}, σ={real_s:.2f}\n"
+                      f"GAN: μ={synth_m:.2f}, σ={synth_s:.2f}\n"
+                      f"W-Dist: {w_dist:.4f}")
+        ax.text(0.95, 0.5, stats_text, transform=ax.transAxes, verticalalignment='center', horizontalalignment='right', 
+                bbox=dict(boxstyle='round', facecolor='white', alpha=0.7), fontsize=9)
+        
+        ax.set_title(titles[i], fontweight='bold', fontsize=12)
         ax.set_xlabel("Physical Units", fontsize=10)
         ax.set_ylabel("Density")
         
@@ -464,17 +487,26 @@ def save_sku_diversity_comparison():
         lines2, labels2 = ax2.get_legend_handles_labels()
         ax.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=8)
         
-    plt.suptitle("GAN Generative Lifecycle: Distribution Realism Verification", fontsize=16, fontweight='bold', y=0.98)
+    plt.suptitle("GAN SKU Generation Fidelity: Normalized Latent -> Physical Denorm -> Training Scaled", fontsize=16, fontweight='bold', y=0.98)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     
     path = os.path.join(VISUALS_DIR, "sku_diversity_comparison_full.png")
     plt.savefig(path)
     plt.close()
-    print(f"Updated GAN Lifecycle Comparison saved to {path}")
+    print(f"   [Diversity] Enhanced comparison plot saved to {path}")
+    return stats_log
+
 
 def get_sku_comparison_samples():
-    """Generates 5 samples of the GAN's generative lifecycle vs. Original reference."""
+    """Generates 5 samples of Original vs Synthetic lifecycle (Norm -> Denorm -> Scaled)."""
     import pickle
+    import torch
+    import sys
+    gan_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gan")
+    if gan_path not in sys.path:
+        sys.path.insert(0, gan_path)
+    from model import Generator
+
     orig_path = os.path.join("datasets", "datasets.csv")
     scaler_path = os.path.join("gan", "scaler.pkl")
     checkpoint_path = os.path.join("gan", "checkpoints", "generator.pth")
@@ -489,25 +521,26 @@ def get_sku_comparison_samples():
     generator = Generator(100, 4).to(device)
     generator.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
     generator.eval()
-
-    df_orig = pd.read_csv(orig_path)
-    samples_orig = df_orig[['length', 'width', 'height', 'weight']].dropna()
-    samples_orig = samples_orig[(samples_orig > 0).all(axis=1)].iloc[:5].values.astype(np.float32)
     
-    # Generate Synthetic Samples
-    torch.manual_seed(42)
+    # 1. Real samples for reference
+    df_orig = pd.read_csv(orig_path)
+    cols = ['length', 'width', 'height', 'weight', 'category', 'fragility', 'stackable', 'can_rotate']
+    samples_orig_raw = df_orig[cols].dropna()
+    samples_orig_raw = samples_orig_raw[(samples_orig_raw['length'] > 0)].iloc[:5]
+    
+    # 2. Synthetic Lifecycle samples
     z = torch.randn(5, 100).to(device)
     with torch.no_grad():
-        synth_norm = generator(z).cpu().numpy()
-    
-    synth_denorm = scaler.inverse_transform(synth_norm)
-    synth_final = np.abs(synth_denorm) * 2.0
+        samples_norm = generator(z).cpu().numpy()
+    samples_denorm = scaler.inverse_transform(samples_norm)
+    samples_final = np.abs(samples_denorm) * 2.0
     
     return {
-        "original": samples_orig,
-        "synth_norm": synth_norm,
-        "synth_denorm": synth_denorm,
-        "synth_final": synth_final
+        "original_df": samples_orig_raw,
+        "original": samples_orig_raw[['length', 'width', 'height', 'weight']].values.astype(np.float32),
+        "synth_norm": samples_norm,
+        "synth_denorm": samples_denorm,
+        "synth_final": samples_final
     }
 
 def generate_data_split_samples_md(training_results):
@@ -720,7 +753,7 @@ def generate_gan_metrics_report():
     """Generates model_metrics_gan.md including training, generation, and SKU distribution evaluation."""
     report_path = os.path.join(METRICS_BASE_DIR, "model_metrics_gan.md")
     save_gan_loss_curves()
-    save_sku_diversity_comparison()
+    fidelity_stats = save_sku_diversity_comparison()
     
     # Load GAN history
     gan_epochs, gan_batch = 500, 64
@@ -744,7 +777,9 @@ def generate_gan_metrics_report():
         f"- **Batch Size**: {gan_batch}",
         f"- **Hardware**: {sys_meta['gpu_name'] if sys_meta['gpu_available'] else 'CPU'}",
         "\n### Stability & Convergence",
-        "![GAN Loss Curves](metrics_visuals/gan_loss_curves.png)\n"
+        "![GAN Loss Curves](metrics_visuals/gan_loss_curves.png)\n",
+        "### 1.1 Methodology: Min-Max Scaling",
+        "To ensure stable training, all physical dimensions are normalized using **Min-Max Scaling** to a strict **[0, 1] range**. This matches the Generator's `Sigmoid` output layer and prevents any single feature (like weight) from dominating the loss function due to its different numerical scale.\n"
     ]
     
     if gan_data:
@@ -768,15 +803,25 @@ def generate_gan_metrics_report():
             lines.append(f"| `{ds}` | {len(df)} | {df['length'].mean():.2f} | {df['width'].mean():.2f} | {df['height'].mean():.2f} | {stack_pct:.1f}% |")
 
     lines.append("\n## 4. Spatial Diversity & Dimensional Realism")
-    lines.append("The density plots and sample tables below compare the original SKU distribution against the GAN's synthetic lifecycle: from its raw normalized output to its reconstruction as a physical SKU.")
-    lines.append("\n### Distribution Comparison")
+    lines.append("The density plots and table below quantify the generative quality using Wasserstein Distance—a measure of how closely the GAN's synthetic distribution matches the physical reality.")
+    
+    if fidelity_stats:
+        lines.append("\n### 4.1 Distributional Fidelity Summary")
+        lines.append("Comparing Gaussian density overlaps and statistical moments between real and synthetic data.")
+        lines.append("\n| Dimension | Real Mean (μ) | GAN Mean (μ) | Real Std (σ) | GAN Std (σ) | Wasserstein Dist |")
+        lines.append("|:---|:---:|:---:|:---:|:---:|:---:|")
+        for dim, s in fidelity_stats.items():
+            lines.append(f"| {dim} | {s['real_mean']:.3f} | {s['synth_mean']:.3f} | {s['real_std']:.3f} | {s['synth_std']:.3f} | **{s['wasserstein']:.5f}** |")
+        lines.append("\n> **Note**: A lower Wasserstein Distance indicates higher distributional realism.")
+
+    lines.append("\n### 4.2 Generation Lifecycle Visual")
     lines.append("![SKU Diversity Comparison](metrics_visuals/sku_diversity_comparison_full.png)\n")
     
     samples = get_sku_comparison_samples()
     if samples:
-        lines.append("### GAN Generative Lifecycle (Sample items)")
-        lines.append("The table below demonstrates the multi-stage transformation of synthetic items using a fixed latent seed. This confirms the GAN's ability to maintain physical alignment with the original dataset while expanding its diversity.")
-        lines.append("\n| Sample | Original (Reference) | GAN Normalized [0-1] | GAN Denormalized | Synthetic (2.0x Scaled) |")
+        lines.append("### Pipeline Reliability & Synthetic Diversity")
+        lines.append("This table provides a 4-way comparison of 5 random item samples tracking the synthetic lifecycle: from a real-world reference to the GAN's raw output, its physical reconstruction, and finally the scaled version used in training.\n")
+        lines.append("| Sample | Original (Real) | GAN Normalized [0-1] | GAN Denormalized | Synthetic (2x Scaled) |")
         lines.append("|:---|:---|:---|:---|:---|")
         
         for i in range(5):
@@ -793,6 +838,29 @@ def generate_gan_metrics_report():
             lines.append(f"| {i+1} | {orig_str} | {norm_str} | {denorm_str} | {synth_str} |")
         
         lines.append("\n*(Format: Length, Width, Height, Weight)*\n")
+        
+        lines.append("\n## 5. Sample Fidelity Dashboard (Compact Matrix)")
+        lines.append("This section maps the transformation of 5 random samples from their physical source to the latent model space and back to the reconstructed synthetic item.\n")
+        
+        orig_df = samples["original_df"]
+        for i in range(5):
+            o_row = orig_df.iloc[i]
+            n = samples["synth_norm"][i]
+            d = samples["synth_denorm"][i]
+            
+            lines.append(f"### Sample {i+1} Fidelity Trace")
+            lines.append("| Attribute | Real Value | Latent [0-1] | Reconstructed | Type / Unit |")
+            lines.append("|:---|:---:|:---:|:---:|:---|")
+            lines.append(f"| **Length**     | {o_row['length']:.3f} | {n[0]:.6f} | {d[0]:.3f} | f32 / meters |")
+            lines.append(f"| **Width**      | {o_row['width']:.3f} | {n[1]:.6f} | {d[1]:.3f} | f32 / meters |")
+            lines.append(f"| **Height**     | {o_row['height']:.3f} | {n[2]:.6f} | {d[2]:.3f} | f32 / meters |")
+            lines.append(f"| **Weight**     | {o_row['weight']:.3f} | {n[3]:.6f} | {d[3]:.3f} | f32 / kg     |")
+            lines.append(f"| Category       | {o_row['category']} | -- | -- | obj / str    |")
+            lines.append(f"| Fragility      | {bool(o_row['fragility'])} | -- | -- | i64 / bool   |")
+            lines.append(f"| Stackable      | {bool(o_row['stackable'])} | -- | -- | i64 / bool   |")
+            lines.append(f"| Can Rotate     | {bool(o_row['can_rotate'])} | -- | -- | i64 / bool   |")
+            lines.append("\n---\n")
+
 
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))

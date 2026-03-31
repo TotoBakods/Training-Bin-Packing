@@ -1,6 +1,6 @@
 # GAN Performance & Generation Report
 
-> Auto-generated on **2026-03-31 18:06**
+> Auto-generated on **2026-03-31 18:45**
 
 ---
 
@@ -32,6 +32,18 @@ The following datasets were generated for final inference benchmarking:
 | `400_items.csv` | 400 | 0.82 | 0.46 | 0.41 | 51.7% |
 | `600_items.csv` | 600 | 0.80 | 0.45 | 0.41 | 51.3% |
 
+## 3. Source Dataset Samples (First 5 Rows)
+Reference items from `datasets.csv` used for GAN training and physical verification.
+
+| id | name | category | length | width | height | weight | priority | fragile | stackable |
+|:---|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 00103095 | ciabatta-00103095 | bakery products | 0.59 | 0.20 | 0.21 | 7.67 | 1 | 0 | 1 |
+| 00111025 | cake-00111025 | confectionery | 0.55 | 0.28 | 0.11 | 8.40 | 1 | 0 | 1 |
+| 00111025 | cake-00111025 | confectionery | 0.55 | 0.28 | 0.11 | 8.40 | 1 | 0 | 1 |
+| 00104636 | dessert-00104636 | candy | 0.49 | 0.13 | 0.21 | 5.11 | 1 | 0 | 1 |
+| 00104636 | dessert-00104636 | candy | 0.49 | 0.13 | 0.21 | 5.11 | 1 | 0 | 1 |
+
+
 ## 4. Spatial Diversity & Dimensional Realism
 The density plots and table below quantify the generative quality using Wasserstein Distance—a measure of how closely the GAN's synthetic distribution matches the physical reality.
 
@@ -40,10 +52,10 @@ Comparing Gaussian density overlaps and statistical moments between real and syn
 
 | Dimension | Real Mean (μ) | GAN Mean (μ) | Real Std (σ) | GAN Std (σ) | Wasserstein Dist |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| Item Length | 0.443 | 0.449 | 0.108 | 0.109 | **0.00921** |
-| Item Width | 0.248 | 0.250 | 0.069 | 0.067 | **0.00351** |
-| Item Height | 0.227 | 0.228 | 0.053 | 0.051 | **0.00351** |
-| Item Weight | 6.827 | 6.856 | 2.579 | 2.601 | **0.09066** |
+| Item Length | 0.443 | 0.446 | 0.108 | 0.106 | **0.00631** |
+| Item Width | 0.248 | 0.251 | 0.069 | 0.067 | **0.00427** |
+| Item Height | 0.227 | 0.229 | 0.053 | 0.052 | **0.00324** |
+| Item Weight | 6.827 | 6.901 | 2.579 | 2.609 | **0.11214** |
 
 > **Note**: A lower Wasserstein Distance indicates higher distributional realism.
 
@@ -55,11 +67,11 @@ This table provides a 4-way comparison of 5 random item samples tracking the syn
 
 | Sample | Original (Real) | GAN Normalized [0-1] | GAN Denormalized | Synthetic (2x Scaled) |
 |:---|:---|:---|:---|:---|
-| 1 | (0.59, 0.20, 0.21, 7.7) | (0.604, 0.140, 0.036, 0.090) | (0.47, 0.14, 0.08, 2.9) | (0.94, 0.29, 0.16, 5.8) |
-| 2 | (0.55, 0.28, 0.11, 8.4) | (0.221, 0.421, 0.216, 0.260) | (0.23, 0.23, 0.29, 7.2) | (0.47, 0.47, 0.58, 14.3) |
-| 3 | (0.55, 0.28, 0.11, 8.4) | (0.484, 0.933, 0.122, 0.194) | (0.40, 0.40, 0.18, 5.5) | (0.79, 0.80, 0.36, 11.1) |
-| 4 | (0.49, 0.13, 0.21, 5.1) | (0.477, 0.517, 0.193, 0.394) | (0.39, 0.27, 0.26, 10.5) | (0.78, 0.53, 0.53, 21.0) |
-| 5 | (0.49, 0.13, 0.21, 5.1) | (0.710, 0.517, 0.170, 0.406) | (0.53, 0.27, 0.24, 10.8) | (1.07, 0.53, 0.48, 21.6) |
+| 1 | (0.59, 0.20, 0.21, 7.7) | (0.486, 0.497, 0.211, 0.361) | (0.40, 0.26, 0.28, 9.7) | (0.79, 0.52, 0.57, 19.3) |
+| 2 | (0.55, 0.28, 0.11, 8.4) | (0.465, 0.505, 0.239, 0.287) | (0.38, 0.26, 0.32, 7.8) | (0.77, 0.52, 0.64, 15.7) |
+| 3 | (0.55, 0.28, 0.11, 8.4) | (0.414, 0.318, 0.189, 0.139) | (0.35, 0.20, 0.26, 4.1) | (0.70, 0.40, 0.52, 8.3) |
+| 4 | (0.49, 0.13, 0.21, 5.1) | (0.467, 0.339, 0.098, 0.106) | (0.38, 0.21, 0.15, 3.3) | (0.77, 0.42, 0.31, 6.6) |
+| 5 | (0.49, 0.13, 0.21, 5.1) | (0.305, 0.324, 0.137, 0.203) | (0.29, 0.20, 0.20, 5.7) | (0.57, 0.41, 0.40, 11.5) |
 
 *(Format: Length, Width, Height, Weight)*
 
@@ -80,20 +92,20 @@ This section compares 5 random samples across the three major generation phases.
 ### Phase 2: GAN Latent Space (Normalized [0, 1])
 | Smp | Item_L | Item_W | Item_H | Item_Wt | Data Type | Range |
 |:---| :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | 0.603971 | 0.140313 | 0.036442 | 0.089580 | float32 | [0.0, 1.0] |
-| 2 | 0.220504 | 0.421267 | 0.216233 | 0.259743 | float32 | [0.0, 1.0] |
-| 3 | 0.484096 | 0.933467 | 0.121579 | 0.194445 | float32 | [0.0, 1.0] |
-| 4 | 0.477372 | 0.516817 | 0.192554 | 0.394176 | float32 | [0.0, 1.0] |
-| 5 | 0.709922 | 0.517451 | 0.170318 | 0.405620 | float32 | [0.0, 1.0] |
+| 1 | 0.485737 | 0.497458 | 0.210642 | 0.360509 | float32 | [0.0, 1.0] |
+| 2 | 0.465499 | 0.505101 | 0.239453 | 0.286953 | float32 | [0.0, 1.0] |
+| 3 | 0.413682 | 0.318031 | 0.188968 | 0.139128 | float32 | [0.0, 1.0] |
+| 4 | 0.466660 | 0.339378 | 0.098252 | 0.105804 | float32 | [0.0, 1.0] |
+| 5 | 0.304661 | 0.324161 | 0.137164 | 0.202828 | float32 | [0.0, 1.0] |
 
 
 ### Phase 3: GAN Denormalized (Reconstructed Source)
 | Smp | Rec_Len | Rec_Wid | Rec_Hei | Rec_Wgt | Data Type | Unit |
 |:---| :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | 0.468 | 0.145 | 0.082 | 2.91 | float32 | Physical |
-| 2 | 0.235 | 0.235 | 0.291 | 7.15 | float32 | Physical |
-| 3 | 0.395 | 0.399 | 0.181 | 5.53 | float32 | Physical |
-| 4 | 0.391 | 0.265 | 0.263 | 10.50 | float32 | Physical |
-| 5 | 0.533 | 0.266 | 0.238 | 10.79 | float32 | Physical |
+| 1 | 0.396 | 0.259 | 0.284 | 9.66 | float32 | Physical |
+| 2 | 0.384 | 0.262 | 0.318 | 7.83 | float32 | Physical |
+| 3 | 0.352 | 0.202 | 0.259 | 4.15 | float32 | Physical |
+| 4 | 0.385 | 0.209 | 0.154 | 3.32 | float32 | Physical |
+| 5 | 0.286 | 0.204 | 0.199 | 5.73 | float32 | Physical |
 
 ---

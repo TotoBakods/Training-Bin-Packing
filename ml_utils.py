@@ -17,7 +17,7 @@ def get_system_metadata():
     metadata = {
         "os": platform.system(),
         "os_release": platform.release(),
-        "cpu": platform.processor(),
+        "cpu_name": platform.processor(),
         "ram_gb": round(psutil.virtual_memory().total / (1024**3), 2),
         "python_version": platform.python_version(),
         "gpu_available": torch.cuda.is_available(),
@@ -28,7 +28,11 @@ def get_system_metadata():
     return metadata
 
 class PackingModel(nn.Module):
-    def __init__(self, input_dim=18, output_dim=4):
+    """
+    Neural network for predicting normalized (x, y, z, rot) placement coordinates.
+    Outputs are constrained to [0, 1] via Sigmoid to match normalized target range.
+    """
+    def __init__(self, input_dim=19, output_dim=4):
         super(PackingModel, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, 256),
@@ -41,16 +45,22 @@ class PackingModel(nn.Module):
             nn.LeakyReLU(0.1),
             nn.Dropout(0.1),
 
-            nn.Linear(512, 512),
+            nn.Linear(512, 768),
+            nn.BatchNorm1d(768),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(0.08),
+
+            nn.Linear(768, 512),
             nn.BatchNorm1d(512),
             nn.LeakyReLU(0.1),
-            nn.Dropout(0.1),
+            nn.Dropout(0.05),
 
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),
             nn.LeakyReLU(0.1),
-
             nn.Linear(256, output_dim),
+            # Constrain outputs to [0, 1] — matching normalized target range
+            nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -102,8 +112,8 @@ class MLOptimizer:
         # Props for repair
         items_props = np.zeros((num_items, 9), dtype=np.float32)
         
-        # Features for Model: 18 advanced geometric features
-        features = np.zeros((num_items, 18), dtype=np.float32)
+        # Features for Model: 19 advanced geometric features (including Sequence Progress)
+        features = np.zeros((num_items, 19), dtype=np.float32)
         
         wh_l = warehouse['length']
         wh_w = warehouse['width']
@@ -147,7 +157,9 @@ class MLOptimizer:
                 wh_area / 100.0,
                 item_area / (wh_area + 1e-6),
                 l / (wh_l + 1e-6),
-                w / (wh_w + 1e-6)
+                w / (wh_w + 1e-6),
+                # 19. Sequence Progress (Proxy for fill level)
+                i / float(num_items)
             ]
 
         # Inference
@@ -179,6 +191,8 @@ class MLOptimizer:
                 if alloc_zones:
                     allocation_zones = alloc_zones
             
+            # Repair using compact logic
+            is_eo_ga = self.model_name == "fit_eo_ga"
             if callback:
                 def intermediate_callback(intermediate_sol):
                     # Convert numpy array to list of dicts for real-time updates
@@ -194,11 +208,16 @@ class MLOptimizer:
                     callback(50, 0, 0, intermediate_list, 0, 0, 0, message="Repairing layout (Tetris Style)...")
                 
                 callback(20, 0, 0, None, 0, 0, 0, message="ML Inference complete. Applying Physics Settlement...")
-                # Repair using compact logic
-                solution = repair_solution_compact(solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, callback=intermediate_callback)
+                
+                solution = repair_solution_compact(
+                    solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
+                    callback=intermediate_callback, fast_mode=is_eo_ga
+                )
             else:
-                # Repair using compact logic
-                solution = repair_solution_compact(solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z)
+                solution = repair_solution_compact(
+                    solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
+                    fast_mode=is_eo_ga
+                )
             
             if callback:
                 callback(80, 0, 0, None, 0, 0, 0, message="Physics Settlement Complete.")

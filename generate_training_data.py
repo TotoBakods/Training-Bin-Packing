@@ -28,9 +28,14 @@ import time
 # Paths
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-GAN_DIR = os.path.join(SCRIPT_DIR, "gan")
-TRAINING_DIR = os.path.join(SCRIPT_DIR, "training_data")
-MODELS_DIR = os.path.join(SCRIPT_DIR, "models")
+TRAINING_DIR   = os.path.join(SCRIPT_DIR, "training_data")
+MODELS_DIR     = os.path.join(SCRIPT_DIR, "models")
+GAN_DIR        = os.path.join(SCRIPT_DIR, "gan")
+BATCH_SIZE = 1024   # Optimized for high-throughput VRAM training
+EPOCHS = 80         # Valid professional standard epoch count
+VAL_SPLIT = 0.20
+LR = 0.001
+PATIENCE = 15
 
 # GAN assets
 SCALER_PATH = os.path.join(GAN_DIR, "scaler.pkl")
@@ -54,13 +59,14 @@ from optimizer import repair_solution_compact, get_rotated_dims
 # ---------------------------------------------------------------------------
 LATENT_DIM = 100
 
-# Total scenarios per variant: 1000 x 50 items = 50,000 rows
-NUM_DENSE_SCENARIOS = 600     # Dense: small floor, forces stacking
-NUM_NORMAL_SCENARIOS = 400    # Normal: varied floor sizes
-ITEMS_PER_SAMPLE = 50
+# High-Throughput Scenarios for 400,000 items
+DENSE_SCENARIOS  = 4800  # 60% Dense for difficult packing
+NORMAL_SCENARIOS = 3200  # 40% Standard scenarios
+TOTAL_SCENARIOS  = DENSE_SCENARIOS + NORMAL_SCENARIOS
+ITEMS_PER_SCENARIO = 50
 
-# Heuristic variants we train separate models for
-HEURISTIC_VARIANTS = ["fit_eo", "fit_eo_ga", "fit_ga", "fit_ga_eo"]
+# We use one primary dataset for all models to ensure scientific parity
+TRAINING_FILENAME = "warehouse_training.csv"
 
 # Category heuristics (same as gan/generate.py)
 FRAGILE_CATEGORIES = {
@@ -188,15 +194,15 @@ def generate_dataset_for_variant(variant_name, generator, scaler, device):
     z_positive_count = 0
     total_count = 0
 
-    total_scenarios = NUM_DENSE_SCENARIOS + NUM_NORMAL_SCENARIOS
+    total_scenarios = DENSE_SCENARIOS + NORMAL_SCENARIOS
     print(f"\n  Generating data for '{variant_name}' ...")
-    print(f"    {NUM_DENSE_SCENARIOS} dense + {NUM_NORMAL_SCENARIOS} normal = {total_scenarios} scenarios")
+    print(f"    {DENSE_SCENARIOS} dense + {NORMAL_SCENARIOS} normal = {total_scenarios} scenarios")
 
     for sample_idx in range(total_scenarios):
-        is_dense = sample_idx < NUM_DENSE_SCENARIOS
+        is_dense = sample_idx < DENSE_SCENARIOS
 
         # Generate items first (need them for dense warehouse sizing)
-        n_items = ITEMS_PER_SAMPLE
+        n_items = ITEMS_PER_SCENARIO
         items = generate_items(generator, scaler, device, n_items)
         items_props = items_to_props(items)
 
@@ -263,8 +269,8 @@ def generate_dataset_for_variant(variant_name, generator, scaler, device):
         "avg_l": round(df["item_l"].mean(), 3),
         "avg_w": round(df["item_w"].mean(), 3),
         "avg_h": round(df["item_h"].mean(), 3),
-        "dense_scenarios": NUM_DENSE_SCENARIOS,
-        "normal_scenarios": NUM_NORMAL_SCENARIOS,
+        "dense_scenarios": DENSE_SCENARIOS,
+        "normal_scenarios": NORMAL_SCENARIOS,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
     }
     summary_path = os.path.join(TRAINING_DIR, f"{variant_name}_summary.json")
@@ -276,16 +282,16 @@ def generate_dataset_for_variant(variant_name, generator, scaler, device):
 
 
 def main():
-    total_scenarios = NUM_DENSE_SCENARIOS + NUM_NORMAL_SCENARIOS
+    total_scenarios = DENSE_SCENARIOS + NORMAL_SCENARIOS
     print("=" * 60)
     print("  Training Data Generation (v2 - Dense + Normal)")
     print("=" * 60)
-    print(f"  Dense scenarios       : {NUM_DENSE_SCENARIOS}")
-    print(f"  Normal scenarios      : {NUM_NORMAL_SCENARIOS}")
+    print(f"  Dense scenarios       : {DENSE_SCENARIOS}")
+    print(f"  Normal scenarios      : {NORMAL_SCENARIOS}")
     print(f"  Total scenarios/variant: {total_scenarios}")
-    print(f"  Items per scenario    : {ITEMS_PER_SAMPLE}")
-    print(f"  Expected rows / CSV   : ~{total_scenarios * ITEMS_PER_SAMPLE}")
-    print(f"  Variants              : {HEURISTIC_VARIANTS}")
+    print(f"  Items per scenario    : {ITEMS_PER_SCENARIO}")
+    print(f"  Expected rows / CSV   : ~{total_scenarios * ITEMS_PER_SCENARIO}")
+    print(f"  Target File           : {TRAINING_FILENAME}")
     print()
 
     # Load GAN
@@ -293,10 +299,9 @@ def main():
     generator, scaler, device = load_gan()
     print(f"  GAN loaded on {device}\n")
 
-    # Generate for each variant
-    print("[2/2] Generating datasets ...")
-    for variant in HEURISTIC_VARIANTS:
-        generate_dataset_for_variant(variant, generator, scaler, device)
+    # Generate the single master dataset
+    print("[2/2] Generating Master Dataset ...")
+    generate_dataset_for_variant("warehouse_training", generator, scaler, device)
 
     print("\n" + "=" * 60)
     print("  All datasets generated! Next steps:")

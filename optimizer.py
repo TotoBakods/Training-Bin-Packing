@@ -157,7 +157,7 @@ def get_rotated_dims(l, w, h, rotation_code):
     if code == 5: return h, w, l
     return l, w, h
 
-def repair_solution_compact(solution, items_props=None, warehouse_dims=None, allocation_zones=None, layer_heights=None, callback=None, callback_interval=50):
+def repair_solution_compact(solution, items_props=None, warehouse_dims=None, allocation_zones=None, layer_heights=None, callback=None, callback_interval=50, fast_mode=False):
     """Repair solution by placing items in valid positions with gravity."""
     # Use globals if in worker process
     if items_props is None: items_props = _pool_items_props
@@ -213,8 +213,9 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
         for z in use_zones:
             candidates.add((z['x1'], z['y1']))
             
-            # Instantiate a 0.5m interval lattice grid over target allocation zones
-            grid_step = 0.5
+            # Instantiate a lattice grid over target allocation zones
+            # Fast Mode: Use 1.0m intervals (balanced speed/quality)
+            grid_step = 1.0 if fast_mode else 0.5
             zx1, zx2 = z['x1'], z['x2']
             zy1, zy2 = z['y1'], z['y2']
             cx = zx1
@@ -262,63 +263,56 @@ def repair_solution_compact(solution, items_props=None, warehouse_dims=None, all
             p[1], p[0]
         ))
         
-        for rot in rots:
-            dims = get_rotated_dims(l, w, h, rot)
-            dx, dy, dz = dims
-            
-            for (cx, cy) in sorted_candidates:
-                min_x, min_y = cx, cy
-                max_x, max_y = cx + dx, cy + dy
-                
-                if max_x > wh_len + 0.001 or max_y > wh_wid + 0.001:
-                    continue
-                
-                # Calculate gravity Z
-                gravity_z = 0.0
-                
-                # Find highest item below this footprint using Spatial Grid lookup
-                # Find highest item below this footprint using Spatial Grid lookup
-                potential_supporters = grid.query(min_x, min_y, max_x, max_y)
-                for p_idx in potential_supporters:
-                    px, py, pz, pdx, pdy, pdz = placed_items[p_idx]
-                    # ONLY consider items that are correctly placed (below overflow threshold)
-                    if pz < 1000:
-                        if (max_x > px + 0.001 and min_x < px + pdx - 0.001 and
-                            max_y > py + 0.001 and min_y < py + pdy - 0.001):
-                            top_z = pz + pdz
-                            if top_z > gravity_z:
-                                gravity_z = top_z
-                
-                # Find valid Z in any suitable zone
-                valid_z_found = False
-                final_z = float('inf')
-                
-                for zne in use_zones:
-                    # Check XY containment
-                    if (min_x >= zne['x1'] - 0.01 and max_x <= zne['x2'] + 0.01 and 
-                        min_y >= zne['y1'] - 0.01 and max_y <= zne['y2'] + 0.01):
-                        
-                        zone_floor = zne.get('z1', 0)
-                        placement_z = max(gravity_z, zone_floor)
-                        placement_top = placement_z + dz
-                        zone_ceil = zne.get('z2', wh_hgt)
-                        
-                        # Check Z fits
-                        if placement_top <= zone_ceil + 0.001:
-                            if placement_z < final_z:
-                                final_z = placement_z
-                                valid_z_found = True
+        # Fast Mode: Pruning for eo_ga (Optimized)
+        # Check top 250 most promising candidates
+        search_candidates = sorted_candidates[:250] if fast_mode else sorted_candidates
+        
+        def perform_search(candidates_to_check, is_fast):
+            best = None
+            for rot in rots:
+                dims = get_rotated_dims(l, w, h, rot)
+                dx, dy, dz = dims
+                for (cx, cy) in candidates_to_check:
+                    min_x, min_y = cx, cy
+                    max_x, max_y = cx + dx, cy + dy
+                    if max_x > wh_len + 0.001 or max_y > wh_wid + 0.001: continue
                     
-                if valid_z_found:
-                    # Calculate final score (Z, Dist to Target, Y, X)
-                    # We prioritize Z (gravity) then closeness to gene target, then Y/X as tiebreaker
-                    center_x = min_x + dx/2
-                    center_y = min_y + dy/2
-                    dist_to_target = (center_x - target_x)**2 + (center_y - target_y)**2
+                    gravity_z = 0.0
+                    potential_supporters = grid.query(min_x, min_y, max_x, max_y)
+                    for p_idx in potential_supporters:
+                        px, py, pz, pdx, pdy, pdz = placed_items[p_idx]
+                        if pz < 1000:
+                            if (max_x > px + 0.001 and min_x < px + pdx - 0.001 and
+                                max_y > py + 0.001 and min_y < py + pdy - 0.001):
+                                top_z = pz + pdz
+                                if top_z > gravity_z: gravity_z = top_z
                     
-                    score = (final_z, dist_to_target, min_y, min_x)
-                    if best_pos is None or score < best_pos[7]:
-                         best_pos = (center_x, center_y, final_z, rot, dx, dy, dz, score)
+                    final_z = float('inf')
+                    valid_z_found = False
+                    for zne in use_zones:
+                        if (min_x >= zne['x1'] - 0.01 and max_x <= zne['x2'] + 0.01 and 
+                            min_y >= zne['y1'] - 0.01 and max_y <= zne['y2'] + 0.01):
+                            pz = max(gravity_z, zne.get('z1', 0))
+                            if pz + dz <= zne.get('z2', wh_hgt) + 0.001:
+                                if pz < final_z:
+                                    final_z = pz
+                                    valid_z_found = True
+                    
+                    if valid_z_found:
+                        center_x, center_y = min_x + dx/2, min_y + dy/2
+                        dist = (center_x - target_x)**2 + (center_y - target_y)**2
+                        score = (final_z, dist, min_y, min_x)
+                        if best is None or score < best[7]:
+                            best = (center_x, center_y, final_z, rot, dx, dy, dz, score)
+                        if is_fast and final_z <= 0.01 and dist < 0.02: return best
+            return best
+
+        best_pos = perform_search(search_candidates, fast_mode)
+        
+        # Fallback: If fast mode failed to find ANY valid spot, do a full search
+        if fast_mode and best_pos is None:
+            best_pos = perform_search(sorted_candidates, False)
+
     
         # Apply placement
         if best_pos:

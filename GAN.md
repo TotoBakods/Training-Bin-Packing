@@ -18,10 +18,17 @@ To achieve ultra-fast training and reach the Nash Equilibrium, the following har
 | **Latent Dim** | 100 | Standard noise vector dimension |
 | **Data Residency** | Pure VRAM | Dataset loaded entirely into GPU memory |
 
-### 1.1 Table Analysis: Rationale for Configuration
-The selection of a large **Batch Size (4096)** was prioritized to maximize the CUDA core utilization of the RTX 3060. According to **Xu et al. (2019)** ([arxiv.org/abs/1907.00503](https://arxiv.org/abs/1907.00503)), tabular GANs benefit from larger batches as they provide a more stable estimate of the underlying data distribution, reducing the risk of "mode collapse." 
+### 1.1 Research-to-Hardware Adaptation
+The hyperparameters selected for this implementation are grounded in foundational research but optimized for the **NVIDIA RTX 3060** hardware profile.
 
-**Learning Rate Logic**: The **Asymmetric LR** (G: 0.0006 vs D: 0.0004) prevents the Discriminator from becoming too strong too early. By giving the Generator a slight "speed boost," we ensure it can keep pace with the Discriminator's task of binary classification.
+| Parameter | Research Standard (RRL) | Our Optimized Value | Reference & Rationale |
+|:---|:---:|:---:|:---|
+| **Batch Size** | 500 | **4096** | **Xu et al. (2019)**: Larger batches stabilize tabular distribution estimates on 12GB VRAM. |
+| **Learning Rate**| 0.0002 | **0.0006 / 0.0004** | **Heusel et al. (2017)**: Two-Time-Scale Update Rule (TTUR) for balanced convergence. |
+| **Target Loss** | 0.693 | **0.693** | **Goodfellow et al. (2014)**: Theoretical crossover for binary cross-entropy. |
+| **Architecture** | CNN/MLP | **MLP + BN** | **CTGAN (Xu, 2019)**: BatchNorm (BN) and LeakyReLU are optimal for tabular item data. |
+
+**Discussion**: While the CTGAN paper ([arXiv:1907.00503](https://arxiv.org/abs/1907.00503)) suggests a batch size of 500 for general tabular data, our warehouse dataset's high-memory residency allows us to scale to **4096**. This minimizes "stochastic noise" in the training process, leading to the exceptionally low Wasserstein scores reported in Section 4.2.
 
 ---
 

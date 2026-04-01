@@ -207,6 +207,12 @@ def train():
             torch.save(generator.state_dict(), os.path.join(CHECKPOINT_DIR, "generator_best_parity.pth"))
             torch.save(discriminator.state_dict(), os.path.join(CHECKPOINT_DIR, "discriminator_best_parity.pth"))
 
+        # Save loss history periodically
+        if epoch % 20 == 0:
+            import json
+            with open(LOSS_HISTORY_PATH, 'w') as f:
+                json.dump(history, f, indent=4)
+
         # Early stopping: halt when Nash equilibrium parity is stable
         if len(history["parity"]) >= EARLY_STOP_PATIENCE:
             if all(p < EARLY_STOP_PARITY_THRESHOLD for p in history["parity"][-EARLY_STOP_PATIENCE:]):

@@ -70,6 +70,21 @@ The evolution of the 3D Bin Packing Problem (3D-BPP) has moved toward Neural Com
 (12)
 Recent literature emphasizes the "hybridization" of these neural approaches with established metaheuristics. For example, [39] demonstrated that integrating a GAN’s generator directly into a Genetic Algorithm (GA) can produce high-quality initial populations, preventing the optimization from getting stuck in local optima and improving space utilization [39]. While these neural solvers offer high-speed predictions, they are frequently benchmarked against Extremal Optimization (EO) a local-search heuristic inspired by self-organized criticality. Hybrid EO (HEO) models, which iteratively refine "weak" solution components, serve as a critical baseline to determine if the added complexity of a trained neural model provides a significant measurable benefit in warehouse efficiency [40].
 
+### Section 2.5: Theoretical Foundations of Sandwich Normalization in Logistics
+
+The integration of Generative Adversarial Networks and machine learning for 3D Bin Packing requires a robust normalization architecture to bridge the gap between abstract latent space and physical warehouse constraints. This study identifies and utilizes a **"Sandwich Normalization"** cycle to ensure stable model convergence across multi-modal item distributions.
+
+#### 1. The Architectural Sandwich (SaBN)
+As defined by **Kim, M., Li, B., Shin, J., & Hong, S. (2021)** in *"Sandwich Batch Normalization: A Drop-In Replacement for Feature Distribution Heterogeneity"*, the "sandwiching" of affine transformations within standard Batch Normalization addresses feature distribution heterogeneity. In logistics data—where weights (kg) and dimensions (m) exhibit vastly different numeric scales—standard normalization often leads to "Feature Dominance," where the model ignores smaller spatial deltas in favor of larger mass-based gradients. This study implements SaBN-inspired logic by factorizing the data transformation cycle into a shared global scaling layer (Min-Max) followed by internal conditional normalization layers.
+
+#### 2. Resolution of Internal Covariate Shift
+To master the non-linear physics of 3D-BPP, the predictive MLP utilizes **Batch Normalization (BN)**, a technique pioneered by **Ioffe, S., & Szegedy, C. (2015)**. By normalizing the "filling" of the sandwich (the internal hidden layers), the system reduces internal covariate shift, allowing for higher learning rates and faster convergence in the sequential EO-GA optimization pipeline. As demonstrated by Ioffe and Szegedy, this internal stabilization is critical for training deep networks on disparate datasets like the GAN-augmented warehouse inventory.
+
+#### 3. Formal Normalization Objective
+Following these theoretical benchmarks, the normalization objective in this study is defined as:
+(13)
+Where $x_{norm}$ represents the relative spatial ratio used for coordinate prediction, and $Denorm$ is the inverse transformation required for physical settlement in the PyBullet engine. This cycle allows the system to transition from **Absolute Spatial Mapping** to a **Universal Stacking Policy** that generalizes across variable warehouse dimensions.
+
 ---
 
 ## Chapter 3: Methodology

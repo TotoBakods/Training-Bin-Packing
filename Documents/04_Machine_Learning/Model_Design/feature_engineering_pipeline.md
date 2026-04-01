@@ -7,36 +7,36 @@ This document outlines the data transformation and architectural pipeline used f
 The pipeline follows a structured flow from raw data ingestion to normalized output prediction, followed by a heuristic-based repair stage.
 
 ```mermaid
-graph TD
+flowchart TD
     subgraph "Data Ingestion"
-        RAW[Raw Item & Warehouse Data]
+        RAW["Raw Item & Warehouse Data"]
     end
 
     subgraph "Feature Engineering (18 Dimensions)"
-        FE1[Basic Dimensions / 10]
-        FE2[Weight / 100]
-        FE3[Categorical Flags 0/1]
-        FE4[Warehouse Dims / 100]
-        FE5[Advanced Geometric Delta]
-        FE6[Relative Ratios]
+        FE1["Basic Dimensions / 10"]
+        FE2["Weight / 100"]
+        FE3["Categorical Flags 0/1"]
+        FE4["Warehouse Dims / 100"]
+        FE5["Advanced Geometric Delta"]
+        FE6["Relative Ratios"]
     end
 
     subgraph "Neural Network Architecture"
-        IN((Input Layer: 18)) --> H1[Dense 256 + BN + LeakyReLU]
-        H1 --> H2[Dense 512 + BN + LeakyReLU]
-        H2 --> H3[Dense 512 + BN + LeakyReLU]
-        H3 --> H4[Dense 256 + BN + LeakyReLU]
-        H4 --> OUT((Output Layer: 4))
+        IN(("Input Layer: 18")) --> H1["Dense 256 + BN + LeakyReLU"]
+        H1 --> H2["Dense 512 + BN + LeakyReLU"]
+        H2 --> H3["Dense 512 + BN + LeakyReLU"]
+        H3 --> H4["Dense 256 + BN + LeakyReLU"]
+        H4 --> OUT(("Output Layer: 4"))
     end
 
     subgraph "Normalization & Loss"
-        T_NORM[Target Normalization: Coord/Wh_Dim]
-        W_MSE[Weighted MSE Loss: 2x X/Y, 1x Z/Rot]
+        T_NORM["Target Normalization: Coord/Wh_Dim"]
+        W_MSE["Weighted MSE Loss: 2x X/Y, 1x Z/Rot"]
     end
 
     subgraph "Post-Processing (Inference)"
-        DENORM[Denormalization: Pred * Wh_Dim]
-        REPAIR[Physics Repair & Constraint Validation]
+        DENORM["Denormalization: Pred * Wh_Dim"]
+        REPAIR["Physics Repair & Constraint Validation"]
     end
 
     RAW --> FE1 & FE2 & FE3 & FE4 & FE5 & FE6

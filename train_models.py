@@ -8,14 +8,19 @@ import os
 import glob
 from ml_utils import PackingModel
 
+import json
+import time
+
 # Configuration
 DATA_DIR = "training_data"
 MODELS_DIR = "models"
 EPOCHS = 200
-BATCH_SIZE = 128
+BATCH_SIZE = 1536          # Higher for GPU speed
 LR = 0.001
 VAL_SPLIT = 0.2
 PATIENCE = 15          # Early-stopping patience
+HISTORY_LOG_DIR = os.path.join("Documents", "04_Machine_Learning", "Performance_Metrics")
+os.makedirs(HISTORY_LOG_DIR, exist_ok=True)
 
 if not os.path.exists(MODELS_DIR):
     os.makedirs(MODELS_DIR)
@@ -36,9 +41,9 @@ class WarehouseDataset(Dataset):
         item_area = l * w
         wh_area = wh_l * wh_w
         
-        # Build 18-feature set
+        # Build 19-feature set
         n = len(self.data)
-        self.x = np.zeros((n, 18), dtype=np.float32)
+        self.x = np.zeros((n, 19), dtype=np.float32)
         
         # 1-10: Basic
         self.x[:, 0:3] = orig_x[:, 0:3] / 10.0
@@ -55,6 +60,10 @@ class WarehouseDataset(Dataset):
         self.x[:, 15] = item_area / (wh_area + 1e-6)
         self.x[:, 16] = l / (wh_l + 1e-6)
         self.x[:, 17] = w / (wh_w + 1e-6)
+        
+        # 19: Sequence Progress (Normalized index in dataset / CSV)
+        # Note: In real scenarios this is item_index / total_items
+        self.x[:, 18] = np.arange(n) / float(n)
         
         # Targets: x, y, z, rot
         self.y = self.data[['target_x', 'target_y', 'target_z', 'target_rot']].values.astype(np.float32)
@@ -92,21 +101,21 @@ def train_model(csv_path, model_name):
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
     val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False)
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = PackingModel()
+    model.to(device)
     
     # Weighted Loss: 2.0x for X/Y coordinates to reduce displacement gap
-    weight_v = torch.tensor([2.0, 2.0, 1.0, 1.0]).to(device if 'device' in locals() else 'cpu')
+    weight_v = torch.tensor([2.0, 2.0, 1.0, 1.0]).to(device)
     def weighted_mse_loss(input, target):
         return (weight_v * (input - target) ** 2).mean()
 
     optimizer = optim.Adam(model.parameters(), lr=LR)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model.to(device)
-    
     best_val_loss = float('inf')
     patience_counter = 0
+    history = {"train_loss": [], "val_loss": [], "lr": []}
 
     for epoch in range(EPOCHS):
         # --- Train ---
@@ -140,6 +149,11 @@ def train_model(csv_path, model_name):
 
         avg_val = val_loss / max(val_batches, 1)
         scheduler.step()
+        
+        # Log history
+        history["train_loss"].append(avg_train)
+        history["val_loss"].append(avg_val)
+        history["lr"].append(optimizer.param_groups[0]['lr'])
 
         # Early stopping
         if avg_val < best_val_loss:
@@ -159,6 +173,7 @@ def train_model(csv_path, model_name):
             break
 
     print(f"  [OK] Best val loss: {best_val_loss:.6f} -- saved to models/{model_name}.pth")
+    return history, best_val_loss
 
 def run_training():
     csv_files = glob.glob(os.path.join(DATA_DIR, "*.csv"))
@@ -166,9 +181,28 @@ def run_training():
         print("No CSV files found in training_data/")
         return
 
+    all_histories = {}
+    
     for csv_file in sorted(csv_files):
         basename = os.path.splitext(os.path.basename(csv_file))[0]
-        train_model(csv_file, f"model_{basename}")
+        model_name = f"model_{basename}"
+        history, best_loss = train_model(csv_file, model_name)
+        all_histories[model_name] = {
+            "history": history,
+            "best_val_loss": best_loss,
+            "params": {
+                "epochs": EPOCHS,
+                "batch_size": BATCH_SIZE,
+                "lr": LR,
+                "patience": PATIENCE
+            }
+        }
+
+    # Save all histories to one JSON for visualization
+    history_file = os.path.join(HISTORY_LOG_DIR, "ml_training_history.json")
+    with open(history_file, 'w') as f:
+        json.dump(all_histories, f, indent=4)
+    print(f"\nAll training histories saved to {history_file}")
 
 if __name__ == "__main__":
     run_training()

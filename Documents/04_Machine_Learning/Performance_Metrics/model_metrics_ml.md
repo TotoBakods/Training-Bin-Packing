@@ -1,6 +1,6 @@
 # ML Model Training & Benchmarking Report
 
-> Auto-generated on **2026-04-01 23:48**
+> Auto-generated on **2026-04-02 03:02**
 
 ---
 
@@ -26,10 +26,10 @@ The table below summarizes the percentage of items that required gravitational a
 
 | Model Variant | Violations # | Correction Rate (%) | Mean Displacement (m) | Max Displacement (m) | Stability Index |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| `EO` | 100 | 100.00% | 11.9008 | 16.9744 | 0.0000 |
-| `EO_GA` | 100 | 100.00% | 10.7444 | 17.8972 | 0.0000 |
-| `GA` | 100 | 100.00% | 11.8036 | 17.4891 | 0.0000 |
-| `GA_EO` | 100 | 100.00% | 12.1570 | 17.5158 | 0.0000 |
+| `EO` | 100 | 100.00% | 11.1126 | 16.6956 | 0.0000 |
+| `EO_GA` | 100 | 100.00% | 11.0479 | 17.8759 | 0.0000 |
+| `GA` | 100 | 100.00% | 11.8653 | 17.4965 | 0.0000 |
+| `GA_EO` | 100 | 100.00% | 12.4204 | 17.3645 | 0.0000 |
 
 ### Physical Validity Proof (PyBullet Settlement)
 The heatmap below visualizes the average settlement displacement across the warehouse floor. Regions in **red** indicate areas where the heuristic label predicted placements that required significant physical correction.
@@ -87,10 +87,10 @@ The table below shows 5 physical samples from the original `datasets.csv` to pro
 
 | Algorithm | Best Fitness | R²(x,y) avg | MAE x (m) | MAE y (m) | Conv. Epoch | EO_GA Fast | CPU Time (s) | Avg Infer (ms) |
 |-----------|-------------|-------------|-----------|-----------|-------------|------------|-------------|---------------|
-| `EO` | 25.1% | 0.0011 | 0.246 | 0.246 | 58 | No (120ep/p=20) | 0.0 | 6.7 |
-| `EO_GA` | 25.1% | 0.0012 | 0.246 | 0.246 | N/A | Yes (40ep/p=8) | 0.0 | 4.5 |
-| `GA` | 25.1% | 0.0014 | 0.246 | 0.246 | 47 | No (120ep/p=20) | 0.0 | 5.5 |
-| `GA_EO` | 25.1% | 0.0013 | 0.246 | 0.246 | 57 | No (120ep/p=20) | 0.0 | 4.0 |
+| `EO` | 25.1% | 0.0011 | 0.246 | 0.246 | 58 | No (120ep/p=20) | 0.0 | 11.5 |
+| `EO_GA` | 25.1% | 0.0012 | 0.246 | 0.246 | N/A | Yes (40ep/p=8) | 0.0 | 7.5 |
+| `GA` | 25.1% | 0.0014 | 0.246 | 0.246 | 47 | No (120ep/p=20) | 0.0 | 3.9 |
+| `GA_EO` | 25.1% | 0.0013 | 0.246 | 0.246 | 57 | No (120ep/p=20) | 0.0 | 3.7 |
 
 ## 5. Deep Metrics: Physical, Logical, & Logistics
 
@@ -131,36 +131,36 @@ The table below shows 5 physical samples from the original `datasets.csv` to pro
 
 | Model | Fitness | Space % | Access | Stability | Grouping | Mean Disp (m) | Total (ms) |
 |-------|---------|---------|--------|-----------|----------|--------------|------------|
-| `model_fit_eo` | 0.2996 | 1.15% | 0.0645 | 1.0000 | 0.7569 | 8.45 | 4468 |
-| `model_fit_eo_ga` | 0.1676 | 1.15% | 0.0586 | 1.0000 | 0.7998 | 6.88 | 1424 |
-| `model_fit_ga` | 0.2979 | 1.15% | 0.0589 | 1.0000 | 0.7568 | 6.77 | 4364 |
-| `model_fit_ga_eo` | 0.2987 | 1.15% | 0.0617 | 1.0000 | 0.7554 | 7.93 | 4423 |
+| `model_fit_eo` | 0.2996 | 1.15% | 0.0645 | 1.0000 | 0.7569 | 8.45 | 4364 |
+| `model_fit_eo_ga` | 0.1676 | 1.15% | 0.0586 | 1.0000 | 0.7998 | 6.88 | 1492 |
+| `model_fit_ga` | 0.2979 | 1.15% | 0.0589 | 1.0000 | 0.7568 | 6.77 | 4260 |
+| `model_fit_ga_eo` | 0.2987 | 1.15% | 0.0617 | 1.0000 | 0.7554 | 7.93 | 4385 |
 
 ### 400 Items (`400_items.csv`)
 
 | Model | Fitness | Space % | Access | Stability | Grouping | Mean Disp (m) | Total (ms) |
 |-------|---------|---------|--------|-----------|----------|--------------|------------|
-| `model_fit_eo` | 0.2975 | 2.35% | 0.0655 | 1.0000 | 0.6846 | 9.17 | 13876 |
-| `model_fit_eo_ga` | 0.1181 | 2.35% | 0.0573 | 0.9525 | 0.8222 | 5.94 | 6933 |
-| `model_fit_ga` | 0.2972 | 2.35% | 0.0627 | 1.0000 | 0.6898 | 7.76 | 13576 |
-| `model_fit_ga_eo` | 0.2970 | 2.35% | 0.0643 | 1.0000 | 0.6827 | 8.78 | 13920 |
+| `model_fit_eo` | 0.2975 | 2.35% | 0.0655 | 1.0000 | 0.6846 | 9.17 | 13710 |
+| `model_fit_eo_ga` | 0.1181 | 2.35% | 0.0573 | 0.9525 | 0.8222 | 5.94 | 6909 |
+| `model_fit_ga` | 0.2972 | 2.35% | 0.0627 | 1.0000 | 0.6898 | 7.76 | 13462 |
+| `model_fit_ga_eo` | 0.2970 | 2.35% | 0.0643 | 1.0000 | 0.6827 | 8.78 | 13781 |
 
 ### 600 Items (`600_items.csv`)
 
 | Model | Fitness | Space % | Access | Stability | Grouping | Mean Disp (m) | Total (ms) |
 |-------|---------|---------|--------|-----------|----------|--------------|------------|
-| `model_fit_eo` | 0.3001 | 3.43% | 0.0783 | 1.0000 | 0.6288 | 10.16 | 28367 |
-| `model_fit_eo_ga` | 0.1069 | 3.43% | 0.0578 | 0.9650 | 0.8524 | 4.12 | 20328 |
-| `model_fit_ga` | 0.3000 | 3.43% | 0.0803 | 1.0000 | 0.6221 | 9.22 | 28095 |
-| `model_fit_ga_eo` | 0.2997 | 3.43% | 0.0800 | 1.0000 | 0.6198 | 10.02 | 27793 |
+| `model_fit_eo` | 0.3001 | 3.43% | 0.0783 | 1.0000 | 0.6288 | 10.16 | 28244 |
+| `model_fit_eo_ga` | 0.1069 | 3.43% | 0.0578 | 0.9650 | 0.8524 | 4.12 | 20395 |
+| `model_fit_ga` | 0.3000 | 3.43% | 0.0803 | 1.0000 | 0.6221 | 9.22 | 27799 |
+| `model_fit_ga_eo` | 0.2997 | 3.43% | 0.0800 | 1.0000 | 0.6198 | 10.02 | 27570 |
 
 ## 7. Speed Comparison: ML Inference vs Repair
 
 | Dataset | Avg ML Infer (ms) | Avg Repair (ms) | ML % of Total |
 |---------|------------------|----------------|--------------|
-| 200 items | 2.47 | 3667 | 0.067% |
-| 400 items | 5.45 | 12071 | 0.045% |
-| 600 items | 7.70 | 26138 | 0.029% |
+| 200 items | 7.76 | 3617 | 0.214% |
+| 400 items | 4.15 | 11961 | 0.035% |
+| 600 items | 8.05 | 25994 | 0.031% |
 
 ## 8. Key Observations
 

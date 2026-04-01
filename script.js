@@ -23,6 +23,32 @@ document.addEventListener('DOMContentLoaded', () => {
     switchView('controls');
     updateAlgorithmParams(); // Initialize algorithm params
     initResizer(); // Initialize UI resizer
+
+    // Search input handler
+    const searchInput = document.getElementById('item-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            console.log('Search input triggered:', searchInput.value);
+            loadItemsList();
+        });
+    }
+
+    // Delegated Item Deletion Handler (Robust for re-renders)
+    const itemsListContainer = document.getElementById('items-list');
+    if (itemsListContainer) {
+        itemsListContainer.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.delete-btn-item');
+            if (deleteBtn) {
+                const itemId = deleteBtn.getAttribute('data-id');
+                if (itemId) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Delegated delete triggered for ID:', itemId);
+                    deleteItem(itemId);
+                }
+            }
+        });
+    }
 });
 
 function initResizer() {
@@ -1522,59 +1548,122 @@ function initCategoryChart(data) {
 
 // Item list
 function loadItemsList() {
+    console.log('loadItemsList called');
     const container = document.getElementById('items-list');
-    container.innerHTML = 'Loading...';
+    const searchInput = document.getElementById('item-search');
+    const query = searchInput ? searchInput.value.toLowerCase() : '';
+
+    if (!query) container.innerHTML = '<div style="padding:10px; color:var(--text-muted);">Loading...</div>';
 
     fetch(`${API_BASE_URL}/api/items?warehouse_id=${currentWarehouseId}`)
         .then(res => res.json())
         .then(items => {
+            let filteredItems = items;
+            if (query) {
+                filteredItems = items.filter(item => 
+                    (item.name && item.name.toLowerCase().includes(query)) || 
+                    (item.id && item.id.toLowerCase().includes(query)) ||
+                    (item.category && item.category.toLowerCase().includes(query))
+                );
+            }
+
             container.innerHTML = '';
+            
+            if (filteredItems.length === 0) {
+                container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">No items found ${query ? `matching "${query}"` : ''}</div>`;
+                return;
+            }
+
             const table = document.createElement('table');
             table.className = 'compact-table';
             table.style.marginTop = '8px';
 
             const thead = document.createElement('thead');
-            thead.innerHTML = `
-                <tr style="color:var(--accent-primary); border-bottom:1px solid #444;">
-                    <th style="width: 35%;">Name</th>
-                    <th style="width: 25%;">Dim</th>
-                    <th style="width: 15%;">Cat</th>
-                    <th style="width: 10%;">F</th>
-                    <th style="width: 15%;">Action</th>
-                </tr>
-            `;
+            const headerRow = document.createElement('tr');
+            headerRow.style.color = 'var(--accent-primary)';
+            headerRow.style.borderBottom = '1px solid #444';
+            
+            ['Name', 'Dim', 'Cat', 'F', 'Action'].forEach((text, idx) => {
+                const th = document.createElement('th');
+                th.textContent = text;
+                const widths = ['35%', '25%', '15%', '10%', '15%'];
+                th.style.width = widths[idx];
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
             table.appendChild(thead);
 
             const tbody = document.createElement('tbody');
-            items.forEach(item => {
+            filteredItems.forEach(item => {
                 const tr = document.createElement('tr');
                 tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-                tr.innerHTML = `
-                    <td title="${item.name || item.id}">${item.name || item.id}</td>
-                    <td style="color: var(--accent-primary)">${item.width}x${item.height}x${item.length}</td>
-                    <td>${item.category}</td>
-                    <td>${item.fragility ? '⚠️' : '🛡️'}</td>
-                    <td><button onclick="deleteItem('${item.id}')" style="background: none; border: none; color: var(--danger, #ff4c4c); cursor: pointer; padding: 0;">🗑️</button></td>
-                `;
+                
+                const tdName = document.createElement('td');
+                tdName.textContent = item.name || item.id;
+                tr.appendChild(tdName);
+
+                const tdDim = document.createElement('td');
+                tdDim.style.color = 'var(--accent-primary)';
+                tdDim.textContent = `${item.width}x${item.height}x${item.length}`;
+                tr.appendChild(tdDim);
+
+                const tdCat = document.createElement('td');
+                tdCat.textContent = item.category || 'N/A';
+                tr.appendChild(tdCat);
+
+                const tdFrag = document.createElement('td');
+                tdFrag.textContent = item.fragility ? '⚠️' : '🛡️';
+                tr.appendChild(tdFrag);
+
+                const tdAction = document.createElement('td');
+                const btn = document.createElement('button');
+                btn.innerHTML = '🗑️';
+                btn.className = 'delete-btn-item'; 
+                btn.setAttribute('data-id', item.id);
+                btn.style.background = 'none';
+                btn.style.border = 'none';
+                btn.style.color = 'var(--danger, #ff4c4c)';
+                btn.style.cursor = 'pointer';
+                btn.style.padding = '0';
+                btn.style.pointerEvents = 'auto'; // Ensure it's clickable
+                btn.title = 'Delete Item';
+                
+                tdAction.appendChild(btn);
+                tr.appendChild(tdAction);
+
                 tbody.appendChild(tr);
             });
             table.appendChild(tbody);
             container.appendChild(table);
+        })
+        .catch(err => {
+            console.error('loadItemsList error:', err);
+            container.innerHTML = `<div style="color:var(--danger); padding:10px;">Error loading items: ${err.message}</div>`;
         });
 }
 
 function deleteItem(itemId) {
+    console.log('deleteItem executing for ID:', itemId);
     if (!confirm('Are you sure you want to delete this item?')) return;
-    fetch(`${API_BASE_URL}/api/items/${itemId}?warehouse_id=${currentWarehouseId}`, { method: 'DELETE' })
+    
+    // Safety: encode ID for URL
+    const encodedId = encodeURIComponent(itemId);
+    
+    fetch(`${API_BASE_URL}/api/items/${encodedId}?warehouse_id=${currentWarehouseId}`, { method: 'DELETE' })
         .then(res => res.json())
         .then(data => {
             if (data.success) {
+                console.log('Successfully deleted ID:', itemId);
                 loadItemsList();
                 updateVisualization();
-                rerunOptimization();
             } else {
-                alert('Failed to delete item: ' + data.error);
+                console.error('API Error during delete:', data.error);
+                alert('Deletion failed: ' + data.error);
             }
+        })
+        .catch(err => {
+            console.error('Network error during delete:', err);
+            alert('A network error occurred while deleting the item.');
         });
 }
 
@@ -2283,7 +2372,7 @@ function deleteAllItems() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                loadItems();
+                loadItemsList();
                 updateVisualization();
                 alert('All items deleted successfully.');
             } else {
@@ -2765,10 +2854,15 @@ function createZoneLabel(text, pos) {
     ctx.fillStyle = 'rgba(0,0,0,0)';
     ctx.fillRect(0, 0, 256, 64);
     
-    // Premium Glassmorphism styling for zone labels
+    // Professional rounded rect handling with backward compatibility
     ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
     ctx.beginPath();
-    ctx.roundRect(0, 0, 256, 64, 12);
+    if (ctx.roundRect) {
+        ctx.roundRect(0, 0, 256, 64, 12);
+    } else {
+        // Fallback for older browsers
+        ctx.rect(0, 0, 256, 64);
+    }
     ctx.fill();
     ctx.strokeStyle = '#00F0FF';
     ctx.lineWidth = 3;

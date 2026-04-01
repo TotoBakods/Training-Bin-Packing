@@ -53,6 +53,18 @@ def get_dataloaders(csv_file, batch_size=32, val_split=0.2):
         dataset, [n_train, n_val],
         generator=torch.Generator().manual_seed(42)
     )
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(
+        train_ds, batch_size=batch_size, shuffle=True,
+        num_workers=8, pin_memory=True, persistent_workers=True, prefetch_factor=4
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=batch_size, shuffle=False,
+        num_workers=8, pin_memory=True, persistent_workers=True, prefetch_factor=4
+    )
     return train_loader, val_loader, dataset.get_scaler()
+
+def get_gpu_dataset(csv_file, device):
+    """Loads the entire dataset directly onto the GPU for maximum training speed."""
+    dataset = WarehouseItemDataset(csv_file)
+    data_tensor = torch.from_numpy(dataset.data).to(device)
+    return data_tensor, dataset.get_scaler()

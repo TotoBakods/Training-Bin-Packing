@@ -45,6 +45,8 @@ plt.rcParams['font.family'] = 'sans-serif'
 
 TRAINING_DIR   = "training_data"
 MODELS_DIR     = "models"
+if not os.path.exists(MODELS_DIR):
+    os.makedirs(MODELS_DIR, exist_ok=True)
 GAN_DIR        = "gan"
 SKIP_TRAINING = False  # Set to False to run 4-hour retraining phase
 BATCH_SIZE = 2048
@@ -214,7 +216,8 @@ def calculate_r2_custom(t, p):
 def train_with_metrics(csv_path, model_name, max_retries=2):
     is_eo_ga = "eo_ga" in model_name
     max_epochs = EPOCHS_EO_GA if is_eo_ga else EPOCHS
-    patience   = PATIENCE_EO_GA if is_eo_ga else PATIENCE
+    # Early stopping only applied to EO-GA model
+    patience   = PATIENCE_EO_GA if is_eo_ga else 9999
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"  [{model_name}] Offloading dataset to VRAM ({device})...")
@@ -258,7 +261,8 @@ def train_with_metrics(csv_path, model_name, max_retries=2):
         def criterion(p, t):
             return (loss_weights * (p - t)**2).mean()
 
-        tmp_model_path = os.path.join(MODELS_DIR, f"tmp_best_{model_name}.pth")
+        # Use unique filename with PID to avoid collisions during parallel runs
+        tmp_model_path = os.path.join(MODELS_DIR, f"tmp_best_{model_name}_{os.getpid()}.pth")
         
         train_history = []
         val_history = []
@@ -330,8 +334,11 @@ def train_with_metrics(csv_path, model_name, max_retries=2):
                 scheduler.step()
             
             # Load best weights from the Tmp file we just saved
-            model.load_state_dict(torch.load(tmp_model_path, weights_only=True))
-            os.remove(tmp_model_path)
+            if os.path.exists(tmp_model_path):
+                model.load_state_dict(torch.load(tmp_model_path, map_location=device, weights_only=True))
+                os.remove(tmp_model_path)
+            else:
+                print(f"    [Warning] Best model file {tmp_model_path} not found. Using current weights.")
         
         # Final validation
         model.eval()

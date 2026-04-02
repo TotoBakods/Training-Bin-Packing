@@ -76,6 +76,12 @@ def calculate_z_for_item(x, y, dim_x, dim_y, other_items_bbox, other_items_z, ot
     if len(other_items_bbox) == 0:
         return 0.0
         
+    # NEW: Filter overlapping items to only those that can actually support this item.
+    # We ignore items whose base (z) is higher than the top of any potential 
+    # support we've already found + some reasonable cushion, but more importantly,
+    # in multi-zone setups, we should only care about items that are actually
+    # below or at the level we are trying to place.
+    
     # Check XY plane overlaps (vectorized)
     overlaps_x = (new_min_x < other_items_bbox[:, 2]) & (new_max_x > other_items_bbox[:, 0])
     overlaps_y = (new_min_y < other_items_bbox[:, 3]) & (new_max_y > other_items_bbox[:, 1])
@@ -142,7 +148,8 @@ def _search_candidates_gpu(cands_xy, rots_list, l, w, h,
                             placed_buf, placed_count,
                             use_zones, assigned_zone,
                             wh_len, wh_wid, wh_hgt,
-                            target_x, target_y, is_fast, device):
+                            target_x, target_y, is_fast, device,
+                            min_z=0.0):
     """Vectorized (GPU or CPU-torch) candidate search with rotation-aware tight packing.
     For each rotation, appends flush-left/front/right-align/back-align candidates
     derived from placed items so every tight-fit position is evaluated.
@@ -242,7 +249,18 @@ def _search_candidates_gpu(cands_xy, rots_list, l, w, h,
 
             ov_x = (mx_e > px_e + 0.001) & (cx_e < px_e + pdx_e - 0.001)
             ov_y = (my_e > py_e + 0.001) & (cy_e < py_e + pdy_e - 0.001)
-            overlaps = ov_x & ov_y & valid_sup.unsqueeze(0)          # (N_t, P)
+            
+            # Multi-zone independence: items already in zones ABOVE our ceiling
+            # must not affect gravity/stacking in the current zone.
+            # If we are searching for assigned_zone, only items with base Z 
+            # below that zone's ceiling are valid.
+            if assigned_zone is not None:
+                az_z2 = float(assigned_zone.get('z2', wh_hgt))
+                valid_for_gravity = valid_sup & (pd[:, 2] < az_z2 - 0.001)
+            else:
+                valid_for_gravity = valid_sup
+
+            overlaps = ov_x & ov_y & valid_for_gravity.unsqueeze(0)          # (N_t, P)
 
             z_tops_e = z_tops_all.unsqueeze(0).expand(N_t, -1)
             gz = torch.where(overlaps, z_tops_e, torch.zeros_like(z_tops_e))
@@ -265,7 +283,7 @@ def _search_candidates_gpu(cands_xy, rots_list, l, w, h,
                 (all_cy >= zy1 - 0.01) & (max_y_t <= zy2 + 0.01) &
                 valid_bounds
             )
-            pz_z    = torch.clamp(gravity_z_t, min=zz1)
+            pz_z    = torch.clamp(gravity_z_t, min=max(float(zz1), float(min_z)))
             fits    = (pz_z + dz_f) <= (zz2 + 0.001)
             zone_ok = in_zone & fits
             update  = zone_ok & (pz_z < final_z_t)
@@ -289,7 +307,8 @@ def _search_candidates_gpu(cands_xy, rots_list, l, w, h,
         if is_fast:
             # Aggressive Early Stop: If we find a floor placement near the predicted target, 
             # take it immediately without evaluating further candidates or rotations.
-            fc = valid_t & (final_z_t <= 0.01) & (dist_t < 0.1)
+            _floor_thresh = max(0.01, float(min_z) + 0.01)
+            fc = valid_t & (final_z_t <= _floor_thresh) & (dist_t < 0.1)
             if fc.any():
                 i = fc.nonzero(as_tuple=True)[0][0].item()
                 sc = (final_z_t[i].item(), rel_y_t[i].item(),
@@ -300,7 +319,8 @@ def _search_candidates_gpu(cands_xy, rots_list, l, w, h,
         # Lexicographic argmin: (floor_bias, final_z, zone-rel-y, zone-rel-x, dist_to_target)
         # floor_bias: 0 if at floor, 1 if stacked. This forces ground-level packing first.
         fz = torch.where(valid_t, final_z_t, BIG)
-        floor_bias = torch.where(fz <= 0.01, torch.zeros_like(fz), torch.ones_like(fz))
+        _fb_thresh  = max(0.01, float(min_z) + 0.01)
+        floor_bias  = torch.where(fz <= _fb_thresh, torch.zeros_like(fz), torch.ones_like(fz))
         min_fb = floor_bias.min()
         m = valid_t & (floor_bias <= min_fb + 1e-6)
 
@@ -321,6 +341,106 @@ def _search_candidates_gpu(cands_xy, rots_list, l, w, h,
             if best is None or sc < best[7]:
                 best = cand
 
+    return best
+
+
+
+class ZoneOccupancy:
+    """Tracks placed items per zone for NF-top-Z enforcement and touch-point generation."""
+
+    def __init__(self, zones):
+        self.zones       = zones
+        self.nz          = len(zones)
+        self.items       = {zi: [] for zi in range(self.nz)}
+        # Initialise NF ceiling at the zone floor — updated as NF items are placed.
+        self.max_nf_top  = {zi: float(zones[zi].get('z1', 0)) for zi in range(self.nz)}
+
+    def add(self, zi, x1, y1, z, dx, dy, dz, is_nf=False):
+        self.items[zi].append((x1, y1, z, dx, dy, dz))
+        if is_nf:
+            self.max_nf_top[zi] = max(self.max_nf_top[zi], z + dz)
+
+    def touch_points(self, zi, limit=None):
+        """Adjacency touch-point (x1, y1) positions from zone zi's recently placed items."""
+        pts = []
+        recent_items = self.items[zi][-limit:] if limit else self.items[zi]
+        
+        x_cands = set()
+        y_cands = set()
+        for (x1, y1, _z, dx, dy, _dz) in recent_items:
+            x_cands.add(x1)
+            x_cands.add(x1 + dx)
+            y_cands.add(y1)
+            y_cands.add(y1 + dy)
+            
+            # Legacy direct corners
+            pts.extend([(x1 + dx, y1), (x1, y1 + dy), (x1 + dx, y1 + dy), (x1, y1)])
+            
+        # Cross intersections for perfectly tight packing with ZERO gaps
+        for cx in x_cands:
+            for cy in y_cands:
+                pts.append((cx, cy))
+                
+        return pts
+
+
+def _perform_search_cpu(cands, rots, l, w, h,
+                        placed_items, grid, use_zones, assigned_zone,
+                        wh_len, wh_wid, wh_hgt,
+                        target_x, target_y, zone_ox, zone_oy,
+                        is_fast, min_z=0.0):
+    """CPU fallback item placement search (mirrors _search_candidates_gpu logic).
+    Returns (center_x, center_y, z, rot, dx, dy, dz, score) or None."""
+    check_zones  = [assigned_zone] if assigned_zone is not None else use_zones
+    floor_thresh = max(0.01, float(min_z) + 0.01)
+    best         = None
+
+    for rot in rots:
+        dx, dy, dz = get_rotated_dims(l, w, h, rot)
+        for (cx, cy) in cands:
+            max_x, max_y = cx + dx, cy + dy
+            if max_x > wh_len + 0.001 or max_y > wh_wid + 0.001:
+                continue
+            gravity_z = 0.0
+            for p_idx in grid.query(cx, cy, max_x, max_y):
+                px, py, pz, pdx, pdy, pdz = placed_items[p_idx]
+                if (pz < 1000 and max_x > px + 0.001 and cx < px + pdx - 0.001
+                        and max_y > py + 0.001 and cy < py + pdy - 0.001):
+                    top_z = pz + pdz
+                    if top_z > gravity_z:
+                        gravity_z = top_z
+            valid_z_found = False
+            final_z = float('inf')
+            for zne in check_zones:
+                if (cx >= zne['x1'] - 0.01 and max_x <= zne['x2'] + 0.01 and
+                        cy >= zne['y1'] - 0.01 and max_y <= zne['y2'] + 0.01):
+                    
+                    # Refined gravity check within the zone loop: only consider items 
+                    # whose base is below the ceiling of THIS zone.
+                    zne_z2 = zne.get('z2', wh_hgt)
+                    actual_gz = 0.0
+                    for p_idx in grid.query(cx, cy, max_x, max_y):
+                        px, py, pz, pdx, pdy, pdz = placed_items[p_idx]
+                        if (pz < 1000 and pz < zne_z2 - 0.001 and
+                            max_x > px + 0.001 and cx < px + pdx - 0.001 and
+                            max_y > py + 0.001 and cy < py + pdy - 0.001):
+                            top_z = pz + pdz
+                            if top_z > actual_gz:
+                                actual_gz = top_z
+                    
+                    pz_cand = max(actual_gz, float(zne.get('z1', 0)), float(min_z))
+                    if pz_cand + dz <= zne_z2 + 0.001 and pz_cand < final_z:
+                        final_z       = pz_cand
+                        valid_z_found = True
+            if valid_z_found:
+                center_x, center_y = cx + dx / 2, cy + dy / 2
+                dist       = (center_x - target_x) ** 2 + (center_y - target_y) ** 2
+                floor_bias = 0 if final_z <= floor_thresh else 1
+                score      = (floor_bias, final_z, cy - zone_oy, cx - zone_ox, dist)
+                if best is None or score < best[7]:
+                    best = (center_x, center_y, final_z, rot, dx, dy, dz, score)
+                if is_fast and final_z <= floor_thresh and dist < 0.1:
+                    return best
     return best
 
 
@@ -398,7 +518,7 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
                 lvl     = unique_z_levels[l_idx]
                 lvl_cap  = sum(zone_caps[zi] for zi in zones_by_lvl[lvl])
                 lvl_used = sum(used_vols[zi]  for zi in zones_by_lvl[lvl])
-                if lvl_cap > 0 and lvl_used >= lvl_cap * 0.85:
+                if lvl_cap > 0 and lvl_used >= lvl_cap * 0.98:
                     l_idx += 1
                 else:
                     break
@@ -531,307 +651,316 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
 
 
     else:
-        # Single zone: keep original global sort (backward compatible)
-        sorted_indices = sorted(indices, key=lambda i: (fragility[i], -weights[i], -volumes[i], i))
-        item_zone_idx = None
+        # Single zone: build NF/F lists and treat entire warehouse as zone 0
+        non_fragile_indices = [i for i in indices if fragility[i] != 1]
+        fragile_indices     = [i for i in indices if fragility[i] == 1]
+        non_fragile_list    = sorted(non_fragile_indices, key=lambda i: (-weights[i], -volumes[i], i))
+        fragile_list        = sorted(fragile_indices,     key=lambda i: (-weights[i], -volumes[i], i))
+        item_zone_idx       = {i: 0 for i in indices}
 
-    # Tracking placed items: (x, y, z, dx, dy, dz)
-    placed_items = []
-    # Spatial Grid for O(1) neighboring item lookup
-    grid = SimpleGrid(wh_len, wh_wid, cell_size=4.0)
+    # ─────────────────────────────────────────────────────────────────────────
+    # Physical Placement Infrastructure
+    # ─────────────────────────────────────────────────────────────────────────
+    zone_occ     = ZoneOccupancy(use_zones)
+    placed_items = []                           # global list: (x1, y1, z, dx, dy, dz)
+    global_grid  = SimpleGrid(wh_len, wh_wid, cell_size=4.0)
 
-    # GPU/vectorized acceleration: pre-allocate placed-items buffer
     if _TORCH_AVAILABLE:
-        _dev = _TORCH_DEVICE
-        _placed_buf = _torch.zeros((num_items, 6), dtype=_torch.float32, device=_dev)
+        _dev          = _TORCH_DEVICE
+        _placed_buf   = _torch.zeros((num_items, 6), dtype=_torch.float32, device=_dev)
         _placed_count = 0
     else:
-        _dev = None
-        _placed_buf = None
+        _dev = _placed_buf = None
         _placed_count = 0
 
-    for idx in sorted_indices:
-        l, w, h = items_props[idx, 0:3]
+    # ── Placement debug log (written to placement_debug.log) ──────────────────
+    import os, datetime
+    _log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'placement_debug.log')
+    _log_f    = open(_log_path, 'a', encoding='utf-8')
+    _ts       = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    _log_f.write(f'\n{"="*80}\n')
+    _log_f.write(f'repair_solution_compact  [{_ts}]\n')
+
+    # ── Warehouse dimensions ──────────────────────────────────────────────────
+    _wh_vol = wh_len * wh_wid * wh_hgt
+    _item_vol_total = float(np.sum(volumes))
+    _log_f.write(
+        f'WAREHOUSE  length={wh_len}  width={wh_wid}  height={wh_hgt}  '
+        f'volume={_wh_vol:.2f}\n'
+        f'  items={num_items}  '
+        f'nf={len(non_fragile_list)}  fr={len(fragile_list)}  '
+        f'total_item_vol={_item_vol_total:.2f}  '
+        f'theoretical_util={_item_vol_total/_wh_vol*100:.1f}%\n'
+    )
+
+    # ── Zone dimensions ───────────────────────────────────────────────────────
+    _log_f.write(f'ZONES  count={num_zones}\n')
+    for _zi, _zne in enumerate(use_zones):
+        _zdx  = _zne['x2'] - _zne['x1']
+        _zdy  = _zne['y2'] - _zne['y1']
+        _zdz  = _zne.get('z2', wh_hgt) - _zne.get('z1', 0)
+        _zvol = _zdx * _zdy * _zdz
+        _zarea = _zdx * _zdy
+        _znf_cnt = sum(1 for i, zi in (item_zone_idx or {}).items() if zi == _zi and fragility[i] != 1)
+        _zfr_cnt = sum(1 for i, zi in (item_zone_idx or {}).items() if zi == _zi and fragility[i] == 1)
+        _znf_vol = sum(float(volumes[i]) for i, zi in (item_zone_idx or {}).items() if zi == _zi and fragility[i] != 1)
+        _zfr_vol = sum(float(volumes[i]) for i, zi in (item_zone_idx or {}).items() if zi == _zi and fragility[i] == 1)
+        _zname   = _zne.get('name', _zne.get('label', f'zone_{_zi}'))
+        _ztype   = _zne.get('zone_type', 'allocation')
+        _log_f.write(
+            f'  Zone {_zi} "{_zname}" [{_ztype}]\n'
+            f'    x=[{_zne["x1"]:.2f}, {_zne["x2"]:.2f}]  '
+            f'y=[{_zne["y1"]:.2f}, {_zne["y2"]:.2f}]  '
+            f'z=[{_zne.get("z1",0):.2f}, {_zne.get("z2",wh_hgt):.2f}]\n'
+            f'    size=({_zdx:.2f} x {_zdy:.2f} x {_zdz:.2f})  '
+            f'floor_area={_zarea:.2f}  volume={_zvol:.2f}\n'
+            f'    assigned: {_znf_cnt} NF ({_znf_vol:.2f} vol) + '
+            f'{_zfr_cnt} FR ({_zfr_vol:.2f} vol)  '
+            f'load={(_znf_vol+_zfr_vol)/_zvol*100:.1f}%\n'
+        )
+    _log_f.flush()
+
+
+    def _log_item(idx, pass_name, zi, is_nf, min_z, b_x, b_y, b_z, b_dx, b_dy, b_dz, used_fallback):
+        frag_label = 'NF' if is_nf else 'FR'
+        fb_flag    = ' [FALLBACK]' if used_fallback else ''
+        _log_f.write(
+            f'  {pass_name} | item={idx:>4d} {frag_label} zone={zi} '
+            f'dims=({b_dx:.2f}x{b_dy:.2f}x{b_dz:.2f}) '
+            f'min_z={min_z:.3f} '
+            f'→ xyz=({b_x:.3f},{b_y:.3f},{b_z:.3f})'
+            f'{fb_flag}\n'
+        )
+
+
+    # ── Single-item placement core ────────────────────────────────────────────
+    def _place_item(idx, assigned_zi, min_z, is_nf):
+        nonlocal _placed_count
+
+        l, w, h    = items_props[idx, 0:3]
         can_rotate = int(items_props[idx, 3])
-        
-        # Try all 6 rotations; fragile items have can_rotate=0 so they're unaffected
-        rots = [0, 1, 2, 3, 4, 5] if can_rotate else [int(solution[idx, 3])]
-        
-        best_pos = None
-        candidates = set()
+        rots       = list(range(6)) if can_rotate else [int(solution[idx, 3])]
+        az         = use_zones[assigned_zi] if assigned_zi is not None else None
+        tx         = float(solution[idx, 0])
+        ty         = float(solution[idx, 1])
+        pc         = _placed_count  # snapshot for GPU buffer slice
 
-        target_x = solution[idx, 0]
-        target_y = solution[idx, 1]
-
-        # Resolve assigned zone once for this item
-        _az_idx = item_zone_idx.get(idx) if item_zone_idx is not None else None
-        assigned_zone = use_zones[_az_idx] if _az_idx is not None else None
-
-        # Warm-start: predicted position
-        candidates.add((target_x - l/2, target_y - w/2))
-        candidates.add((target_x - w/2, target_y - l/2))
-
-        # Zone lattice grid + origin
-        if assigned_zone is not None:
-            candidates.add((assigned_zone['x1'], assigned_zone['y1']))
-            _gx = assigned_zone['x1']
-            while _gx < assigned_zone['x2'] - 0.01:
-                _gy = assigned_zone['y1']
-                while _gy < assigned_zone['y2'] - 0.01:
-                    candidates.add((_gx, _gy))
-                    _gy += 0.5
-                _gx += 0.5
-            lattice_zones = [assigned_zone]
+        # ── Candidate generation: zone-origin + ML warm-start + touch-points ──
+        cands = set()
+        if az is not None:
+            zx1, zy1 = float(az['x1']), float(az['y1'])
+            zx2, zy2 = float(az['x2']), float(az['y2'])
+            cands.add((zx1, zy1))
+            cands.add((max(zx1, min(zx2 - l, tx - l/2)),
+                       max(zy1, min(zy2 - w, ty - w/2))))
+            for pt in zone_occ.touch_points(assigned_zi):
+                cands.add(pt)
+            zone_ox, zone_oy = zx1, zy1
         else:
-            lattice_zones = use_zones
+            for zne in use_zones:
+                cands.add((float(zne['x1']), float(zne['y1'])))
+            cands.add((tx - l/2, ty - w/2))
+            zx1, zy1, zx2, zy2 = 0.0, 0.0, wh_len, wh_wid
+            zone_ox, zone_oy   = 0.0, 0.0
 
-        for zne in lattice_zones:
-            candidates.add((zne['x1'], zne['y1']))
+        # Only add global adjacency when there is NO assigned zone (no-zone / fallback path).
+        # When az is set, zone_occ.touch_points already provides all relevant adjacency candidates
+        # from items inside the same zone. Cross-zone touch-points would pollute the candidate
+        # set with positions outside this zone's bounds.
+        if az is None:
+            for (px, py, _pz, pdx, pdy, _pdz) in placed_items[-30:]:
+                cands.add((px + pdx, py))
+                cands.add((px, py + pdy))
 
-        # Touch-points from recent placed items for tight adjacency
-        for (px, py, pz, pdx, pdy, pdz) in placed_items[-100:]:
-            candidates.add((px + pdx, py))
-            candidates.add((px, py + pdy))
-            candidates.add((px, py))
+        valid_cands = [(cx, cy) for (cx, cy) in cands
+                       if 0 <= cx < wh_len and 0 <= cy < wh_wid]
 
-        valid_candidates = [(cx, cy) for (cx, cy) in candidates
-                            if 0 <= cx < wh_len and 0 <= cy < wh_wid]
-
-        if assigned_zone is not None:
-            sort_tx = max(assigned_zone['x1'], min(assigned_zone['x2'] - l, target_x - l/2))
-            sort_ty = max(assigned_zone['y1'], min(assigned_zone['y2'] - w, target_y - w/2))
-        else:
-            sort_tx, sort_ty = target_x - l/2, target_y - w/2
-
-        sorted_candidates = sorted(valid_candidates, key=lambda p: (
-            (p[0] - sort_tx)**2 + (p[1] - sort_ty)**2
-        ))
+        sort_tx = max(zx1, min(zx2 - l, tx - l/2))
+        sort_ty = max(zy1, min(zy2 - w, ty - w/2))
         
-        # Determine candidate limit based on fast_mode and user override
+        # To guarantee maximal compactness, blend network target with corner-attraction
+        sorted_cands = sorted(valid_cands,
+                              key=lambda p: (p[0] - zx1)**2 + (p[1] - zy1)**2 + 0.1 * ((p[0] - sort_tx)**2 + (p[1] - sort_ty)**2))
+
         if max_candidates is not None:
             cand_limit = max_candidates
+        elif az is not None or (not fast_mode and volumes[idx] > 0.5):
+            cand_limit = 5000
         else:
-            # Force deep search for assigned zones even in fast mode to prevent
-            # "blindness" to remote shelves (like Shelf C) during ML inference.
-            if assigned_zone is not None or (not fast_mode and idx < len(volumes) and volumes[idx] > 0.5):
-                cand_limit = 500
-            else:
-                cand_limit = 25 if fast_mode else 150 
+            cand_limit = 1000 if fast_mode else 3000
+        search_cands = sorted_cands[:cand_limit]
 
-            
-        search_candidates = sorted_candidates[:cand_limit]
-        
-        def perform_search(candidates_to_check, is_fast, check_zones=None):
-            zones = check_zones if check_zones is not None else use_zones
-            zone_ox_cpu = float(zones[0]['x1']) if zones else 0.0
-            zone_oy_cpu = float(zones[0]['y1']) if zones else 0.0
-            best = None
-            for rot in rots:
-                dx, dy, dz = get_rotated_dims(l, w, h, rot)
-                for (cx, cy) in candidates_to_check:
-                    max_x, max_y = cx + dx, cy + dy
-                    if max_x > wh_len + 0.001 or max_y > wh_wid + 0.001:
-                        continue
-                    gravity_z = 0.0
-                    for p_idx in grid.query(cx, cy, max_x, max_y):
-                        px, py, pz, pdx, pdy, pdz = placed_items[p_idx]
-                        if pz < 1000 and max_x > px + 0.001 and cx < px + pdx - 0.001 and \
-                                max_y > py + 0.001 and cy < py + pdy - 0.001:
-                            top_z = pz + pdz
-                            if top_z > gravity_z:
-                                gravity_z = top_z
-                    final_z = float('inf')
-                    valid_z_found = False
-                    for zne in zones:
-                        if (cx >= zne['x1'] - 0.01 and max_x <= zne['x2'] + 0.01 and
-                                cy >= zne['y1'] - 0.01 and max_y <= zne['y2'] + 0.01):
-                            pz_cand = max(gravity_z, zne.get('z1', 0))
-                            if pz_cand + dz <= zne.get('z2', wh_hgt) + 0.001 and pz_cand < final_z:
-                                final_z = pz_cand
-                                valid_z_found = True
-                    if valid_z_found:
-                        center_x, center_y = cx + dx / 2, cy + dy / 2
-                        dist = (center_x - target_x) ** 2 + (center_y - target_y) ** 2
-                        floor_bias = 0 if final_z <= 0.01 else 1
-                        score = (floor_bias, final_z, cy - zone_oy_cpu, cx - zone_ox_cpu, dist)
-                        if best is None or score < best[7]:
-                            best = (center_x, center_y, final_z, rot, dx, dy, dz, score)
-                        if is_fast and final_z <= 0.01 and dist < 0.1:
-                            return best
-            return best
-
-        # Dispatch to GPU/vectorized search when torch is available, CPU loop otherwise
-        _pc = _placed_count
-        if _TORCH_AVAILABLE:
-            def _search(cands, is_fast, az=assigned_zone):
+        def _search(cand_list, is_fast, search_az=az):
+            if _TORCH_AVAILABLE:
                 return _search_candidates_gpu(
-                    cands, rots, l, w, h,
-                    _placed_buf, _pc, use_zones, az,
-                    wh_len, wh_wid, wh_hgt, sort_tx + l / 2, sort_ty + w / 2,
-                    is_fast, _dev)
-        else:
-            def _search(cands, is_fast, az=assigned_zone):
-                return perform_search(cands, is_fast,
-                                      check_zones=[az] if az is not None else None)
+                    cand_list, rots, l, w, h,
+                    _placed_buf, pc, use_zones, search_az,
+                    wh_len, wh_wid, wh_hgt,
+                    sort_tx + l/2, sort_ty + w/2,
+                    is_fast, _dev, min_z=min_z)
+            return _perform_search_cpu(
+                cand_list, rots, l, w, h,
+                placed_items, global_grid, use_zones, search_az,
+                wh_len, wh_wid, wh_hgt,
+                sort_tx + l/2, sort_ty + w/2, zone_ox, zone_oy,
+                is_fast, min_z=min_z)
 
-        best_pos = _search(search_candidates, fast_mode)
+        best_pos = _search(search_cands, fast_mode)
 
-        # ── Multi-pass exhaustive retry: shrink grid step until a valid spot is found ──
-        # Pass 1: 0.5 m lattice  (fast, already in search_candidates but re-run strict)
-        # Pass 2: 0.25 m lattice (double density)
-        # Pass 3: 0.10 m lattice (fine — catches items wedged by small neighbours)
-        # Pass 4: 0.05 m lattice (near-pixel — absolute maximum density)
-        # Each pass also includes adjacency touch-points from ALL placed items so
-        # tight-fit positions next to every placed box are evaluated.
+        # ── Lattice fallback: 0.25 → 0.10 → 0.05 m ──────────────────────────
         if best_pos is None:
-            _retry_zone = assigned_zone  # None → whole warehouse
-
-            # Build the bounding rectangle to search within
-            if _retry_zone is not None:
-                _rx1, _ry1 = float(_retry_zone['x1']), float(_retry_zone['y1'])
-                _rx2, _ry2 = float(_retry_zone['x2']), float(_retry_zone['y2'])
-            else:
-                _rx1, _ry1 = 0.0, 0.0
-                _rx2, _ry2 = wh_len, wh_wid
-
-            _GRID_STEPS = [0.5, 0.25, 0.10, 0.05]
-
-            for _step in _GRID_STEPS:
+            rx1 = float(az['x1']) if az else 0.0
+            ry1 = float(az['y1']) if az else 0.0
+            rx2 = float(az['x2']) if az else wh_len
+            ry2 = float(az['y2']) if az else wh_wid
+            for step in [0.25, 0.10, 0.05]:
                 if best_pos is not None:
                     break
-
-                _retry_cands = set()
-
-                # 1. Full lattice over the target rectangle at this resolution
-                _cx = _rx1
-                while _cx <= _rx2 + _step * 0.5:
-                    _cy = _ry1
-                    while _cy <= _ry2 + _step * 0.5:
-                        _retry_cands.add((_cx, _cy))
-                        _cy = round(_cy + _step, 6)
-                    _cx = round(_cx + _step, 6)
-
-                # 2. Adjacency touch-points from EVERY placed item (not just last 100)
-                for (px, py, pz, pdx, pdy, pdz) in placed_items:
-                    _retry_cands.add((px + pdx, py))          # right edge
-                    _retry_cands.add((px, py + pdy))          # back edge
-                    _retry_cands.add((px + pdx, py + pdy))    # back-right corner
-                    _retry_cands.add((px, py))                 # front-left corner
-                    _retry_cands.add((px + pdx - l, py))      # flush-left align
-                    _retry_cands.add((px, py + pdy - w))      # flush-front align
-
-                # 3. Filter to valid non-zero-area positions inside target rect
-                _valid_retry = [
-                    (cx, cy) for (cx, cy) in _retry_cands
-                    if cx >= _rx1 - 0.001 and cy >= _ry1 - 0.001
-                    and cx + l <= _rx2 + 0.001 and cy + w <= _ry2 + 0.001
-                    and cx >= 0 and cy >= 0
-                ]
-
-                if not _valid_retry:
-                    continue
-
-                # Sort front-left first (zone origin) for greedy bottom-left fill
-                _retry_sorted = sorted(_valid_retry, key=lambda p: (
-                    (p[0] - _rx1) ** 2 + (p[1] - _ry1) ** 2
-                ))
-
-                best_pos = _search(_retry_sorted, False, az=_retry_zone)
-
-        # ── Last resort: try every OTHER zone if assigned zone is totally full ──
-        if best_pos is None and assigned_zone is not None:
-            for _fallback_zne in use_zones:
-                if _fallback_zne is assigned_zone:
-                    continue
-                _fz_cands = set()
-                _fx1, _fy1 = float(_fallback_zne['x1']), float(_fallback_zne['y1'])
-                _fx2, _fy2 = float(_fallback_zne['x2']), float(_fallback_zne['y2'])
-                _cx = _fx1
-                while _cx <= _fx2:
-                    _cy = _fy1
-                    while _cy <= _fy2:
-                        _fz_cands.add((_cx, _cy))
-                        _cy = round(_cy + 0.25, 6)
-                    _cx = round(_cx + 0.25, 6)
-                for (px, py, pz, pdx, pdy, pdz) in placed_items:
-                    _fz_cands.update([
+                retry_cands = set()
+                cx = rx1
+                while cx <= rx2 + step * 0.5:
+                    cy = ry1
+                    while cy <= ry2 + step * 0.5:
+                        retry_cands.add((cx, cy))
+                        cy = round(cy + step, 6)
+                    cx = round(cx + step, 6)
+                # Adjacency touch-points from zone's own items only (strict independence)
+                zone_items = zone_occ.items[assigned_zi] if assigned_zi is not None else []
+                for (px, py, _pz, pdx, pdy, _pdz) in zone_items:
+                    retry_cands.update([
                         (px + pdx, py), (px, py + pdy),
                         (px + pdx, py + pdy), (px, py),
+                        (px + pdx - l, py), (px, py + pdy - w),
                     ])
-                _fz_valid = [
-                    (cx, cy) for (cx, cy) in _fz_cands
-                    if cx >= _fx1 - 0.001 and cy >= _fy1 - 0.001
-                    and cx + l <= _fx2 + 0.001 and cy + w <= _fy2 + 0.001
+                valid_retry = [
+                    (cx, cy) for (cx, cy) in retry_cands
+                    if cx >= rx1 - 0.001 and cy >= ry1 - 0.001
+                    and cx + l <= rx2 + 0.001 and cy + w <= ry2 + 0.001
                     and cx >= 0 and cy >= 0
                 ]
-                if _fz_valid:
-                    _fz_sorted = sorted(_fz_valid, key=lambda p: (p[0] - _fx1) ** 2 + (p[1] - _fy1) ** 2)
-                    best_pos = _search(_fz_sorted, False, az=_fallback_zne)
-                if best_pos is not None:
-                    break
+                if valid_retry:
+                    retry_sorted = sorted(valid_retry,
+                                          key=lambda p: (p[0]-rx1)**2 + (p[1]-ry1)**2)
+                    best_pos = _search(retry_sorted, False, search_az=az)
 
-        if best_pos is None and assigned_zone is None and fast_mode:
-            best_pos = _search(sorted_candidates, False)
-
-
-    
-        # Apply placement
+        # Each zone is independent — if the zone is geometrically full, the item stays
+        # within its assigned zone using a best-effort zone-clamped fallback (applied
+        # further below). Cross-zone overflow is disabled.
+        # ── Apply placement ───────────────────────────────────────────────────
         if best_pos:
             b_x, b_y, b_z, b_rot, b_dx, b_dy, b_dz, _ = best_pos
         else:
-            b_rot = solution[idx, 3] if not can_rotate else 0
-            dims = get_rotated_dims(l, w, h, b_rot)
-            b_dx, b_dy, b_dz = dims
-
-            if assigned_zone is not None:
-                # Zone-aware fallback: clamp within the assigned zone's bounds
-                az_x1 = float(assigned_zone['x1'])
-                az_y1 = float(assigned_zone['y1'])
-                az_x2 = float(assigned_zone['x2'])
-                az_y2 = float(assigned_zone['y2'])
-                az_z1 = float(assigned_zone.get('z1', 0))
-                az_z2 = float(assigned_zone.get('z2', wh_hgt))
-                # Stack only on top of items already inside this zone
+            b_rot = int(solution[idx, 3]) if not can_rotate else 0
+            b_dx, b_dy, b_dz = get_rotated_dims(l, w, h, b_rot)
+            if az is not None:
+                az_x1 = float(az['x1']); az_y1 = float(az['y1'])
+                az_x2 = float(az['x2']); az_y2 = float(az['y2'])
+                az_z1 = float(az.get('z1', 0))
+                az_z2 = float(az.get('z2', wh_hgt))
                 zone_tops = [p[2] + p[5] for p in placed_items
-                             if p[2] < 1000 and
-                                p[0] + p[3] > az_x1 + 0.01 and p[0] < az_x2 - 0.01 and
-                                p[1] + p[4] > az_y1 + 0.01 and p[1] < az_y2 - 0.01]
-                b_z = max(zone_tops) if zone_tops else az_z1
-                # Clamp so item never pierces the zone ceiling
+                             if p[2] < 1000
+                             and p[0] + p[3] > az_x1 + 0.01 and p[0] < az_x2 - 0.01
+                             and p[1] + p[4] > az_y1 + 0.01 and p[1] < az_y2 - 0.01]
+                b_z = max(max(zone_tops) if zone_tops else az_z1, float(min_z))
                 b_z = max(az_z1, min(b_z, az_z2 - b_dz))
-                b_x = max(az_x1 + b_dx / 2, min(az_x2 - b_dx / 2, solution[idx, 0]))
-                b_y = max(az_y1 + b_dy / 2, min(az_y2 - b_dy / 2, solution[idx, 1]))
+                b_x = max(az_x1 + b_dx/2, min(az_x2 - b_dx/2, solution[idx, 0]))
+                b_y = max(az_y1 + b_dy/2, min(az_y2 - b_dy/2, solution[idx, 1]))
             else:
-                # Original zone-agnostic fallback
-                b_z = 2000.0
-                valid_placed = [p for p in placed_items if p[2] < 1000]
-                if not valid_placed:
-                    b_z = 0.0
-                else:
-                    max_top = max([p[2] + p[5] for p in valid_placed])
-                    b_z = max_top
-                b_x = max(b_dx / 2, min(wh_len - b_dx / 2, solution[idx, 0]))
-                b_y = max(b_dy / 2, min(wh_wid - b_dy / 2, solution[idx, 1]))
-            
+                b_z = max(0.0, float(min_z))
+                b_x = max(b_dx/2, min(wh_len - b_dx/2, solution[idx, 0]))
+                b_y = max(b_dy/2, min(wh_wid - b_dy/2, solution[idx, 1]))
+
         solution[idx, 0] = b_x
         solution[idx, 1] = b_y
         solution[idx, 2] = b_z
         solution[idx, 3] = b_rot
-        
-        placed_items.append((b_x - b_dx/2, b_y - b_dy/2, b_z, b_dx, b_dy, b_dz))
-        grid.insert(len(placed_items)-1, b_x - b_dx/2, b_y - b_dy/2, b_x + b_dx/2, b_y + b_dy/2)
+
+        x1_p, y1_p = b_x - b_dx/2, b_y - b_dy/2
+        placed_items.append((x1_p, y1_p, b_z, b_dx, b_dy, b_dz))
+        global_grid.insert(len(placed_items) - 1,
+                           x1_p, y1_p, b_x + b_dx/2, b_y + b_dy/2)
         if _placed_buf is not None:
-            _placed_buf[_placed_count, 0] = float(b_x - b_dx/2)
-            _placed_buf[_placed_count, 1] = float(b_y - b_dy/2)
+            _placed_buf[_placed_count, 0] = float(x1_p)
+            _placed_buf[_placed_count, 1] = float(y1_p)
             _placed_buf[_placed_count, 2] = float(b_z)
             _placed_buf[_placed_count, 3] = float(b_dx)
             _placed_buf[_placed_count, 4] = float(b_dy)
             _placed_buf[_placed_count, 5] = float(b_dz)
-            _placed_count += 1
+        _placed_count += 1
 
-        # Periodic Callback for real-time visualization
-        if callback and (len(placed_items) % callback_interval == 0 or len(placed_items) == num_items):
+        if assigned_zi is not None:
+            zone_occ.add(assigned_zi, x1_p, y1_p, b_z, b_dx, b_dy, b_dz, is_nf=is_nf)
+
+        _log_item(idx, _current_pass, assigned_zi, is_nf, min_z,
+                  b_x, b_y, b_z, b_dx, b_dy, b_dz, used_fallback=not bool(best_pos))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # PASS A: Place all Non-Fragile items (all zones, NF ceiling = zone floor)
+    # ─────────────────────────────────────────────────────────────────────────
+    nf_pass_order = []
+    for z_idx in range(num_zones):
+        nf_pass_order.extend(
+            [i for i in non_fragile_list if item_zone_idx.get(i) == z_idx])
+
+    _current_pass = 'PASS-A(NF)'
+    _log_f.write(f'--- PASS A: {len(nf_pass_order)} NF items ---\n'); _log_f.flush()
+    placed_nf = 0
+    for idx in nf_pass_order:
+        zi = item_zone_idx.get(idx)
+        _place_item(idx, zi, min_z=0.0, is_nf=True)
+        placed_nf += 1
+        if callback and placed_nf % callback_interval == 0:
             callback(solution)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # PASS B: NF top heights are already live in zone_occ.max_nf_top
+    # ─────────────────────────────────────────────────────────────────────────
+    nf_tops = {zi: round(zone_occ.max_nf_top[zi], 3) for zi in range(num_zones)}
+    print('DEBUG pass-B NF top-Z per zone:', nf_tops)
+    _log_f.write(f'--- PASS B: NF top-Z per zone: {nf_tops} ---\n'); _log_f.flush()
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # PASS C: Place all Fragile items with min_z = NF ceiling of their zone
+    # ─────────────────────────────────────────────────────────────────────────
+    frag_pass_order = []
+    for z_idx in range(num_zones):
+        frag_pass_order.extend(
+            [i for i in fragile_list if item_zone_idx.get(i) == z_idx])
+
+    _current_pass = 'PASS-C(FR)'
+    _log_f.write(f'--- PASS C: {len(frag_pass_order)} Fragile items ---\n'); _log_f.flush()
+    placed_f = 0
+    total_placed = len(nf_pass_order) + len(frag_pass_order)
+    for idx in frag_pass_order:
+        zi     = item_zone_idx.get(idx)
+        # Use the zone's floor as min_z instead of the global max_nf_top.
+        # gravity_z will naturally find and support from NF items.
+        min_z  = float(use_zones[zi].get('z1', 0.0)) if zi is not None else 0.0
+        _place_item(idx, zi, min_z=min_z, is_nf=False)
+        placed_f += 1
+        done = placed_nf + placed_f
+        if callback and (done % callback_interval == 0 or done == total_placed):
+            callback(solution)
+
+    # ── Final zone summary ────────────────────────────────────────────────────
+    _log_f.write('--- ZONE SUMMARY ---\n')
+    for zi in range(num_zones):
+        items_in_zone = zone_occ.items[zi]
+        nf_in  = [it for it in items_in_zone if True]   # all items
+        nf_cnt = sum(1 for it in items_in_zone
+                     if it[2] < zone_occ.max_nf_top[zi] - 0.001 or
+                        abs(it[2] - use_zones[zi].get('z1', 0)) < 0.01)
+        fr_cnt = len(items_in_zone) - nf_cnt
+        z_vals = [it[2] for it in items_in_zone] if items_in_zone else [0]
+        _log_f.write(
+            f'  Zone {zi}: total={len(items_in_zone)} '
+            f'nf_top={round(zone_occ.max_nf_top[zi],3)} '
+            f'z_min={round(min(z_vals),3)} '
+            f'z_max={round(max(z_vals),3)}\n'
+        )
+    _log_f.write('--- END ---\n')
+    _log_f.flush()
+    _log_f.close()
 
     return solution
 

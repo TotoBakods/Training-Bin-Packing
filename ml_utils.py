@@ -195,10 +195,8 @@ class MLOptimizer:
             # Store ML predictions for displacement calculation
             ml_predictions = np.column_stack((pred_x, pred_y, pred_z, pred_rot))
             
-            # Use predicted Z with a small safety buffer (0.5) instead of 2000.0.
-            # This allows the heuristic repair to settle items faster by starting closer to validity.
-            safe_z = pred_z + 0.5
-            solution = np.column_stack((pred_x, pred_y, safe_z, pred_rot))
+            # Build initial solution array from ML predictions
+            solution = np.column_stack((pred_x, pred_y, pred_z, pred_rot))
             
             # Repair (Physics & Constraints)
             valid_z = get_valid_z_positions(warehouse)

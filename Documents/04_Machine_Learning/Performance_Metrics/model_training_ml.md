@@ -1,6 +1,6 @@
 # ML Model Training & Logic Report
 
-> Auto-generated on **2026-04-02 14:51**
+> Auto-generated on **2026-04-03 04:10**
 
 ---
 
@@ -32,10 +32,10 @@ The models were trained on 125,000 synthetic samples per variant. The objective 
 ## 4. Heuristic Variant Performance & Logic
 | Model Variant | Final Loss | Final Fitness (%) | Early Stop Log | Stability (PyBullet) |
 |:--- |:---: |:---: |:--- |:---: |
-| `EO` | 0.145779 | 24.99% | **Terminated @ Ep 55** | 0.0000 |
-| `EO_GA` | 0.105846 | 25.13% | **Terminated @ Ep 56** | 0.0000 |
-| `GA` | 0.145657 | 25.07% | **Terminated @ Ep 54** | 0.0000 |
-| `GA_EO` | 0.145554 | 25.10% | **Terminated @ Ep 40** | 0.0000 |
+| `EO` | 0.146431 | 24.81% | Full Scale | 1.0000 |
+| `EO_GA` | 0.105825 | 25.09% | **Terminated @ Ep 43** | 1.0000 |
+| `GA` | 0.146422 | 24.79% | Full Scale | 1.0000 |
+| `GA_EO` | 0.146243 | 24.87% | Full Scale | 1.0000 |
 
 ## 5. Hardware & System Context
 - **CPU**: AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD

@@ -1,0 +1,21 @@
+
+--- SOTA REPLICATION: Zhao et al. (AAAI-21) ---
+Config: Bin 10.0^3, Items <= 50.0% Bin Dim, Count: 60
+DEBUG pass-B NF top-Z per zone: {0: np.float32(10.0)}
+RESULT >> PSR: 100.0% | SSR: 11.8% | VU: 176.5% | LAT: 96.13ms
+
+--- SOTA REPLICATION: Ha et al. (2017) ---
+Config: Bin 20.0^3, Items <= 40.0% Bin Dim, Count: 250
+DEBUG pass-B NF top-Z per zone: {0: np.float32(20.001)}
+RESULT >> PSR: 100.0% | SSR: 7.7% | VU: 286.7% | LAT: 524.52ms
+
+============================================================
+FINAL MULTI-PROFILE COMPETITIVE SCORECARD
+============================================================
+Metric          | Zhao Run     | Ha Run       | SOTA Targets   
+------------------------------------------------------------
+PSR             |       100.0% |       100.0% | 94-98%
+SSR             |        11.8% |         7.7% | 68-70%
+VU              |       176.5% |       286.7% | 75-76%
+LAT (ms)        |       96.13  |      524.52  | ~25-120ms
+============================================================

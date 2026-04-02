@@ -105,36 +105,86 @@ def train_model(csv_path, model_name):
     model = PackingModel()
     model.to(device)
     
-    # Weighted Loss: 2.0x for X/Y coordinates to reduce displacement gap
-    weight_v = torch.tensor([2.0, 2.0, 1.0, 1.0]).to(device)
+    # Weighted Loss: Increased Z-weight to 2.0 to force accurate stacking heights
+    weight_v = torch.tensor([2.0, 2.0, 2.0, 1.0]).to(device)
     def weighted_mse_loss(input, target):
         return (weight_v * (input - target) ** 2).mean()
+
+    def calculate_collision_penalty(pred, batch_x):
+        """
+        Penalizes overlapping bounding boxes within items of the same sequence (bin).
+        Uses warehouse dimensions (features 7-9) to identify items in the same sequence.
+        """
+        # 1. Extract normalized sizes: L' = L/WH_L, W' = W/WH_W, H' = H/WH_H
+        # Item dims (normalized by 10): indices 0,1,2
+        # WH dims (normalized by 100): indices 7,8,9
+        l_prime = (batch_x[:, 0] * 10.0) / (batch_x[:, 7] * 100.0 + 1e-6)
+        w_prime = (batch_x[:, 1] * 10.0) / (batch_x[:, 8] * 100.0 + 1e-6)
+        h_prime = (batch_x[:, 2] * 10.0) / (batch_x[:, 9] * 100.0 + 1e-6)
+        
+        # 2. Define Bounding Boxes in normalized unit space [0, 1]^3
+        x1, y1, z1 = pred[:, 0], pred[:, 1], pred[:, 2]
+        x2, y2, z2 = x1 + l_prime, y1 + w_prime, z1 + h_prime
+        
+        # 3. Pairwise Intersections (N x N) via broadcasting
+        ix1 = torch.max(x1.unsqueeze(1), x1.unsqueeze(0))
+        ix2 = torch.min(x2.unsqueeze(1), x2.unsqueeze(0))
+        inter_x = torch.clamp(ix2 - ix1, min=0)
+        
+        iy1 = torch.max(y1.unsqueeze(1), y1.unsqueeze(0))
+        iy2 = torch.min(y2.unsqueeze(1), y2.unsqueeze(0))
+        inter_y = torch.clamp(iy2 - iy1, min=0)
+        
+        iz1 = torch.max(z1.unsqueeze(1), z1.unsqueeze(0))
+        iz2 = torch.min(z2.unsqueeze(1), z2.unsqueeze(0))
+        inter_z = torch.clamp(iz2 - iz1, min=0)
+        
+        overlap_vol = inter_x * inter_y * inter_z
+        
+        # 4. Mask: Only penalize if items are in the same sequence (share WH dims)
+        # and ignore self-overlap (diagonal)
+        wh_dims = batch_x[:, 7:10]
+        same_seq = torch.all(wh_dims.unsqueeze(1) == wh_dims.unsqueeze(0), dim=2).float()
+        mask = (1.0 - torch.eye(pred.size(0), device=device)) * same_seq
+        
+        return (overlap_vol * mask).sum() / (mask.sum() + 1e-6)
 
     optimizer = optim.Adam(model.parameters(), lr=LR)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
     
     best_val_loss = float('inf')
     patience_counter = 0
-    history = {"train_loss": [], "val_loss": [], "lr": []}
+    history = {"train_loss": [], "val_loss": [], "train_mse": [], "train_coll": [], "lr": []}
 
     for epoch in range(EPOCHS):
         # --- Train ---
         model.train()
         total_loss = 0
+        total_mse = 0
+        total_coll = 0
         n_batches = 0
         for batch_x, batch_y in train_loader:
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
             
             optimizer.zero_grad()
             outputs = model(batch_x)
-            loss = weighted_mse_loss(outputs, batch_y)
+            
+            mse_loss = weighted_mse_loss(outputs, batch_y)
+            coll_penalty = calculate_collision_penalty(outputs, batch_x)
+            
+            # Physics-Informed Loss: combine MSE with collision penalty
+            loss = mse_loss + (10.0 * coll_penalty)
             loss.backward()
             optimizer.step()
             
             total_loss += loss.item()
+            total_mse += mse_loss.item()
+            total_coll += coll_penalty.item()
             n_batches += 1
 
         avg_train = total_loss / max(n_batches, 1)
+        avg_mse = total_mse / max(n_batches, 1)
+        avg_coll = total_coll / max(n_batches, 1)
 
         # --- Validate ---
         model.eval()
@@ -152,6 +202,8 @@ def train_model(csv_path, model_name):
         
         # Log history
         history["train_loss"].append(avg_train)
+        history["train_mse"].append(avg_mse)
+        history["train_coll"].append(avg_coll)
         history["val_loss"].append(avg_val)
         history["lr"].append(optimizer.param_groups[0]['lr'])
 
@@ -165,11 +217,11 @@ def train_model(csv_path, model_name):
         else:
             patience_counter += 1
 
-        if (epoch + 1) % 10 == 0:
-            print(f"  Epoch [{epoch+1}/{EPOCHS}], Train: {avg_train:.6f}, Val: {avg_val:.6f} (best: {best_val_loss:.6f}, lr: {optimizer.param_groups[0]['lr']:.2e})")
+        if (epoch + 1) % 1 == 0:
+            print(f"  Epoch [{epoch+1}/{EPOCHS}] | Total: {avg_train:.6f} | MSE: {avg_mse:.6f} | Coll: {avg_coll:.6f} | Val: {avg_val:.6f} (Best: {best_val_loss:.6f})")
 
         if patience_counter >= PATIENCE:
-            print(f"  Early stopping at epoch {epoch+1} (no improvement for {PATIENCE} epochs)")
+            print(f"  [STOP] Early stopping at epoch {epoch+1} (no improvement for {PATIENCE} epochs)")
             break
 
     print(f"  [OK] Best val loss: {best_val_loss:.6f} -- saved to models/{model_name}.pth")

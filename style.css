@@ -1,20 +1,21 @@
 :root {
-    --bg-main: #050505;
-    --bg-panel: rgba(15, 15, 20, 0.75);
-    --bg-panel-hover: rgba(25, 25, 35, 0.85);
-    --border-color: rgba(255, 255, 255, 0.1);
-    --border-active: rgba(0, 240, 255, 0.5);
+    --bg-main: #020204;
+    --bg-panel: rgba(20, 20, 28, 0.6);
+    --bg-panel-hover: rgba(30, 30, 45, 0.7);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-active: rgba(0, 240, 255, 0.4);
     --accent-primary: #00F0FF;
-    --accent-secondary: #7000FF;
-    --text-main: #E0E6ED;
+    --accent-secondary: #FF0055;
+    --text-main: #F1F5F9;
     --text-muted: #94A3B8;
     --success: #00FF9D;
     --danger: #FF0055;
     --warning: #FFD600;
-    --font-ui: 'Inter', system-ui, sans-serif;
+    --font-ui: 'Outfit', 'Inter', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-    --glass-blur: blur(20px);
-    --transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    --glass-blur: blur(12px);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+    --transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -220,17 +221,37 @@ option {
 }
 
 .data-card {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
-    padding: 12px;
-    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid var(--border-color);
     transition: var(--transition);
-    min-width: 0; /* Important for flex children */
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.data-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--accent-primary);
+    opacity: 0;
+    transition: var(--transition);
 }
 
 .data-card:hover {
-    border-color: var(--border-color);
-    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--border-active);
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 240, 255, 0.1);
+}
+
+.data-card:hover::before {
+    opacity: 1;
 }
 
 /* Compact Table Utility */
@@ -456,8 +477,41 @@ input:focus {
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
 
-#tooltip strong {
+/* Diagnostic Styles */
+.diag-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.diag-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.diag-label {
+    color: var(--text-muted);
+}
+
+.diag-value {
+    font-family: var(--font-mono);
     color: var(--accent-primary);
-    display: block;
-    margin-bottom: 4px;
+}
+
+.glow-text {
+    text-shadow: 0 0 8px var(--accent-primary);
+}
+
+.pulse {
+    animation: pulse-animation 2s infinite;
+}
+
+@keyframes pulse-animation {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
 }

@@ -1,22 +1,20 @@
 # ML Model Training & Logic Report
 
-> Auto-generated on **2026-04-02 03:02**
+> Auto-generated on **2026-04-02 14:51**
 
 ---
 
 ## 1. High-Intensity Hyperparameters
-The following parameters were utilized to ensure robust convergence and positive R² across all 4 variants.
+The following parameters were utilized to ensure robust convergence and positive R² across all 4 variants. Each algorithm's personality is reflected in these settings.
 
-| Parameter | Value | Description |
-|:--- |:--- |:--- |
-| **Epochs (Full)** | 120 | Maximum training epochs for EO, GA, GA_EO variants |
-| **Epochs (EO_GA)** | 40 | Reduced epochs for fast EO_GA variant |
-| **Batch Size** | 2048 | Samples per GPU update |
-| **Learning Rate** | 0.0005 | AdamW optimizer initial step size |
-| **Optimizer** | AdamW | Weight decay=1e-4, with warmup+cosine LR schedule |
-| **Spatial Weights** | X:[3,3] / EO_GA:[2,2] | Moderate spatial boost for stable R² |
-| **Patience (Full)** | 20 | Early stopping patience for full models |
-| **Patience (EO_GA)** | 8 | Aggressive early-stop for EO_GA speed |
+| Parameter | Standalone GA/EO | GA-EO / EO-GA Hybrid | Description |
+|:--- |:---: |:---: |:--- |
+| **Epochs** | 120 | 100 | Training iterations (EO-GA prioritized for speed) |
+| **Batch Size** | 2048 | 2048 | Samples per GPU update |
+| **Learning Rate** | 0.0005 | 0.0005 | AdamW optimizer initial step size |
+| **Spatial Weights** | X:3.0, Y:3.0 | X:2.0, Y:2.0 | Spatial boost for stable R² |
+| **Patience** | 20 | 15 | Early stopping threshold |
+| **Collision Weight** | 1.5 | 1.0 | Physics-aware loss penalty factor |
 ## 2. Training Convergence Progression
 The models were trained on 125,000 synthetic samples per variant. The objective is to minimize spatial prediction error while maximizing fitness.
 
@@ -34,10 +32,10 @@ The models were trained on 125,000 synthetic samples per variant. The objective 
 ## 4. Heuristic Variant Performance & Logic
 | Model Variant | Final Loss | Final Fitness (%) | Early Stop Log | Stability (PyBullet) |
 |:--- |:---: |:---: |:--- |:---: |
-| `EO` | 0.145702 | 25.05% | **Terminated @ Ep 58** | 0.0000 |
-| `EO_GA` | 0.105753 | 25.11% | Converged Naturally | 0.0000 |
-| `GA` | 0.145679 | 24.99% | **Terminated @ Ep 47** | 0.0000 |
-| `GA_EO` | 0.145661 | 25.11% | **Terminated @ Ep 57** | 0.0000 |
+| `EO` | 0.145779 | 24.99% | **Terminated @ Ep 55** | 0.0000 |
+| `EO_GA` | 0.105846 | 25.13% | **Terminated @ Ep 56** | 0.0000 |
+| `GA` | 0.145657 | 25.07% | **Terminated @ Ep 54** | 0.0000 |
+| `GA_EO` | 0.145554 | 25.10% | **Terminated @ Ep 40** | 0.0000 |
 
 ## 5. Hardware & System Context
 - **CPU**: AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD

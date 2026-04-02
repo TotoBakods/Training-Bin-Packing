@@ -82,7 +82,8 @@ def finalize_optimization(
         weights,
         start_time,
         warehouse_id=1,
-        time_to_best=0):
+        time_to_best=0,
+        inference_metrics=None):
     if not optimization_state['running']:
         return
 
@@ -191,10 +192,12 @@ def finalize_optimization(
             accessibility,
             stability,
             grouping,
-            end_time -
-            start_time,
-            warehouse_id,
-            time_to_best)
+            exec_time=end_time - start_time,
+            warehouse_id=warehouse_id,
+            time_to_best=time_to_best,
+            inference_metrics=inference_metrics)
+        
+        optimization_state['inference_metrics'] = inference_metrics
 
         with open('thread_debug.log', 'a') as f:
             f.write("Saved solution to DB\n")
@@ -300,6 +303,19 @@ def delete_item_api(item_id):
     try:
         delete_item(item_id, warehouse_id)
         return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/metrics/all', methods=['DELETE'])
+def clear_all_metrics_api():
+    warehouse_id = request.args.get('warehouse_id', default=1, type=int)
+    try:
+        from database import clear_metrics
+        clear_metrics(warehouse_id)
+        # Also clear the comparison_state cache for this session
+        comparison_state['results'] = {}
+        return jsonify({'success': True, 'message': 'Performance history cleared'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -622,7 +638,7 @@ def optimize_ga():
     data = request.json or {}
     weights = data.get(
         'weights', {
-            'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
+            'space': 0.6, 'accessibility': 0.3, 'stability': 0.1})
     warehouse_id = data.get('warehouse_id',
                             optimization_state['current_warehouse_id'])
 
@@ -654,7 +670,7 @@ def optimize_ga():
 
         optimizer = MLOptimizer("fit_ga")
         try:
-            best_solution, best_fitness, time_to_best = optimizer.optimize(
+            best_solution, best_fitness, time_to_best, inf_metrics = optimizer.optimize(
                 items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
             finalize_optimization(
                 best_solution,
@@ -662,7 +678,8 @@ def optimize_ga():
                 weights,
                 optimization_state['start_time'],
                 warehouse_id,
-                time_to_best)
+                time_to_best,
+                inference_metrics=inf_metrics)
             optimization_state['running'] = False
         except Exception as e:
             import traceback
@@ -693,7 +710,7 @@ def optimize_eo():
     data = request.json or {}
     weights = data.get(
         'weights', {
-            'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
+            'space': 0.6, 'accessibility': 0.3, 'stability': 0.1})
     warehouse_id = data.get('warehouse_id',
                             optimization_state['current_warehouse_id'])
 
@@ -718,7 +735,7 @@ def optimize_eo():
 
         optimizer = MLOptimizer("fit_eo")
         try:
-            best_solution, best_fitness, time_to_best = optimizer.optimize(
+            best_solution, best_fitness, time_to_best, inf_metrics = optimizer.optimize(
                 items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
             finalize_optimization(
                 best_solution,
@@ -726,7 +743,8 @@ def optimize_eo():
                 weights,
                 optimization_state['start_time'],
                 warehouse_id,
-                time_to_best)
+                time_to_best,
+                inference_metrics=inf_metrics)
             optimization_state['running'] = False
         except Exception as e:
             print(f"Optimization failed: {e}")
@@ -748,7 +766,7 @@ def optimize_hybrid():
     data = request.json or {}
     weights = data.get(
         'weights', {
-            'space': 0.5, 'accessibility': 0.4, 'stability': 0.1})
+            'space': 0.6, 'accessibility': 0.3, 'stability': 0.1})
     warehouse_id = data.get('warehouse_id',
                             optimization_state['current_warehouse_id'])
 
@@ -772,7 +790,7 @@ def optimize_hybrid():
     def run_optimization():
         optimizer = MLOptimizer("fit_ga_eo")
         try:
-            best_solution, best_fitness, time_to_best = optimizer.optimize(
+            best_solution, best_fitness, time_to_best, inf_metrics = optimizer.optimize(
                 items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
             finalize_optimization(
                 best_solution,
@@ -780,7 +798,8 @@ def optimize_hybrid():
                 weights,
                 optimization_state['start_time'],
                 warehouse_id,
-                time_to_best)
+                time_to_best,
+                inference_metrics=inf_metrics)
             optimization_state['running'] = False
         except Exception as e:
             print(f"Optimization failed: {e}")
@@ -828,7 +847,7 @@ def optimize_hybrid_eo_ga():
     def run_optimization():
         optimizer = MLOptimizer("fit_eo_ga")
         try:
-            best_solution, best_fitness, time_to_best = optimizer.optimize(
+            best_solution, best_fitness, time_to_best, inf_metrics = optimizer.optimize(
                 items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
             finalize_optimization(
                 best_solution,
@@ -836,7 +855,8 @@ def optimize_hybrid_eo_ga():
                 weights,
                 optimization_state['start_time'],
                 warehouse_id,
-                time_to_best)
+                time_to_best,
+                inference_metrics=inf_metrics)
             optimization_state['running'] = False
         except Exception as e:
             print(f"Optimization failed: {e}")
@@ -937,7 +957,7 @@ def optimize_compare():
                 start_time = time.time()
 
                 optimizer = MLOptimizer(algo['type'])
-                solution, fitness, time_to_best = optimizer.optimize(
+                solution, fitness, time_to_best, inf_metrics = optimizer.optimize(
                     items, warehouse, weights, callback=algo_callback, optimization_state=comparison_state)
 
                 end_time = time.time()
@@ -962,7 +982,8 @@ def optimize_compare():
                     grouping,
                     execution_time,
                     warehouse_id,
-                    time_to_best)
+                    time_to_best,
+                    inference_metrics=inf_metrics)
 
                 comparison_state['results'][algo['name']] = {
                     'fitness': final_fitness,
@@ -972,6 +993,7 @@ def optimize_compare():
                     'accessibility': accessibility,
                     'stability': stability,
                     'grouping': grouping,
+                    'inference_metrics': inf_metrics,
                     'status': 'completed'
                 }
 

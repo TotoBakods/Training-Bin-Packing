@@ -68,8 +68,20 @@ class PackingModel(nn.Module):
 
 class MLOptimizer:
     """Uses trained Neural Network models to predict item positions."""
-    def __init__(self, model_name="fit_ga"):
-        self.model_name = model_name
+    def __init__(self, variant="fit_ga"):
+        # Map human-readable or API-level variant names to model filenames
+        variant_map = {
+            "ga": "fit_ga",
+            "eo": "fit_eo",
+            "ga_eo": "fit_ga_eo",
+            "eo_ga": "fit_eo_ga",
+            "fit_ga": "fit_ga",
+            "fit_eo": "fit_eo",
+            "fit_ga_eo": "fit_ga_eo",
+            "fit_eo_ga": "fit_eo_ga"
+        }
+        self.variant = variant_map.get(variant.lower(), "fit_ga")
+        self.model_name = self.variant
         self.model = None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._load_model()
@@ -164,10 +176,13 @@ class MLOptimizer:
 
         # Inference
         try:
+            inference_start = time.time()
             with torch.no_grad():
                 inputs = torch.tensor(features).to(self.device)
                 outputs = self.model(inputs) # (N, 4) -> x, y, z, rot
                 outputs = outputs.cpu().numpy()
+            inference_end = time.time()
+            inf_latency = (inference_end - inference_start) * 1000 # ms
                 
             # Denormalize
             pred_x = outputs[:, 0] * wh_l
@@ -175,13 +190,15 @@ class MLOptimizer:
             pred_z = outputs[:, 2] * wh_h
             # Clamp Z > 0
             pred_z = np.maximum(pred_z, 0)
-            
             pred_rot = outputs[:, 3] * 6.0
+
+            # Store ML predictions for displacement calculation
+            ml_predictions = np.column_stack((pred_x, pred_y, pred_z, pred_rot))
             
-            # Initialize Z to high value (2000) so items are "hidden" (in overflow) 
-            # until they are actually placed by the repair heuristic.
-            hidden_z = np.full_like(pred_z, 2000.0)
-            solution = np.column_stack((pred_x, pred_y, hidden_z, pred_rot))
+            # Use predicted Z with a small safety buffer (0.5) instead of 2000.0.
+            # This allows the heuristic repair to settle items faster by starting closer to validity.
+            safe_z = pred_z + 0.5
+            solution = np.column_stack((pred_x, pred_y, safe_z, pred_rot))
             
             # Repair (Physics & Constraints)
             valid_z = get_valid_z_positions(warehouse)
@@ -193,6 +210,7 @@ class MLOptimizer:
             
             # Repair using compact logic
             is_eo_ga = self.model_name == "fit_eo_ga"
+            repair_start = time.time()
             if callback:
                 def intermediate_callback(intermediate_sol):
                     # Convert numpy array to list of dicts for real-time updates
@@ -218,6 +236,8 @@ class MLOptimizer:
                     solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
                     fast_mode=is_eo_ga
                 )
+            repair_end = time.time()
+            repair_latency = (repair_end - repair_start) * 1000 # ms
             
             if callback:
                 callback(80, 0, 0, None, 0, 0, 0, message="Physics Settlement Complete.")
@@ -227,6 +247,75 @@ class MLOptimizer:
             fitness, su, acc, sta, grp = fitness_function_numpy(
                 solution, items_props, (wh_l, wh_w, wh_h, 0, 0), current_weights, valid_z, exclusion_zones_arr
             )
+            
+            # --- Inference Metrics / Diagnostics ---
+            # Displacement: Euclidean distance between ML guess and Heuristic final
+            # Only count items that were actually placed (Z < 1000)
+            placed_mask = solution[:, 2] < 1000
+            if np.any(placed_mask):
+                sq_diff = (solution[placed_mask, :3] - ml_predictions[placed_mask, :3])**2
+                avg_displacement = np.mean(np.sqrt(np.sum(sq_diff, axis=1)))
+            else:
+                avg_displacement = 0.0
+            
+            # Volumetric Efficiency: Actual item volume / Bounding Box volume of placed group
+            if np.any(placed_mask):
+                placed_vol = np.sum(items_props[placed_mask, 0] * items_props[placed_mask, 1] * items_props[placed_mask, 2])
+                min_c = np.min(solution[placed_mask, :3], axis=0)
+                max_c = np.max(solution[placed_mask, :3] + items_props[placed_mask, 0:3], axis=0) # rough approx of max
+                bbox_vol = np.prod(max_c - min_c)
+                vol_eff = placed_vol / (bbox_vol + 1e-6)
+            else:
+                vol_eff = 0.0
+
+            # --- SOTA Metric Validation (PSR and SSR) ---
+            # PSR: Placement Success Rate (items within absolute bounds)
+            success_count = np.sum(
+                (solution[:, 0] >= 0) & (solution[:, 0] + items_props[:, 0] <= wh_l + 0.05) &
+                (solution[:, 1] >= 0) & (solution[:, 1] + items_props[:, 1] <= wh_w + 0.05) &
+                (solution[:, 2] >= 0) & (solution[:, 2] + items_props[:, 2] <= wh_h + 0.05)
+            )
+            psr = (success_count / num_items) * 100.0
+
+            # SSR: Support Surface Ratio (Area supported by objects below / Floor)
+            # This is a bit expensive, so we use a vectorized approach relative to placed items
+            ssr_values = []
+            for i in range(num_items):
+                if solution[i, 2] <= 0.01:
+                    ssr_values.append(100.0)
+                    continue
+                
+                # Check overlap with items below
+                mask_below = (np.abs((solution[:, 2] + items_props[:, 2]) - solution[i, 2]) < 0.05)
+                if not np.any(mask_below):
+                    ssr_values.append(0.0)
+                    continue
+                
+                # XY Overlap Calculation (Vectorized for those below)
+                ix1 = np.maximum(solution[i, 0], solution[mask_below, 0])
+                ix2 = np.minimum(solution[i, 0] + items_props[i, 0], solution[mask_below, 0] + items_props[mask_below, 0])
+                iy1 = np.maximum(solution[i, 1], solution[mask_below, 1])
+                iy2 = np.minimum(solution[i, 1] + items_props[i, 1], solution[mask_below, 1] + items_props[mask_below, 1])
+                
+                overlaps = np.maximum(0, ix2 - ix1) * np.maximum(0, iy2 - iy1)
+                total_supp_area = np.sum(overlaps)
+                item_area = items_props[i, 0] * items_props[i, 1]
+                ssr_values.append(min(1.0, total_supp_area / (item_area + 1e-6)) * 100.0)
+            
+            avg_ssr = np.mean(ssr_values) if ssr_values else 0.0
+
+            metrics = {
+                "inference_latency_ms": float(inf_latency),
+                "repair_latency_ms": float(repair_latency),
+                "total_latency_ms": float(inf_latency + repair_latency),
+                "avg_displacement": float(avg_displacement),
+                "volumetric_efficiency": float(vol_eff),
+                "placed_count": int(np.sum(placed_mask)),
+                "psr_pct": float(psr),
+                "ssr_pct": float(avg_ssr),
+                "variant": self.model_name,
+                "is_fast_path": is_eo_ga
+            }
             
             time_to_best = time.time() - start_time
             
@@ -238,13 +327,16 @@ class MLOptimizer:
                     'x': float(solution[i, 0]),
                     'y': float(solution[i, 1]),
                     'z': float(solution[i, 2]),
-                    'rotation': int(solution[i, 3])
+                    'rotation': int(solution[i, 3]),
+                    'ml_x': float(ml_predictions[i, 0]),
+                    'ml_y': float(ml_predictions[i, 1]),
+                    'ml_z': float(ml_predictions[i, 2])
                 })
                 
-            return final_sol_list, float(fitness), time_to_best
+            return final_sol_list, float(fitness), time_to_best, metrics
             
         except Exception as e:
             print(f"ML Inference Error: {e}")
             import traceback
             traceback.print_exc()
-            return [], 0, 0
+            return [], 0, 0, {}

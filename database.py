@@ -32,7 +32,8 @@ def init_db():
                  (id INTEGER PRIMARY KEY, algorithm TEXT, fitness REAL,
                   space_utilization REAL, accessibility REAL, stability REAL,
                   grouping REAL, execution_time REAL, timestamp DATETIME, 
-                  solution_data TEXT, warehouse_id INTEGER DEFAULT 1)''')
+                  solution_data TEXT, warehouse_id INTEGER DEFAULT 1,
+                  time_to_best REAL DEFAULT 0, inference_metrics_json TEXT)''')
 
     # Insert default warehouse if it doesn't exist
     c.execute('''INSERT OR IGNORE INTO warehouse_config 
@@ -133,6 +134,13 @@ def migrate_db():
     except sqlite3.OperationalError:
         print("Migrating optimization_results table: adding time_to_best column.")
         c.execute('ALTER TABLE optimization_results ADD COLUMN time_to_best REAL DEFAULT 0')
+        conn.commit()
+
+    try:
+        c.execute('SELECT inference_metrics_json FROM optimization_results LIMIT 1')
+    except sqlite3.OperationalError:
+        print("Migrating optimization_results table: adding inference_metrics_json column.")
+        c.execute('ALTER TABLE optimization_results ADD COLUMN inference_metrics_json TEXT')
         conn.commit()
 
     conn.close()
@@ -263,7 +271,7 @@ def get_exclusion_zones(warehouse_id=1):
 
 
 def save_solution(solution, algorithm, fitness, space_util, accessibility, stability, grouping, exec_time,
-                  warehouse_id=1, time_to_best=0):
+                  warehouse_id=1, time_to_best=0, inference_metrics=None):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
@@ -273,13 +281,21 @@ def save_solution(solution, algorithm, fitness, space_util, accessibility, stabi
                          WHERE id = ? AND warehouse_id = ?''',
                       (item_sol['x'], item_sol['y'], item_sol['z'], item_sol['rotation'],
                        item_sol['id'], warehouse_id))
+            
+            # If the solution item has ML predictions, update those too (optional but useful for heatmap)
+            if 'ml_x' in item_sol:
+                 # We don't have columns for ML predictions in 'items' table yet, 
+                 # but we can store them in the solution_data JSON above.
+                 pass
 
     c.execute('''INSERT INTO optimization_results 
                  (algorithm, fitness, space_utilization, accessibility, stability, 
-                  grouping, execution_time, timestamp, solution_data, warehouse_id, time_to_best)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                  grouping, execution_time, timestamp, solution_data, warehouse_id, 
+                  time_to_best, inference_metrics_json)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
               (algorithm, fitness, space_util, accessibility, stability, grouping,
-               exec_time, datetime.now(), json.dumps(solution), warehouse_id, time_to_best))
+               exec_time, datetime.now(), json.dumps(solution), warehouse_id, 
+               time_to_best, json.dumps(inference_metrics) if inference_metrics else None))
 
     conn.commit()
     conn.close()
@@ -428,6 +444,17 @@ def clear_data(warehouse_id):
 
     try:
         c.execute('DELETE FROM items WHERE warehouse_id = ?', (warehouse_id,))
+        c.execute('DELETE FROM optimization_results WHERE warehouse_id = ?', (warehouse_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def clear_metrics(warehouse_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    try:
         c.execute('DELETE FROM optimization_results WHERE warehouse_id = ?', (warehouse_id,))
         conn.commit()
     finally:
@@ -671,7 +698,8 @@ def get_metrics_history(warehouse_id=1):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''SELECT algorithm, fitness, space_utilization, accessibility, 
-                 stability, execution_time, timestamp, time_to_best FROM optimization_results 
+                 stability, execution_time, timestamp, time_to_best, inference_metrics_json 
+                 FROM optimization_results 
                  WHERE warehouse_id = ? ORDER BY timestamp DESC LIMIT 50''', (warehouse_id,))
     rows = c.fetchall()
     conn.close()
@@ -686,7 +714,8 @@ def get_metrics_history(warehouse_id=1):
             'stability': row[4],
             'execution_time': row[5],
             'timestamp': row[6],
-            'time_to_best': row[7] if len(row) > 7 else 0
+            'time_to_best': row[7] if len(row) > 7 else 0,
+            'inference_metrics': json.loads(row[8]) if len(row) > 8 and row[8] else None
         })
     return history
     
@@ -694,7 +723,7 @@ def get_latest_algo_solution(algorithm, warehouse_id=1):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''SELECT solution_data, fitness, space_utilization, accessibility, 
-                 stability, grouping, execution_time, time_to_best 
+                 stability, grouping, execution_time, time_to_best, inference_metrics_json
                  FROM optimization_results 
                  WHERE algorithm = ? AND warehouse_id = ? 
                  ORDER BY timestamp DESC LIMIT 1''', (algorithm, warehouse_id))
@@ -712,7 +741,8 @@ def get_latest_algo_solution(algorithm, warehouse_id=1):
                     'stability': row[4],
                     'grouping': row[5],
                     'execution_time': row[6],
-                    'time_to_best': row[7]
+                    'time_to_best': row[7],
+                    'inference_metrics': json.loads(row[8]) if len(row) > 8 and row[8] else None
                 }
             }
         except Exception as e:

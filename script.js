@@ -774,6 +774,15 @@ function getItemColor(item, mode, maxWeight, maxAccess) {
     } else if (mode === 'stackable') {
         // Stackable = Cyan, Non-stackable = Muted Grey
         return item.stackable ? new THREE.Color(0x00F0FF) : new THREE.Color(0x444444);
+    } else if (mode === 'displacement') {
+        // Red (High Error/Displacement) -> Green (Low Error)
+        const dx = item.x - (item.ml_x || item.x);
+        const dy = item.y - (item.ml_y || item.y);
+        const dz = item.z - (item.ml_z || item.z);
+        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        const t = Math.min(1.0, dist / 2.0);
+        const color = new THREE.Color().setHSL(0.33 - (t * 0.33), 1, 0.5); 
+        return color;
     }
     return 0x888888;
 }
@@ -1279,32 +1288,44 @@ function startPolling() {
                     }
                 }
 
-                // Visual updates for both single and comparison mode
-                if (true) {
-                    if (statusPlaced && status.best_solution) {
-                        const placed = status.best_solution.filter(s => s.z < 1000).length;
-                        const total = status.best_solution.length;
-                        statusPlaced.textContent = `${placed}/${total}`;
+                // Update Inference Diagnostics
+                if (status.inference_metrics) {
+                    const diagPanel = document.getElementById('inference-diagnostics');
+                    if (diagPanel) diagPanel.style.display = 'block';
+                    
+                    const meta = status.inference_metrics;
+                    const dLat = document.getElementById('diag-latency');
+                    const dDisp = document.getElementById('diag-displacement');
+                    const dEff = document.getElementById('diag-efficiency');
+                    const dPlac = document.getElementById('diag-placed');
+                    
+                    if (dLat) dLat.textContent = (meta.inference_latency_ms || 0).toFixed(1) + ' ms';
+                    if (dDisp) dDisp.textContent = (meta.avg_displacement || 0).toFixed(3) + ' m';
+                    if (dEff) dEff.textContent = ((meta.volumetric_efficiency || 0) * 100).toFixed(1) + '%';
+                    if (dPlac) dPlac.textContent = meta.placed_count || '0';
+                    
+                    const dSsr = document.getElementById('diag-ssr');
+                    const dPsr = document.getElementById('diag-psr');
+                    if (dSsr) dSsr.textContent = (meta.ssr_pct || 0).toFixed(1) + '%';
+                    if (dPsr) {
+                        dPsr.textContent = (meta.psr_pct || 0).toFixed(1) + '%';
+                        dPsr.style.color = (meta.psr_pct > 95) ? 'var(--success)' : 'var(--text-main)';
                     }
-                    if (statusElapsed && status.elapsed_time) {
-                        statusElapsed.textContent = status.elapsed_time.toFixed(1) + 's';
-                    }
+                } else {
+                    const diagPanel = document.getElementById('inference-diagnostics');
+                    if (diagPanel && !status.running) diagPanel.style.display = 'none';
+                }
 
-                    if (status.best_solution && status.best_solution.length > 0) {
-                        // Map solution coordinates back to full item data
-                        const solutionItems = status.best_solution.map(sol => {
-                            const originalItem = allItemsData[sol.id];
-                            if (originalItem) {
-                                return { ...originalItem, ...sol };
-                            }
-                            return null;
-                        }).filter(item => item !== null);
+                if (status.best_solution && status.best_solution.length > 0) {
+                    // Map solution coordinates back to full item data
+                    const solutionItems = status.best_solution.map(sol => {
+                        const originalItem = allItemsData[sol.id];
+                        return originalItem ? { ...originalItem, ...sol } : null;
+                    }).filter(item => item !== null);
 
-                        // Only re-render if we have items to show (prevents blank screen)
-                        if (solutionItems.length > 0) {
-                            renderItems(solutionItems);
-                            
-                        // If we are in compare mode, cache the solution AND current metrics for the algorithm
+                    if (solutionItems.length > 0) {
+                        renderItems(solutionItems);
+                        
                         if (currentOptimizationType === 'compare' && status.current_algorithm) {
                             comparisonResults[status.current_algorithm] = {
                                 solution: JSON.parse(JSON.stringify(status.best_solution)),
@@ -1318,11 +1339,11 @@ function startPolling() {
                                 }
                             };
                         }
-                        }
                     }
                 }
-            });
-    }, 200); // Faster polling for smooth updates
+            })
+            .catch(err => console.error("Polling error:", err));
+    }, 200); 
 }
 
 // Analytics
@@ -2381,6 +2402,35 @@ function deleteAllItems() {
         })
         .catch(error => console.error('Error:', error));
 }
+
+function clearAlgoPerformance() {
+    if (!confirm('Clear all algorithm performance history for this warehouse? This will reset the comparison charts.')) {
+        return;
+    }
+
+    fetch(`${API_BASE_URL}/api/metrics/all?warehouse_id=${currentWarehouseId}`, {
+        method: 'DELETE'
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Refresh the analytics view
+                loadAnalytics();
+                // If we have a view mode picker (for comparing), refresh it to clear the options
+                if (typeof refreshViewModePicker === 'function') {
+                    refreshViewModePicker();
+                }
+                alert('Performance history cleared.');
+            } else {
+                alert('Failed to clear performance: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error('Clear performance error:', err);
+            alert('Error clearing performance history.');
+        });
+}
+
 
 function scrambleItems() {
     if (!confirm('This will DELETE all current items and generate 50 RANDOM ones. Continue?')) {

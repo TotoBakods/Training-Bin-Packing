@@ -1,6 +1,6 @@
 # ML Model Training & Benchmarking Report
 
-> Auto-generated on **2026-04-02 03:02**
+> Auto-generated on **2026-04-02 14:51**
 
 ---
 
@@ -26,10 +26,10 @@ The table below summarizes the percentage of items that required gravitational a
 
 | Model Variant | Violations # | Correction Rate (%) | Mean Displacement (m) | Max Displacement (m) | Stability Index |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| `EO` | 100 | 100.00% | 11.1126 | 16.6956 | 0.0000 |
-| `EO_GA` | 100 | 100.00% | 11.0479 | 17.8759 | 0.0000 |
-| `GA` | 100 | 100.00% | 11.8653 | 17.4965 | 0.0000 |
-| `GA_EO` | 100 | 100.00% | 12.4204 | 17.3645 | 0.0000 |
+| `EO` | 100 | 100.00% | 12.2922 | 16.1759 | 0.0000 |
+| `EO_GA` | 100 | 100.00% | 11.5895 | 16.8146 | 0.0000 |
+| `GA` | 100 | 100.00% | 10.5287 | 16.2588 | 0.0000 |
+| `GA_EO` | 100 | 100.00% | 12.5048 | 16.5065 | 0.0000 |
 
 ### Physical Validity Proof (PyBullet Settlement)
 The heatmap below visualizes the average settlement displacement across the warehouse floor. Regions in **red** indicate areas where the heuristic label predicted placements that required significant physical correction.
@@ -60,37 +60,37 @@ The table below shows 5 physical samples from the original `datasets.csv` to pro
 
 | Model | Final Train MSE | Final Val MSE | Overfit Gap |
 |-------|-----------------|---------------|-------------|
-| `model_fit_eo` | 0.144585 | 0.145702 | +0.001117 |
-| `model_fit_eo_ga` | 0.105118 | 0.105753 | +0.000635 |
-| `model_fit_ga` | 0.144788 | 0.145679 | +0.000891 |
-| `model_fit_ga_eo` | 0.144659 | 0.145661 | +0.001002 |
+| `model_fit_eo` | 0.144655 | 0.145779 | +0.001124 |
+| `model_fit_eo_ga` | 0.105076 | 0.105846 | +0.000770 |
+| `model_fit_ga` | 0.144693 | 0.145657 | +0.000964 |
+| `model_fit_ga_eo` | 0.144890 | 0.145554 | +0.000664 |
 
 ### Mean Absolute Error (Real World Units)
 
 | Model | MAE x (m) | MAE y (m) | MAE z (m) | MAE rot (code) |
 |-------|----------|----------|----------|---------------|
-| `model_fit_eo` | 0.246 | 0.246 | 0.011 | 0.420 |
-| `model_fit_eo_ga` | 0.246 | 0.246 | 0.011 | 0.420 |
-| `model_fit_ga` | 0.246 | 0.246 | 0.012 | 0.421 |
-| `model_fit_ga_eo` | 0.246 | 0.246 | 0.011 | 0.418 |
+| `model_fit_eo` | 0.246 | 0.246 | 0.011 | 0.417 |
+| `model_fit_eo_ga` | 0.246 | 0.246 | 0.011 | 0.419 |
+| `model_fit_ga` | 0.246 | 0.246 | 0.011 | 0.421 |
+| `model_fit_ga_eo` | 0.246 | 0.246 | 0.012 | 0.421 |
 
 ## 4. R² Scores (Validation Set)
 
 | Model | R² x | R² y | R² z | R² rot |
 |-------|------|------|------|--------|
-| `model_fit_eo` | 0.0012 | 0.0009 | 0.9097 | 0.0923 |
-| `model_fit_eo_ga` | 0.0012 | 0.0012 | 0.9091 | 0.0931 |
-| `model_fit_ga` | 0.0018 | 0.0011 | 0.9066 | 0.0923 |
-| `model_fit_ga_eo` | 0.0011 | 0.0015 | 0.9061 | 0.0929 |
+| `model_fit_eo` | 0.0010 | 0.0016 | 0.9075 | 0.0918 |
+| `model_fit_eo_ga` | 0.0011 | 0.0014 | 0.9090 | 0.0924 |
+| `model_fit_ga` | 0.0015 | 0.0013 | 0.9053 | 0.0927 |
+| `model_fit_ga_eo` | 0.0017 | 0.0015 | 0.9043 | 0.0919 |
 
-## 4.5 Algorithm Performance Comparison
+## 4.5 Algorithm Performance Comparison (Head-to-Head)
 
-| Algorithm | Best Fitness | R²(x,y) avg | MAE x (m) | MAE y (m) | Conv. Epoch | EO_GA Fast | CPU Time (s) | Avg Infer (ms) |
-|-----------|-------------|-------------|-----------|-----------|-------------|------------|-------------|---------------|
-| `EO` | 25.1% | 0.0011 | 0.246 | 0.246 | 58 | No (120ep/p=20) | 0.0 | 11.5 |
-| `EO_GA` | 25.1% | 0.0012 | 0.246 | 0.246 | N/A | Yes (40ep/p=8) | 0.0 | 7.5 |
-| `GA` | 25.1% | 0.0014 | 0.246 | 0.246 | 47 | No (120ep/p=20) | 0.0 | 3.9 |
-| `GA_EO` | 25.1% | 0.0013 | 0.246 | 0.246 | 57 | No (120ep/p=20) | 0.0 | 3.7 |
+| Algorithm | Total Latency (ms) | Inference (ms) | Repair (ms) | Fitness % | R²(x,y) | Speed Rank | Quality Rank |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `EO` | 2749.6 | 2.50 | 2747.0 | 25.1% | 0.0013 | **#1 (Fastest)** | #3 |
+| `EO_GA` | 3186.1 | 1.38 | 3184.7 | 25.1% | 0.0013 | #4 | **#1 (Best)** |
+| `GA` | 2824.7 | 1.35 | 2823.4 | 25.1% | 0.0014 | #2 | #2 |
+| `GA_EO` | 2906.1 | 1.26 | 2904.8 | 25.1% | 0.0016 | #3 | #4 |
 
 ## 5. Deep Metrics: Physical, Logical, & Logistics
 
@@ -98,28 +98,28 @@ The table below shows 5 physical samples from the original `datasets.csv` to pro
 
 | Model | Z Floor % | Z High % | Cat Cluster | Fragile OK | CoG (X, Y, Z) | BBox Eff % | Rot % |
 |-------|-----------|----------|-------------|------------|---------------|------------|-------|
-| `model_fit_eo` | 100.0% | 0.0% | 4.7m | 100.0% | (13.8, 6.5, 0.2) | 36.3% | 50.0% |
-| `model_fit_eo_ga` | 65.5% | 0.0% | 3.6m | 100.0% | (15.4, 6.2, 0.3) | 35.7% | 46.5% |
-| `model_fit_ga` | 100.0% | 0.0% | 4.6m | 100.0% | (15.2, 6.8, 0.2) | 33.9% | 48.0% |
-| `model_fit_ga_eo` | 100.0% | 0.0% | 4.9m | 100.0% | (14.6, 6.2, 0.2) | 35.4% | 57.5% |
+| `model_fit_eo` | 100.0% | 0.0% | 6.8m | 100.0% | (10.7, 1.8, 0.2) | 59.6% | 95.5% |
+| `model_fit_eo_ga` | 100.0% | 0.0% | 7.4m | 100.0% | (10.6, 1.9, 0.2) | 35.4% | 90.5% |
+| `model_fit_ga` | 100.0% | 0.0% | 6.4m | 100.0% | (10.8, 1.9, 0.2) | 57.3% | 90.5% |
+| `model_fit_ga_eo` | 100.0% | 0.0% | 7.0m | 100.0% | (10.7, 1.9, 0.2) | 56.0% | 94.5% |
 
 ### 400 Items (`400_items.csv`)
 
 | Model | Z Floor % | Z High % | Cat Cluster | Fragile OK | CoG (X, Y, Z) | BBox Eff % | Rot % |
 |-------|-----------|----------|-------------|------------|---------------|------------|-------|
-| `model_fit_eo` | 100.0% | 0.0% | 6.4m | 100.0% | (13.7, 6.9, 0.2) | 39.9% | 48.5% |
-| `model_fit_eo_ga` | 28.0% | 44.5% | 3.3m | 100.0% | (15.6, 6.4, 0.8) | 24.4% | 46.5% |
-| `model_fit_ga` | 100.0% | 0.0% | 6.8m | 100.0% | (14.3, 7.4, 0.2) | 41.7% | 51.7% |
-| `model_fit_ga_eo` | 100.0% | 0.0% | 6.4m | 100.0% | (14.1, 6.7, 0.2) | 40.0% | 50.2% |
+| `model_fit_eo` | 100.0% | 0.0% | 7.8m | 100.0% | (10.3, 3.4, 0.2) | 59.4% | 96.8% |
+| `model_fit_eo_ga` | 100.0% | 0.0% | 7.4m | 100.0% | (10.3, 3.3, 0.2) | 64.4% | 94.5% |
+| `model_fit_ga` | 100.0% | 0.0% | 7.8m | 100.0% | (10.4, 3.3, 0.2) | 65.6% | 92.8% |
+| `model_fit_ga_eo` | 100.0% | 0.0% | 7.5m | 100.0% | (10.5, 3.5, 0.2) | 57.3% | 94.2% |
 
 ### 600 Items (`600_items.csv`)
 
 | Model | Z Floor % | Z High % | Cat Cluster | Fragile OK | CoG (X, Y, Z) | BBox Eff % | Rot % |
 |-------|-----------|----------|-------------|------------|---------------|------------|-------|
-| `model_fit_eo` | 100.0% | 0.0% | 8.3m | 100.0% | (12.2, 7.3, 0.2) | 45.4% | 50.5% |
-| `model_fit_eo_ga` | 18.0% | 63.2% | 2.5m | 100.0% | (15.5, 6.5, 2.0) | 14.8% | 48.2% |
-| `model_fit_ga` | 100.0% | 0.0% | 8.9m | 100.0% | (12.4, 7.4, 0.2) | 44.1% | 57.0% |
-| `model_fit_ga_eo` | 100.0% | 0.0% | 8.5m | 100.0% | (12.3, 7.2, 0.2) | 43.8% | 57.8% |
+| `model_fit_eo` | 100.0% | 0.0% | 8.3m | 100.0% | (10.4, 4.6, 0.2) | 67.0% | 93.8% |
+| `model_fit_eo_ga` | 100.0% | 0.0% | 7.9m | 100.0% | (10.6, 4.4, 0.2) | 71.0% | 92.0% |
+| `model_fit_ga` | 100.0% | 0.0% | 8.1m | 100.0% | (10.6, 4.5, 0.2) | 70.9% | 92.0% |
+| `model_fit_ga_eo` | 100.0% | 0.0% | 8.5m | 100.0% | (10.6, 4.6, 0.2) | 67.5% | 94.8% |
 
 ## 6. Inference Performance Summary
 
@@ -131,36 +131,36 @@ The table below shows 5 physical samples from the original `datasets.csv` to pro
 
 | Model | Fitness | Space % | Access | Stability | Grouping | Mean Disp (m) | Total (ms) |
 |-------|---------|---------|--------|-----------|----------|--------------|------------|
-| `model_fit_eo` | 0.2996 | 1.15% | 0.0645 | 1.0000 | 0.7569 | 8.45 | 4364 |
-| `model_fit_eo_ga` | 0.1676 | 1.15% | 0.0586 | 1.0000 | 0.7998 | 6.88 | 1492 |
-| `model_fit_ga` | 0.2979 | 1.15% | 0.0589 | 1.0000 | 0.7568 | 6.77 | 4260 |
-| `model_fit_ga_eo` | 0.2987 | 1.15% | 0.0617 | 1.0000 | 0.7554 | 7.93 | 4385 |
+| `model_fit_eo` | 0.3078 | 1.15% | 0.1197 | 1.0000 | 0.6725 | 10.89 | 2750 |
+| `model_fit_eo_ga` | 0.3048 | 1.15% | 0.1101 | 1.0000 | 0.6718 | 9.51 | 3186 |
+| `model_fit_ga` | 0.3068 | 1.15% | 0.1160 | 1.0000 | 0.6735 | 8.44 | 2825 |
+| `model_fit_ga_eo` | 0.3065 | 1.15% | 0.1147 | 1.0000 | 0.6748 | 11.59 | 2906 |
 
 ### 400 Items (`400_items.csv`)
 
 | Model | Fitness | Space % | Access | Stability | Grouping | Mean Disp (m) | Total (ms) |
 |-------|---------|---------|--------|-----------|----------|--------------|------------|
-| `model_fit_eo` | 0.2975 | 2.35% | 0.0655 | 1.0000 | 0.6846 | 9.17 | 13710 |
-| `model_fit_eo_ga` | 0.1181 | 2.35% | 0.0573 | 0.9525 | 0.8222 | 5.94 | 6909 |
-| `model_fit_ga` | 0.2972 | 2.35% | 0.0627 | 1.0000 | 0.6898 | 7.76 | 13462 |
-| `model_fit_ga_eo` | 0.2970 | 2.35% | 0.0643 | 1.0000 | 0.6827 | 8.78 | 13781 |
+| `model_fit_eo` | 0.3056 | 2.35% | 0.1064 | 1.0000 | 0.6423 | 10.30 | 5719 |
+| `model_fit_eo_ga` | 0.3065 | 2.35% | 0.1069 | 1.0000 | 0.6502 | 9.31 | 6171 |
+| `model_fit_ga` | 0.3062 | 2.35% | 0.1066 | 1.0000 | 0.6480 | 8.32 | 5736 |
+| `model_fit_ga_eo` | 0.3052 | 2.35% | 0.1057 | 1.0000 | 0.6408 | 11.12 | 5840 |
 
 ### 600 Items (`600_items.csv`)
 
 | Model | Fitness | Space % | Access | Stability | Grouping | Mean Disp (m) | Total (ms) |
 |-------|---------|---------|--------|-----------|----------|--------------|------------|
-| `model_fit_eo` | 0.3001 | 3.43% | 0.0783 | 1.0000 | 0.6288 | 10.16 | 28244 |
-| `model_fit_eo_ga` | 0.1069 | 3.43% | 0.0578 | 0.9650 | 0.8524 | 4.12 | 20395 |
-| `model_fit_ga` | 0.3000 | 3.43% | 0.0803 | 1.0000 | 0.6221 | 9.22 | 27799 |
-| `model_fit_ga_eo` | 0.2997 | 3.43% | 0.0800 | 1.0000 | 0.6198 | 10.02 | 27570 |
+| `model_fit_eo` | 0.3052 | 3.43% | 0.0943 | 1.0000 | 0.6324 | 10.04 | 8577 |
+| `model_fit_eo_ga` | 0.3064 | 3.43% | 0.0969 | 1.0000 | 0.6360 | 9.14 | 8905 |
+| `model_fit_ga` | 0.3058 | 3.43% | 0.0955 | 1.0000 | 0.6345 | 8.26 | 8658 |
+| `model_fit_ga_eo` | 0.3049 | 3.43% | 0.0933 | 1.0000 | 0.6320 | 10.94 | 8311 |
 
 ## 7. Speed Comparison: ML Inference vs Repair
 
 | Dataset | Avg ML Infer (ms) | Avg Repair (ms) | ML % of Total |
 |---------|------------------|----------------|--------------|
-| 200 items | 7.76 | 3617 | 0.214% |
-| 400 items | 4.15 | 11961 | 0.035% |
-| 600 items | 8.05 | 25994 | 0.031% |
+| 200 items | 1.62 | 2915 | 0.056% |
+| 400 items | 2.38 | 5864 | 0.041% |
+| 600 items | 1.42 | 8611 | 0.017% |
 
 ## 8. Key Observations
 
@@ -204,8 +204,8 @@ The table below shows 5 physical samples from the original `datasets.csv` to pro
 
 ## 10. Conclusion: Best Algorithm Recommendation
 
-- **Lowest validation MSE**: `EO_GA` — `final_val = 0.105753`
-- **Mean R²(x,y)**: `0.0012` — higher values indicate better spatial placement prediction.
+- **Lowest validation MSE**: `EO_GA` — `final_val = 0.105846`
+- **Mean R²(x,y)**: `0.0013` — higher values indicate better spatial placement prediction.
 - **Production recommendation**: Select the model with the highest combined R²(x,y) and lowest average inference time from Section 4.5. For latency-sensitive deployments, `EO_GA` is recommended due to its aggressive early-stop policy (40 epochs vs 120), producing a lighter model at comparable quality (Boettcher & Percus, 2001).
 - **Physics note**: The 100% PyBullet correction rate is expected for pure MLP regression targets. This is not a model failure — `repair_solution_compact()` is intentionally designed to enforce hard physical constraints that the ML model approximates (RRL §3.3; Zhao et al., 2021).
 - **Space utilization gap**: Current `su_pct` should be benchmarked against the 70–85% baseline from Martello et al. (2000) to assess practical deployment readiness.

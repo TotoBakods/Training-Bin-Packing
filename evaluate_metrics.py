@@ -46,13 +46,14 @@ plt.rcParams['font.family'] = 'sans-serif'
 TRAINING_DIR   = "training_data"
 MODELS_DIR     = "models"
 GAN_DIR        = "gan"
+SKIP_TRAINING = False  # Set to False to run 4-hour retraining phase
 BATCH_SIZE = 2048
 EPOCHS = 120          # Full training: more epochs for convergence
-EPOCHS_EO_GA = 40     # EO_GA gets fewer epochs for speed
+EPOCHS_EO_GA = 100     # Increased for better convergence (Round 6.1)
 VAL_SPLIT = 0.20
 LR = 5e-4
 PATIENCE = 20         # Full model patience
-PATIENCE_EO_GA = 8    # Aggressive early-stop for EO_GA speed
+PATIENCE_EO_GA = 15    # Balanced early-stop for EO_GA speed/quality
 
 INFERENCE_DATASETS = ["200_items.csv", "400_items.csv", "600_items.csv"]
 
@@ -266,62 +267,71 @@ def train_with_metrics(csv_path, model_name, max_retries=2):
         patience_counter = 0
         early_stop_epoch = None
         
-        for epoch in range(max_epochs):
-            model.train()
-            total_train_loss = 0
-            for bx, by in train_loader:
-                optimizer.zero_grad()
-                pred = model(bx)
-                loss = criterion(pred, by)
-                loss.backward()
-                # Gradient clipping for stability
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
-                total_train_loss += loss.item()
-            
-            avg_train_loss = total_train_loss / len(train_loader)
-            train_history.append(avg_train_loss)
-            
-            model.eval()
-            total_val_loss = 0
-            r2_scores = []
-            all_preds_ep, all_raw_ep = [], []
-            with torch.no_grad():
-                for bx, by in val_loader:
+        if SKIP_TRAINING and os.path.exists(os.path.join(MODELS_DIR, f"{model_name}.pth")):
+            print(f"  [SKIP] Skipping EPOCH loops for {model_name} (SKIP_TRAINING=True)")
+            model.load_state_dict(torch.load(os.path.join(MODELS_DIR, f"{model_name}.pth"), map_location=device, weights_only=True))
+            # Just fill histories with dummy values to prevent division errors in report
+            train_history = [0.0]
+            val_history   = [0.0]
+            val_fitness   = [0.0]
+            early_stop_epoch = 1
+        else:
+            for epoch in range(max_epochs):
+                model.train()
+                total_train_loss = 0
+                for bx, by in train_loader:
+                    optimizer.zero_grad()
                     pred = model(bx)
-                    total_val_loss += criterion(pred, by).item()
-                    all_preds_ep.append(pred)
-                    all_raw_ep.append(by)
+                    loss = criterion(pred, by)
+                    loss.backward()
+                    # Gradient clipping for stability
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    optimizer.step()
+                    total_train_loss += loss.item()
+                
+                avg_train_loss = total_train_loss / len(train_loader)
+                train_history.append(avg_train_loss)
+                
+                model.eval()
+                total_val_loss = 0
+                r2_scores = []
+                all_preds_ep, all_raw_ep = [], []
+                with torch.no_grad():
+                    for bx, by in val_loader:
+                        pred = model(bx)
+                        total_val_loss += criterion(pred, by).item()
+                        all_preds_ep.append(pred)
+                        all_raw_ep.append(by)
+                
+                avg_val_loss = total_val_loss / len(val_loader)
+                val_history.append(avg_val_loss)
+                
+                # Compute R² on full validation set (more accurate)
+                all_p = torch.cat(all_preds_ep, dim=0)
+                all_t = torch.cat(all_raw_ep, dim=0)
+                r2_epoch = calculate_r2_custom(all_t, all_p)
+                val_fitness.append(float(np.mean(np.clip(r2_epoch, -1, 1))) * 100)
+                
+                log_freq = 10 if is_eo_ga else 20
+                if (epoch+1) % log_freq == 0:
+                    print(f"    Ep {epoch+1}/{max_epochs} | R²avg: {val_fitness[-1]:.1f}% | R²: {np.round(r2_epoch, 3)} | Loss: {avg_val_loss:.5f}")
+                
+                if avg_val_loss < best_val_loss:
+                    best_val_loss = avg_val_loss
+                    torch.save(model.state_dict(), tmp_model_path)
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                    if patience_counter >= patience:
+                        print(f"    [Early Stop] Epoch {epoch+1} (patience={patience})")
+                        early_stop_epoch = epoch + 1
+                        break
+                
+                scheduler.step()
             
-            avg_val_loss = total_val_loss / len(val_loader)
-            val_history.append(avg_val_loss)
-            
-            # Compute R² on full validation set (more accurate)
-            all_p = torch.cat(all_preds_ep, dim=0)
-            all_t = torch.cat(all_raw_ep, dim=0)
-            r2_epoch = calculate_r2_custom(all_t, all_p)
-            val_fitness.append(float(np.mean(np.clip(r2_epoch, -1, 1))) * 100)
-            
-            log_freq = 10 if is_eo_ga else 20
-            if (epoch+1) % log_freq == 0:
-                print(f"    Ep {epoch+1}/{max_epochs} | R²avg: {val_fitness[-1]:.1f}% | R²: {np.round(r2_epoch, 3)} | Loss: {avg_val_loss:.5f}")
-            
-            if avg_val_loss < best_val_loss:
-                best_val_loss = avg_val_loss
-                torch.save(model.state_dict(), tmp_model_path)
-                patience_counter = 0
-            else:
-                patience_counter += 1
-                if patience_counter >= patience:
-                    print(f"    [Early Stop] Epoch {epoch+1} (patience={patience})")
-                    early_stop_epoch = epoch + 1
-                    break
-            
-            scheduler.step()
-        
-        # Load best weights
-        model.load_state_dict(torch.load(tmp_model_path, weights_only=True))
-        os.remove(tmp_model_path)
+            # Load best weights from the Tmp file we just saved
+            model.load_state_dict(torch.load(tmp_model_path, weights_only=True))
+            os.remove(tmp_model_path)
         
         # Final validation
         model.eval()
@@ -1051,17 +1061,15 @@ def generate_ml_training_report(training_results, physics_results):
         f"\n> Auto-generated on **{datetime.now().strftime('%Y-%m-%d %H:%M')}**\n",
         "---\n",
         "## 1. High-Intensity Hyperparameters",
-        "The following parameters were utilized to ensure robust convergence and positive R² across all 4 variants.\n",
-        "| Parameter | Value | Description |",
-        "|:--- |:--- |:--- |",
-        f"| **Epochs (Full)** | {EPOCHS} | Maximum training epochs for EO, GA, GA_EO variants |",
-        f"| **Epochs (EO_GA)** | {EPOCHS_EO_GA} | Reduced epochs for fast EO_GA variant |",
-        f"| **Batch Size** | {BATCH_SIZE} | Samples per GPU update |",
-        f"| **Learning Rate** | {LR} | AdamW optimizer initial step size |",
-        f"| **Optimizer** | AdamW | Weight decay=1e-4, with warmup+cosine LR schedule |",
-        "| **Spatial Weights** | X:[3,3] / EO_GA:[2,2] | Moderate spatial boost for stable R² |",
-        f"| **Patience (Full)** | {PATIENCE} | Early stopping patience for full models |",
-        f"| **Patience (EO_GA)** | {PATIENCE_EO_GA} | Aggressive early-stop for EO_GA speed |"
+        "The following parameters were utilized to ensure robust convergence and positive R² across all 4 variants. Each algorithm's personality is reflected in these settings.\n",
+        "| Parameter | Standalone GA/EO | GA-EO / EO-GA Hybrid | Description |",
+        "|:--- |:---: |:---: |:--- |",
+        f"| **Epochs** | {EPOCHS} | {EPOCHS_EO_GA} | Training iterations (EO-GA prioritized for speed) |",
+        f"| **Batch Size** | {BATCH_SIZE} | {BATCH_SIZE} | Samples per GPU update |",
+        f"| **Learning Rate** | {LR} | {LR} | AdamW optimizer initial step size |",
+        "| **Spatial Weights** | X:3.0, Y:3.0 | X:2.0, Y:2.0 | Spatial boost for stable R² |",
+        f"| **Patience** | {PATIENCE} | {PATIENCE_EO_GA} | Early stopping threshold |",
+        "| **Collision Weight** | 1.5 | 1.0 | Physics-aware loss penalty factor |"
         "\n## 2. Training Convergence Progression",
         "The models were trained on 125,000 synthetic samples per variant. The objective is to minimize spatial prediction error while maximizing fitness.\n",
         "### Fitness (Validation R²) Progression",
@@ -1385,22 +1393,42 @@ def generate_ml_metrics_report(training_results, inference_results, physics_resu
     for name, m in training_results.items():
         lines.append(f"| `{name}` | {_fmt_r2(m['r2'][0], m['r2_valid'][0])} | {_fmt_r2(m['r2'][1], m['r2_valid'][1])} | {_fmt_r2(m['r2'][2], m['r2_valid'][2])} | {_fmt_r2(m['r2'][3], m['r2_valid'][3])} |")
 
-    lines.append("\n## 4.5 Algorithm Performance Comparison\n")
-    lines.append("| Algorithm | Best Fitness | R²(x,y) avg | MAE x (m) | MAE y (m) | Conv. Epoch | EO_GA Fast | CPU Time (s) | Avg Infer (ms) |")
-    lines.append("|-----------|-------------|-------------|-----------|-----------|-------------|------------|-------------|---------------|")
-    for name in sorted(training_results.keys()):
+    lines.append("\n## 4.5 Algorithm Performance Comparison (Head-to-Head)\n")
+    lines.append("| Algorithm | Total Latency (ms) | Inference (ms) | Repair (ms) | Fitness % | R²(x,y) | Speed Rank | Quality Rank |")
+    lines.append("|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|")
+    
+    # Pre-calculate ranks
+    all_data = []
+    for name in training_results:
         tr = training_results[name]
-        variant = name.replace("model_fit_", "").replace("model_", "").upper()
-        best_fitness = max(tr.get("val_fitness", [0])) if tr.get("val_fitness") else 0
-        r2_list = tr.get("r2", [0, 0, 0, 0])
-        r2_xy = (r2_list[0] + r2_list[1]) / 2
-        mae = tr.get("per_output_mae", [0, 0, 0, 0])
-        conv = tr.get("convergence_rate_epoch") or tr.get("early_stop_epoch") or "N/A"
-        is_fast = "Yes (40ep/p=8)" if "eo_ga" in name else "No (120ep/p=20)"
-        cpu_t = tr.get("cpu_time_seconds", "N/A")
-        infer_times = [inference_results[ds][name]["inference_ms"] for ds in INFERENCE_DATASETS if ds in inference_results and name in inference_results[ds]]
-        avg_infer = f"{np.mean(infer_times):.1f}" if infer_times else "N/A"
-        lines.append(f"| `{variant}` | {best_fitness:.1f}% | {r2_xy:.4f} | {mae[0]:.3f} | {mae[1]:.3f} | {conv} | {is_fast} | {cpu_t} | {avg_infer} |")
+        var_name = name.replace("model_fit_", "").replace("model_", "").upper()
+        best_fit = max(tr.get("val_fitness", [0])) if tr.get("val_fitness") else 0
+        r2_xy = (tr['r2'][0] + tr['r2'][1]) / 2
+        
+        # Get infer/repair latency from 200_items (representative)
+        inf_res = inference_results.get("200_items.csv", {}).get(name, {"total_ms": 0, "inference_ms": 0, "repair_ms": 0})
+        all_data.append({
+            "name": var_name,
+            "total": inf_res["total_ms"],
+            "infer": inf_res["inference_ms"],
+            "repair": inf_res["repair_ms"],
+            "fitness": best_fit,
+            "r2": r2_xy
+        })
+    
+    sorted_by_speed = sorted(all_data, key=lambda x: x['total'])
+    sorted_by_quality = sorted(all_data, key=lambda x: x['fitness'], reverse=True)
+    
+    speed_ranks = {d['name']: i+1 for i, d in enumerate(sorted_by_speed)}
+    quality_ranks = {d['name']: i+1 for i, d in enumerate(sorted_by_quality)}
+    
+    for d in all_data:
+        s_rank = f"#{speed_ranks[d['name']]}"
+        q_rank = f"#{quality_ranks[d['name']]}"
+        if speed_ranks[d['name']] == 1: s_rank = "**#1 (Fastest)**"
+        if quality_ranks[d['name']] == 1: q_rank = "**#1 (Best)**"
+        
+        lines.append(f"| `{d['name']}` | {d['total']:.1f} | {d['infer']:.2f} | {d['repair']:.1f} | {d['fitness']:.1f}% | {d['r2']:.4f} | {s_rank} | {q_rank} |")
 
     lines.append("\n## 5. Deep Metrics: Physical, Logical, & Logistics\n")
     for ds_name in INFERENCE_DATASETS:

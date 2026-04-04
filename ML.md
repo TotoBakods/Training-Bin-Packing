@@ -89,10 +89,10 @@ Our training configuration strictly adheres to the parameters utilized in high-f
 | **Scheduler** | Cosine Annealing | Gradual LR reduction to fine-tune coordinate precision |
 | **Loss Function** | Weighted MSE | $w_z = 2.0$ to prioritize vertical support and stability |
 
-### 3.2 Convergence Visualization
-The training results confirm stable convergence across all warehouse variants, with the validation loss tracking the training loss closely, indicating robust generalization.
-
-![Convergence History](Documents/04_Machine_Learning/Performance_Metrics/metrics_visuals/training_loss_curves.png)
+| Training Loss & Fitness | Error Correlation |
+|:---:|:---:|
+| ![ML Convergence](Documents/04_Machine_Learning/Performance_Metrics/research_plots/research_ml_convergence.png) | ![Error Distribution](Documents/04_Machine_Learning/Performance_Metrics/research_plots/research_ml_error_distribution.png) |
+| *Graph 7: Log-Scale Convergence Analysis* | *Graph 8: Coordinate-Specific MAE Breakdown* |
 
 ---
 
@@ -126,7 +126,10 @@ To reveal the "real differences" between algorithms, we evaluated them across fo
 #### Training Convergence
 The MLP shows stable spatial convergence, with the Physics-Informed loss reaching an asymptote at 100 epochs.
 
-![Training Loss Curves](Documents/04_Machine_Learning/Performance_Metrics/metrics_visuals/training_loss_curves.png)
+| Volumetric Benchmarks | Industrial Scaling |
+|:---:|:---:|
+| ![VU Summary](Documents/04_Machine_Learning/Performance_Metrics/research_plots/research_ml_vu_summary.png) | ![Pareto Frontier](Documents/04_Machine_Learning/Performance_Metrics/metrics_visuals/pareto_frontier.png) |
+| *Graph 9: Cross-Model VU Performance* | *Graph 10: The Speed-Accuracy Pareto Manifold* |
 
 #### High-Fidelity 3D Results
 To visualize the "Spatial World Model" performance, we compared the final settlement logic across all four variants.
@@ -147,6 +150,11 @@ To visualize the "Spatial World Model" performance, we compared the final settle
 
 ### 6.1. Coordinate Precision & Vertical Stability
 A key metric for our neural coordinate regression is the **Mean Absolute Error (MAE)** of the normalized outputs. Z-axis error is consistently **3.8x lower** than X-axis error ($MAE_z = 0.046$), proving that the weighted loss function successfully prioritized vertical support.
+
+| Dimensional Precision |
+|:---:|
+| ![Error Heatmap](Documents/04_Machine_Learning/Performance_Metrics/research_plots/research_ml_error_distribution.png) |
+| *Graph 11: Regression Stability per Dimension* |
 
 ### 6.2. Scalability Analysis & Pareto Frontier
 Inference latency grows sub-linearly with SKU counts (**+12.4% compute for 300% item scaling**). This confirms the pipeline's readiness for real-time robotic sorting in high-volume fulfillment centers.

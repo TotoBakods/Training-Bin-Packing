@@ -91042,3 +91042,44 @@ ZONES  count=1
 --- ZONE SUMMARY ---
   Zone 0: total=600 nf_top=1.190000057220459 z_min=0.0 z_max=0.0
 --- END ---
+
+================================================================================
+repair_solution_compact  [2026-04-04 15:29:23]
+WAREHOUSE  length=10.0  width=10.0  height=10.0  volume=1000.00
+  items=25  nf=23  fr=2  total_item_vol=0.76  theoretical_util=0.1%
+ZONES  count=1
+  Zone 0 "zone_0" [allocation]
+    x=[0.00, 10.00]  y=[0.00, 10.00]  z=[0.00, 10.00]
+    size=(10.00 x 10.00 x 10.00)  floor_area=100.00  volume=1000.00
+    assigned: 23 NF (0.67 vol) + 2 FR (0.08 vol)  load=0.1%
+--- PASS A: 23 NF items ---
+  PASS-A(NF) | item=  18 NF zone=0 dims=(0.54x0.27x0.28) min_z=0.000 → xyz=(5.399,1.858,0.000)
+  PASS-A(NF) | item=   1 NF zone=0 dims=(0.55x0.27x0.28) min_z=0.000 → xyz=(5.606,1.564,0.000)
+  PASS-A(NF) | item=   8 NF zone=0 dims=(0.27x0.27x0.54) min_z=0.000 → xyz=(5.196,1.564,0.000)
+  PASS-A(NF) | item=  20 NF zone=0 dims=(0.57x0.19x0.26) min_z=0.000 → xyz=(5.346,2.088,0.000)
+  PASS-A(NF) | item=  19 NF zone=0 dims=(0.17x0.60x0.40) min_z=0.000 → xyz=(5.754,1.999,0.000)
+  PASS-A(NF) | item=  12 NF zone=0 dims=(0.39x0.26x0.26) min_z=0.000 → xyz=(0.195,0.130,0.000)
+  PASS-A(NF) | item=  22 NF zone=0 dims=(0.59x0.40x0.30) min_z=0.000 → xyz=(0.685,0.460,0.000)
+  PASS-A(NF) | item=  23 NF zone=0 dims=(0.59x0.21x0.20) min_z=0.000 → xyz=(0.685,0.155,0.000)
+  PASS-A(NF) | item=   3 NF zone=0 dims=(0.55x0.22x0.32) min_z=0.000 → xyz=(5.606,1.319,0.000)
+  PASS-A(NF) | item=   2 NF zone=0 dims=(0.16x0.40x0.16) min_z=0.000 → xyz=(5.961,1.409,0.000)
+  PASS-A(NF) | item=  13 NF zone=0 dims=(0.43x0.35x0.19) min_z=0.000 → xyz=(1.195,0.225,0.000)
+  PASS-A(NF) | item=  11 NF zone=0 dims=(0.60x0.40x0.31) min_z=0.000 → xyz=(1.710,0.250,0.000)
+  PASS-A(NF) | item=  15 NF zone=0 dims=(0.57x0.25x0.15) min_z=0.000 → xyz=(2.295,0.175,0.000)
+  PASS-A(NF) | item=  21 NF zone=0 dims=(0.32x0.28x0.16) min_z=0.000 → xyz=(2.740,0.190,0.000)
+  PASS-A(NF) | item=  14 NF zone=0 dims=(0.29x0.21x0.21) min_z=0.000 → xyz=(3.045,0.155,0.000)
+  PASS-A(NF) | item=   0 NF zone=0 dims=(0.30x0.25x0.39) min_z=0.000 → xyz=(6.031,1.734,0.000)
+  PASS-A(NF) | item=   7 NF zone=0 dims=(0.51x0.23x0.23) min_z=0.000 → xyz=(3.445,0.165,0.000)
+  PASS-A(NF) | item=   4 NF zone=0 dims=(0.56x0.24x0.16) min_z=0.000 → xyz=(3.980,0.170,0.000)
+  PASS-A(NF) | item=  24 NF zone=0 dims=(0.26x0.35x0.21) min_z=0.000 → xyz=(4.390,0.225,0.000)
+  PASS-A(NF) | item=   5 NF zone=0 dims=(0.39x0.41x0.17) min_z=0.000 → xyz=(4.715,0.255,0.000)
+  PASS-A(NF) | item=   6 NF zone=0 dims=(0.26x0.26x0.20) min_z=0.000 → xyz=(5.040,0.180,0.000)
+  PASS-A(NF) | item=  16 NF zone=0 dims=(0.21x0.40x0.20) min_z=0.000 → xyz=(5.275,0.250,0.000)
+  PASS-A(NF) | item=  10 NF zone=0 dims=(0.17x0.15x0.28) min_z=0.000 → xyz=(6.126,1.504,0.000)
+--- PASS B: NF top-Z per zone: {0: np.float64(0.54)} ---
+--- PASS C: 2 Fragile items ---
+  PASS-C(FR) | item=   9 FR zone=0 dims=(0.60x0.40x0.32) min_z=0.000 → xyz=(5.615,3.693,0.000)
+  PASS-C(FR) | item=  17 FR zone=0 dims=(0.37x0.17x0.13) min_z=0.000 → xyz=(5.816,3.978,0.000)
+--- ZONE SUMMARY ---
+  Zone 0: total=25 nf_top=0.54 z_min=0.0 z_max=0.0
+--- END ---

@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from ml_utils import MLOptimizer
+from optimizer import repair_solution_compact, get_valid_z_positions
 
 def draw_box(ax, pos, dims, color='blue', alpha=0.3, label=None):
     """Draws a 3D box at pos with dims."""
@@ -138,5 +139,65 @@ def generate_3d_raw_plots(num_items=30):
         plt.close()
         print(f"Saved: {plot_path}")
 
+def generate_3d_comparison_plots(num_items=50):
+    """Generates side-by-side comparison of Raw Neural output vs Heuristic Refined output."""
+    models_to_check = {
+        "EO-GA Hybrid": "fit_eo_ga"
+    }
+    
+    dataset_path = "training_data/warehouse_training.csv"
+    if not os.path.exists(dataset_path): return
+    
+    df = pd.read_csv(dataset_path).head(num_items)
+    items = []
+    items_props = np.zeros((num_items, 9))
+    for i, row in df.iterrows():
+        items.append({'length': row['item_l'], 'width': row['item_w'], 'height': row['item_h']})
+        items_props[i] = [row['item_l'], row['item_w'], row['item_h'], 1, 1, 1, row['weight'], 0, row['fragile']]
+    
+    wh_dim = (10.0, 10.0, 10.0)
+    output_dir = "Documents/04_Machine_Learning/Performance_Metrics/metrics_visuals"
+    
+    for name, variant in models_to_check.items():
+        optimizer = MLOptimizer(variant=variant)
+        wh_l, wh_w, wh_h = wh_dim
+        features = np.zeros((num_items, 19))
+        for i, item in enumerate(items):
+            l, w, h = item['length'], item['width'], item['height']
+            features[i] = [l/10.0, w/10.0, h/10.0, items_props[i, 6]/100.0, items_props[i, 8], 1.0, 1.0, wh_l/100.0, wh_w/100.0, wh_h/100.0, (l*w*h)/10.0, 1000.0/1000.0, (l*w*h)/1000.0, (l*w)/10.0, 100.0/100.0, (l*w)/100.0, l/10.0, w/10.0, i/float(num_items)]
+            
+        with torch.no_grad():
+            outputs = optimizer.model(torch.tensor(features, dtype=torch.float32).to(optimizer.device)).cpu().numpy()
+            
+        raw_coords = np.column_stack([outputs[:, 0] * wh_l, outputs[:, 1] * wh_w, np.maximum(outputs[:, 2] * wh_h, 0), outputs[:, 3] * 6.0])
+        valid_z = get_valid_z_positions({"length": wh_l, "width": wh_w, "height": wh_h})
+        refined_coords = repair_solution_compact(raw_coords.copy(), items_props, (wh_l, wh_w, wh_h, 0, 0), None, valid_z, fast_mode=True)
+        
+        # Plotting Comparison
+        fig = plt.figure(figsize=(16, 8))
+        
+        # Subplot 1: RAW
+        ax1 = fig.add_subplot(121, projection='3d')
+        ax1.set_xlim(0, wh_l); ax1.set_ylim(0, wh_w); ax1.set_zlim(0, wh_h)
+        ax1.set_title("1. RAW Neural Proposer\n(Strategizing Zones / Overlaps Visible)", fontsize=14, fontweight='bold')
+        
+        # Subplot 2: REFINED
+        ax2 = fig.add_subplot(122, projection='3d')
+        ax2.set_xlim(0, wh_l); ax2.set_ylim(0, wh_w); ax2.set_zlim(0, wh_h)
+        ax2.set_title("2. Heuristic Refined Solution\n(Resolved Collisions / Stable Settlement)", fontsize=14, fontweight='bold')
+        
+        colors = plt.cm.viridis(np.linspace(0, 1, num_items))
+        for i in range(num_items):
+            dims = (items[i]['length'], items[i]['width'], items[i]['height'])
+            draw_box(ax1, raw_coords[i, :3], dims, color=colors[i], alpha=0.4)
+            draw_box(ax2, refined_coords[i, :3], dims, color=colors[i], alpha=0.6)
+            
+        plt.tight_layout()
+        plot_path = os.path.join(output_dir, "forensic_handover_comparison.png")
+        plt.savefig(plot_path, dpi=150)
+        plt.close()
+        print(f"Saved forensic comparison to {plot_path}")
+
 if __name__ == "__main__":
     generate_3d_raw_plots()
+    generate_3d_comparison_plots()

@@ -1,11 +1,11 @@
 {
     "variant": "warehouse_training",
-    "rows": 400000,
-    "stacking_pct": 40.75,
-    "avg_l": 0.89,
-    "avg_w": 0.497,
-    "avg_h": 0.456,
-    "dense_scenarios": 4800,
-    "normal_scenarios": 3200,
-    "timestamp": "2026-03-31 16:30:03"
+    "rows": 10000,
+    "stacking_pct": 5.83,
+    "avg_l": 0.444,
+    "avg_w": 0.25,
+    "avg_h": 0.233,
+    "dense_scenarios": 120,
+    "normal_scenarios": 80,
+    "timestamp": "2026-04-04 09:52:13"
 }

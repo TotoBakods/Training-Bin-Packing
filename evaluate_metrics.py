@@ -48,14 +48,14 @@ MODELS_DIR     = "models"
 if not os.path.exists(MODELS_DIR):
     os.makedirs(MODELS_DIR, exist_ok=True)
 GAN_DIR        = "gan"
-SKIP_TRAINING = False  # Set to False to run 4-hour retraining phase
+SKIP_TRAINING = True  # Set to False to run 4-hour retraining phase
 BATCH_SIZE = 2048
-EPOCHS = 120          # Full training: more epochs for convergence
-EPOCHS_EO_GA = 100     # Increased for better convergence (Round 6.1)
+EPOCHS = 100          # Researcher-aligned convergence window
+EPOCHS_EO_GA = 100
 VAL_SPLIT = 0.20
-LR = 5e-4
-PATIENCE = 20         # Full model patience
-PATIENCE_EO_GA = 15    # Balanced early-stop for EO_GA speed/quality
+LR = 1e-3
+PATIENCE = 10         
+PATIENCE_EO_GA = 10
 
 INFERENCE_DATASETS = ["200_items.csv", "400_items.csv", "600_items.csv"]
 
@@ -482,7 +482,17 @@ def run_inference(model_name, items_df, warehouse):
     pred_rots = np.clip(np.round(raw[:, 3]), 0, 5)
     rot_pct = np.sum(pred_rots > 0) / num
 
-    return { "fitness":fit, "su_pct":su*100, "access":acc, "stability":sta, "grouping":grp, "inference_ms":infer_ms, "repair_ms":repair_ms, "total_ms":infer_ms+repair_ms, "mean_disp":np.mean(disp), "max_disp":np.max(disp), "in_bounds":np.sum((sol[:,0]>=0)&(sol[:,0]<=wh_l)&(sol[:,1]>=0)&(sol[:,1]<=wh_w))/num, "total_items":num, "total_vol":total_item_vol, "wh_vol":wh_vol, "max_z":np.max(sol[:,2]+items_props[:,2]), "z_dist":z_dist, "clustering":clustering, "frag_compliance":frag_compliance, "cog_x":cog_x, "cog_y":cog_y, "cog_z":cog_z, "bbox_eff":bbox_eff, "rot_pct":rot_pct }
+    # 4. Placement Success Rate (PSR)
+    # Stricter definition: Both in bounds AND stable
+    success_mask = (sol[:,0]>=0)&(sol[:,0]+items_props[:,0]<=wh_l)&(sol[:,1]>=0)&(sol[:,1]+items_props[:,1]<=wh_w)&(sta>=0.99)
+    psr_val = np.sum(success_mask)/num
+
+    # 5. Physics-Verified Volumetric Utility (VU)
+    # Only count volume of items that are successfully placed (PSR-compliant)
+    placed_vol = np.sum(items_props[success_mask][:, 0] * items_props[success_mask][:, 1] * items_props[success_mask][:, 2])
+    vu_val = placed_vol / wh_vol if wh_vol > 0 else 0
+
+    return { "fitness":fit, "su_pct":vu_val*100, "psr_pct": float(psr_val*100), "access":acc, "stability":sta, "grouping":grp, "inference_ms":infer_ms, "repair_ms":repair_ms, "total_ms":infer_ms+repair_ms, "mean_disp":np.mean(disp), "max_disp":np.max(disp), "in_bounds":np.sum((sol[:,0]>=0)&(sol[:,0]<=wh_l)&(sol[:,1]>=0)&(sol[:,1]<=wh_w))/num, "total_items":num, "total_vol":total_item_vol, "wh_vol":wh_vol, "max_z":np.max(sol[:,2]+items_props[:,2]), "z_dist":z_dist, "clustering":clustering, "frag_compliance":frag_compliance, "cog_x":cog_x, "cog_y":cog_y, "cog_z":cog_z, "bbox_eff":bbox_eff, "rot_pct":rot_pct }
 
 
 # --- Visualizations ---
@@ -611,13 +621,12 @@ def save_gan_loss_curves(history_file=os.path.join(GAN_DIR, "loss_history.json")
     if "d_loss" not in hist: return
     
     plt.figure(figsize=(10, 6))
-    epochs = range(1, len(hist["d_loss"]) + 1)
-    plt.plot(epochs, hist["d_loss"], label="Discriminator Loss (Train)", color="blue")
-    plt.plot(epochs, hist["g_loss"], label="Generator Loss (Train)", color="orange")
+    plt.plot(range(1, len(hist["d_loss"]) + 1), hist["d_loss"], label="Discriminator Loss (Train)", color="blue")
+    plt.plot(range(1, len(hist["g_loss"]) + 1), hist["g_loss"], label="Generator Loss (Train)", color="orange")
     if "val_d_loss" in hist and len(hist["val_d_loss"]) > 0:
-        plt.plot(epochs, hist["val_d_loss"], label="Discriminator Loss (Val)", color="blue", linestyle="--")
+        plt.plot(range(1, len(hist["val_d_loss"]) + 1), hist["val_d_loss"], label="Discriminator Loss (Val)", color="blue", linestyle="--")
     if "val_g_loss" in hist and len(hist["val_g_loss"]) > 0:
-        plt.plot(epochs, hist["val_g_loss"], label="Generator Loss (Val)", color="orange", linestyle="--")
+        plt.plot(range(1, len(hist["val_g_loss"]) + 1), hist["val_g_loss"], label="Generator Loss (Val)", color="orange", linestyle="--")
         
     plt.title("GAN Training Convergence", fontsize=14, fontweight='bold')
     plt.xlabel("Epoch")
@@ -642,7 +651,7 @@ def save_gan_convergence_deep_dive(history_file=os.path.join(GAN_DIR, "loss_hist
     
     # 1. Parity Plot
     plt.figure(figsize=(10, 5))
-    plt.plot(epochs, hist["parity"], color="purple", linewidth=1.5, label="|D_loss - G_loss|")
+    plt.plot(range(1, len(hist["parity"]) + 1), hist["parity"], color="purple", linewidth=1.5, label="|D_loss - G_loss|")
     plt.axhline(y=0.05, color='r', linestyle='--', alpha=0.3, label="Standard Threshold (0.05)")
     plt.title("GAN Nash Equilibrium Parity", fontsize=14, fontweight='bold')
     plt.xlabel("Epoch")
@@ -655,8 +664,8 @@ def save_gan_convergence_deep_dive(history_file=os.path.join(GAN_DIR, "loss_hist
     # 2. DTE Plot
     if "dte_d" in hist:
         plt.figure(figsize=(10, 5))
-        plt.plot(epochs, hist["dte_d"], label="D-Distance to 0.693", color="blue", alpha=0.7)
-        plt.plot(epochs, hist["dte_g"], label="G-Distance to 0.693", color="orange", alpha=0.7)
+        plt.plot(range(1, len(hist["dte_d"]) + 1), hist["dte_d"], label="D-Distance to 0.693", color="blue", alpha=0.7)
+        plt.plot(range(1, len(hist["dte_g"]) + 1), hist["dte_g"], label="G-Distance to 0.693", color="orange", alpha=0.7)
         plt.title("Distance to Theoretical Equilibrium (DTE)", fontsize=14, fontweight='bold')
         plt.xlabel("Epoch")
         plt.ylabel("Loss Offset from 0.693")

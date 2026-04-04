@@ -59,9 +59,9 @@ from optimizer import repair_solution_compact, get_rotated_dims
 # ---------------------------------------------------------------------------
 LATENT_DIM = 100
 
-# High-Throughput Scenarios for 400,000 items
-DENSE_SCENARIOS  = 4800  # 60% Dense for difficult packing
-NORMAL_SCENARIOS = 3200  # 40% Standard scenarios
+# High-Throughput Scenarios for Quick Research Validation (Reduced temporarily)
+DENSE_SCENARIOS  = 120  # 60% Dense
+NORMAL_SCENARIOS = 80   # 40% Standard scenarios
 TOTAL_SCENARIOS  = DENSE_SCENARIOS + NORMAL_SCENARIOS
 ITEMS_PER_SCENARIO = 50
 
@@ -108,8 +108,9 @@ def generate_items(generator, scaler, device, n_items, category_pool=None):
     items = []
     for i in range(n_items):
         l, w, h, weight = original[i]
-        l, w, h = abs(l) * 2.0, abs(w) * 2.0, abs(h) * 2.0
-        weight = max(abs(weight) * 2.0, 0.1)
+        # Use real GAN output dimensions (removed legacy 2.0x multiplier)
+        l, w, h = abs(l), abs(w), abs(h)
+        weight = max(abs(weight), 0.1)
 
         cat = random.choice(category_pool)
         is_fragile = 1 if cat.lower() in FRAGILE_CATEGORIES else 0

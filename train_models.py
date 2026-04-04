@@ -14,11 +14,11 @@ import time
 # Configuration
 DATA_DIR = "training_data"
 MODELS_DIR = "models"
-EPOCHS = 200
-BATCH_SIZE = 1536          # Higher for GPU speed
+EPOCHS = 100               # Researcher-aligned epoch count for stable convergence
+BATCH_SIZE = 2048          # Optimized for high-throughput GPU utilization
 LR = 0.001
 VAL_SPLIT = 0.2
-PATIENCE = 15          # Early-stopping patience
+PATIENCE = 10              # Improved early-stopping for faster convergence
 HISTORY_LOG_DIR = os.path.join("Documents", "04_Machine_Learning", "Performance_Metrics")
 os.makedirs(HISTORY_LOG_DIR, exist_ok=True)
 
@@ -238,6 +238,7 @@ def run_training():
     for csv_file in sorted(csv_files):
         basename = os.path.splitext(os.path.basename(csv_file))[0]
         model_name = f"model_{basename}"
+        print(f"\n--- Training {model_name} ---")
         history, best_loss = train_model(csv_file, model_name)
         all_histories[model_name] = {
             "history": history,

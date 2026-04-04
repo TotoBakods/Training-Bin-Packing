@@ -35,31 +35,25 @@ class PackingModel(nn.Module):
     def __init__(self, input_dim=19, output_dim=4):
         super(PackingModel, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(input_dim, 256),
+            # Layer 1: Condensed Input
+            nn.Linear(input_dim, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(0.1),
+
+            # Layer 2: Feature Extraction
+            nn.Linear(128, 256),
             nn.BatchNorm1d(256),
             nn.LeakyReLU(0.1),
             nn.Dropout(0.1),
 
-            nn.Linear(256, 512),
-            nn.BatchNorm1d(512),
+            # Layer 3: Dimensional Narrowing
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
             nn.LeakyReLU(0.1),
-            nn.Dropout(0.1),
-
-            nn.Linear(512, 768),
-            nn.BatchNorm1d(768),
-            nn.LeakyReLU(0.1),
-            nn.Dropout(0.08),
-
-            nn.Linear(768, 512),
-            nn.BatchNorm1d(512),
-            nn.LeakyReLU(0.1),
-            nn.Dropout(0.05),
-
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
-            nn.LeakyReLU(0.1),
-            nn.Linear(256, output_dim),
-            # Constrain outputs to [0, 1] — matching normalized target range
+            
+            # Output: Scaled to [0, 1] for unit-space coordinate prediction
+            nn.Linear(128, output_dim),
             nn.Sigmoid()
         )
 

@@ -1,6 +1,6 @@
 # ML Model Training & Logic Report
 
-> Auto-generated on **2026-04-03 04:10**
+> Auto-generated on **2026-04-04 14:16**
 
 ---
 
@@ -9,11 +9,11 @@ The following parameters were utilized to ensure robust convergence and positive
 
 | Parameter | Standalone GA/EO | GA-EO / EO-GA Hybrid | Description |
 |:--- |:---: |:---: |:--- |
-| **Epochs** | 120 | 100 | Training iterations (EO-GA prioritized for speed) |
+| **Epochs** | 100 | 100 | Training iterations (EO-GA prioritized for speed) |
 | **Batch Size** | 2048 | 2048 | Samples per GPU update |
-| **Learning Rate** | 0.0005 | 0.0005 | AdamW optimizer initial step size |
+| **Learning Rate** | 0.001 | 0.001 | AdamW optimizer initial step size |
 | **Spatial Weights** | X:3.0, Y:3.0 | X:2.0, Y:2.0 | Spatial boost for stable R² |
-| **Patience** | 20 | 15 | Early stopping threshold |
+| **Patience** | 10 | 10 | Early stopping threshold |
 | **Collision Weight** | 1.5 | 1.0 | Physics-aware loss penalty factor |
 ## 2. Training Convergence Progression
 The models were trained on 125,000 synthetic samples per variant. The objective is to minimize spatial prediction error while maximizing fitness.
@@ -32,10 +32,10 @@ The models were trained on 125,000 synthetic samples per variant. The objective 
 ## 4. Heuristic Variant Performance & Logic
 | Model Variant | Final Loss | Final Fitness (%) | Early Stop Log | Stability (PyBullet) |
 |:--- |:---: |:---: |:--- |:---: |
-| `EO` | 0.146431 | 24.81% | Full Scale | 1.0000 |
-| `EO_GA` | 0.105825 | 25.09% | **Terminated @ Ep 43** | 1.0000 |
-| `GA` | 0.146422 | 24.79% | Full Scale | 1.0000 |
-| `GA_EO` | 0.146243 | 24.87% | Full Scale | 1.0000 |
+| `EO` | 0.062289 | 6.86% | Full Scale | 0.0000 |
+| `EO_GA` | 0.044562 | 6.99% | Converged Naturally | 0.0000 |
+| `GA` | 0.062563 | 6.71% | Full Scale | 0.0000 |
+| `GA_EO` | 0.062541 | 6.61% | Full Scale | 0.0000 |
 
 ## 5. Hardware & System Context
 - **CPU**: AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD

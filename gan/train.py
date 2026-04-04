@@ -9,14 +9,15 @@ import pickle
 # Parameters
 LATENT_DIM = 100
 EPOCHS = 1000
-BATCH_SIZE = 4096
-LR_G = 0.0006              # Slightly higher than D to reach equilibrium
-LR_D = 0.0004
+BATCH_SIZE = 256
+LR_G = 0.0002
+LR_D = 0.0002
 B1 = 0.5
 B2 = 0.999
-TARGET_LOSS = 0.693147      # -ln(0.5) - the RRL ideal
-EARLY_STOP_PARITY_THRESHOLD = 0.001
-EARLY_STOP_PATIENCE = 50
+CRITIC_ITERATIONS = 1  # Standard GAN treats them 1:1 usually
+TARGET_LOSS = 0.693    # -ln(0.5) is the ideal for BCE
+EARLY_STOP_PARITY_THRESHOLD = 0.0
+EARLY_STOP_PATIENCE = 100
 
 # Get absolute path to datasets.csv assuming it is in the parent directory of this script
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +32,9 @@ def train():
     
     # Device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if device.type == 'cuda':
+        torch.cuda.set_device(0)
+        torch.backends.cudnn.benchmark = False
     print(f"Using device: {device}")
     
     history = {
@@ -88,89 +92,94 @@ def train():
     scheduler_G = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_G, T_max=EPOCHS, eta_min=1e-5)
     scheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_D, T_max=EPOCHS, eta_min=1e-5)
 
-    # Loss
     adversarial_loss = nn.BCELoss()
     
-    print(f"Starting training on {n_train} samples ({n_batches} batches per epoch)...")
+    # Create DataLoader instead of manual indexing on GPU
+    from torch.utils.data import TensorDataset, DataLoader
+    train_dataset = TensorDataset(train_data)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     
-    # Pre-allocate some tensors
-    val_labels_valid = torch.ones(BATCH_SIZE, 1, device=device)
-    val_labels_fake = torch.zeros(BATCH_SIZE, 1, device=device)
-    
+    val_dataset = TensorDataset(val_data)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
     import time
     start_time = time.time()
 
     for epoch in range(EPOCHS):
-        # Index-based shuffling to avoid full tensor copy
-        indices = torch.randperm(n_train, device=device)
-        
-        epoch_d_loss = 0
-        epoch_g_loss = 0
-        
         generator.train()
         discriminator.train()
         
-        for i in range(0, n_train, BATCH_SIZE):
-            idx = indices[i:i+BATCH_SIZE]
-            real_imgs = train_data[idx]
+        epoch_d_loss = 0
+        epoch_g_loss = 0
+        batch_count = 0
+        
+        for batch_idx, (real_imgs,) in enumerate(train_loader):
             current_batch_size = real_imgs.size(0)
+            batch_count += 1
             
-            # Use pre-allocated if full batch, otherwise create new
-            if current_batch_size == BATCH_SIZE:
-                valid, fake = val_labels_valid, val_labels_fake
-            else:
-                valid = torch.ones(current_batch_size, 1, device=device)
-                fake = torch.zeros(current_batch_size, 1, device=device)
+            # Ground truth labels with one-sided smoothing
+            valid = torch.full((current_batch_size, 1), 0.9, device=device) # Label Smoothing
+            fake_labels = torch.zeros((current_batch_size, 1), device=device)
             
             # --- Train Generator ---
             optimizer_G.zero_grad()
             z = torch.randn(current_batch_size, LATENT_DIM, device=device)
             gen_imgs = generator(z)
+            
             g_loss = adversarial_loss(discriminator(gen_imgs), valid)
             g_loss.backward()
             optimizer_G.step()
+            epoch_g_loss += g_loss.item()
             
             # --- Train Discriminator ---
             optimizer_D.zero_grad()
-            real_loss = adversarial_loss(discriminator(real_imgs), valid)
-            # Use detached gen_imgs to avoid backpropping through G again
-            fake_loss = adversarial_loss(discriminator(gen_imgs.detach()), fake)
+            
+            # Instance Noise
+            noise = torch.randn_like(real_imgs) * 0.01
+            real_noisy = real_imgs + noise
+            
+            real_loss = adversarial_loss(discriminator(real_noisy), valid)
+            fake_loss = adversarial_loss(discriminator(gen_imgs.detach()), fake_labels)
             d_loss = (real_loss + fake_loss) / 2
+            
             d_loss.backward()
             optimizer_D.step()
-            
             epoch_d_loss += d_loss.item()
-            epoch_g_loss += g_loss.item()
         
-        # Save average epoch loss
-        history["d_loss"].append(epoch_d_loss / n_batches)
-        history["g_loss"].append(epoch_g_loss / n_batches)
-
-        # --- Periodic Validation ---
-        if epoch % 5 == 0 or epoch == EPOCHS - 1:
+        # Scheduler updates
+        scheduler_G.step()
+        scheduler_D.step()
+        
+        # History
+        history["d_loss"].append(epoch_d_loss / batch_count)
+        history["g_loss"].append(epoch_g_loss / batch_count)
+        
+        # Validation
+        val_d_loss = 0
+        val_g_loss = 0
+        with torch.no_grad():
             generator.eval()
             discriminator.eval()
-            val_d_loss, val_g_loss = 0, 0
-            with torch.no_grad():
-                for i in range(0, val_data.size(0), BATCH_SIZE):
-                    real_imgs = val_data[i:i+BATCH_SIZE]
-                    b_size = real_imgs.size(0)
-                    valid = torch.ones(b_size, 1, device=device)
-                    fake = torch.zeros(b_size, 1, device=device)
-                    
-                    z = torch.randn(b_size, LATENT_DIM, device=device)
-                    gen_imgs = generator(z)
-                    g_loss = adversarial_loss(discriminator(gen_imgs), valid)
-                    val_g_loss += g_loss.item()
-                    
-                    real_loss = adversarial_loss(discriminator(real_imgs), valid)
-                    fake_loss = adversarial_loss(discriminator(gen_imgs.detach()), fake)
-                    d_loss = (real_loss + fake_loss) / 2
-                    val_d_loss += d_loss.item()
-                    
-            n_val_batches = (val_data.size(0) + BATCH_SIZE - 1) // BATCH_SIZE
-            history["val_d_loss"].append(val_d_loss / n_val_batches)
-            history["val_g_loss"].append(val_g_loss / n_val_batches)
+            for val_idx, (real_imgs_val,) in enumerate(val_loader):
+                z = torch.randn(real_imgs_val.size(0), LATENT_DIM, device=device)
+                gen_imgs_val = generator(z)
+                
+                v_labels = torch.ones((real_imgs_val.size(0), 1), device=device)
+                f_labels = torch.zeros((real_imgs_val.size(0), 1), device=device)
+                
+                v_loss = adversarial_loss(discriminator(real_imgs_val), v_labels)
+                f_loss = adversarial_loss(discriminator(gen_imgs_val), f_labels)
+                
+                val_d_loss += (v_loss.item() + f_loss.item()) / 2
+                val_g_loss += adversarial_loss(discriminator(gen_imgs_val), v_labels).item()
+        
+        n_val_batches = len(val_loader)
+        history["val_d_loss"].append(val_d_loss / n_val_batches)
+        history["val_g_loss"].append(val_g_loss / n_val_batches)
+        
+        if (epoch + 1) % 10 == 0:
+            print(f"[Epoch {epoch+1}/{EPOCHS}] D_Loss: {history['d_loss'][-1]:.4f} G_Loss: {history['g_loss'][-1]:.4f}")
+            torch.cuda.empty_cache()
         else:
             # Carry over previous validation loss for reporting
             history["val_d_loss"].append(history["val_d_loss"][-1] if history["val_d_loss"] else 0)

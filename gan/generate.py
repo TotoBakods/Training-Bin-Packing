@@ -34,7 +34,7 @@ def get_category_distribution():
         print(f"Warning: Could not load categories from {REAL_DATA_FILE}: {e}")
         return {'General': 1.0}
 
-def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_factor=2.0, seed=None, mix_real=0.2, output_file=None):
+def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_factor=1.0, seed=None, mix_real=0.2, output_file=None):
     """
     Generate synthetic items using the trained GAN.
     
@@ -42,7 +42,7 @@ def generate(n_items=100, warehouse_length=20.0, warehouse_width=15.0, scale_fac
         n_items: Number of items to generate
         warehouse_length: Warehouse length for position calculation
         warehouse_width: Warehouse width for position calculation  
-        scale_factor: Multiplier for item dimensions (default 2.0 for larger items)
+        scale_factor: Multiplier for item dimensions (default 1.0 for fidelity)
         seed: Random seed for reproducibility
         output_file: Path to save the generated CSV
     """

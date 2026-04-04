@@ -1,6 +1,6 @@
 # GAN Performance & Generation Report
 
-> Auto-generated on **2026-04-03 04:10**
+> Auto-generated on **2026-04-04 14:16**
 
 ---
 
@@ -20,8 +20,8 @@ To ensure stable training, all physical dimensions are normalized using **Min-Ma
 
 | Phase | Initial Loss | Final Loss | Parity (D/G) |
 |-------|--------------|------------|--------------|
-| Discriminator | 0.6519 | 0.6893 | 0.0107 |
-| Generator | 0.8495 | 0.7059 | 0.0059 |
+| Discriminator | 0.6607 | 0.6845 | 0.0155 |
+| Generator | 0.9859 | 0.7910 | 0.0910 |
 
 ### 1.2 Enhanced Training Configuration
 | Parameter | Value |
@@ -37,11 +37,11 @@ To ensure stable training, all physical dimensions are normalized using **Min-Ma
 ### 1.3 D/G Parity Convergence Log (Selected Epochs)
 | Epoch | D Loss | G Loss | Parity | DTE-D | DTE-G |
 |-------|--------|--------|--------|-------|-------|
-| 1 | 0.6519 | 0.8495 | 0.1976 | 0.0412 | 0.1564 |
-| 251 | 0.6893 | 0.7033 | 0.0140 | 0.0038 | 0.0101 |
-| 501 | 0.6864 | 0.7122 | 0.0258 | 0.0068 | 0.0190 |
-| 751 | 0.6884 | 0.7077 | 0.0192 | 0.0047 | 0.0145 |
-| 1000 | 0.6893 | 0.7059 | 0.0166 | 0.0039 | 0.0127 |
+| 1 | 0.6607 | 0.9859 | 0.3251 | 0.0323 | 0.2929 |
+| 251 | 0.6828 | 0.7944 | 0.1116 | 0.0102 | 0.1014 |
+| 501 | 0.6869 | 0.7826 | 0.0957 | 0.0061 | 0.0896 |
+| 751 | 0.6849 | 0.7892 | 0.1043 | 0.0081 | 0.0962 |
+| 1000 | 0.6845 | 0.7910 | 0.1065 | 0.0085 | 0.0980 |
 
 ### 1.4 Equilibrium Stability Analysis
 ![GAN Parity Curve](metrics_visuals/gan_parity_curve.png)
@@ -51,8 +51,8 @@ To ensure stable training, all physical dimensions are normalized using **Min-Ma
 ### 1.5 Learning Rate Schedule (Cosine Annealing)
 | Phase | Initial LR | Final LR | Decay Factor |
 |:---|:---:|:---:|:---:|
-| Generator | 6.00e-04 | 1.00e-05 | 0.02x |
-| Discriminator | 4.00e-04 | 1.00e-05 | 0.03x |
+| Generator | 2.00e-04 | 2.00e-04 | 1.00x |
+| Discriminator | 2.00e-04 | 2.00e-04 | 1.00x |
 
 ## 2. Synthetic Dataset Generation Logs
 The following datasets were generated for final inference benchmarking:
@@ -71,10 +71,10 @@ Comparing Gaussian density overlaps and statistical moments between real and syn
 
 | Dimension | Real Mean (μ) | GAN Mean (μ) | Real Std (σ) | GAN Std (σ) | Wasserstein Dist |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| Item Length | 0.443 | 0.444 | 0.108 | 0.107 | **0.00339** |
-| Item Width | 0.248 | 0.247 | 0.069 | 0.068 | **0.00258** |
-| Item Height | 0.227 | 0.227 | 0.053 | 0.053 | **0.00240** |
-| Item Weight | 6.827 | 6.798 | 2.579 | 2.532 | **0.07758** |
+| Item Length | 0.443 | 0.442 | 0.108 | 0.108 | **0.00462** |
+| Item Width | 0.248 | 0.248 | 0.069 | 0.069 | **0.00298** |
+| Item Height | 0.227 | 0.233 | 0.053 | 0.056 | **0.00666** |
+| Item Weight | 6.827 | 7.053 | 2.579 | 2.610 | **0.23760** |
 
 > **Note**: A lower Wasserstein Distance indicates higher distributional realism.
 
@@ -86,11 +86,11 @@ This table provides a 4-way comparison of 5 random item samples tracking the syn
 
 | Sample | Original (Real) | GAN Normalized [0-1] | GAN Denormalized | Synthetic (2x Scaled) |
 |:---|:---|:---|:---|:---|
-| 1 | (0.59, 0.20, 0.21, 7.7) | (0.407, 0.316, 0.188, 0.145) | (0.35, 0.20, 0.26, 4.3) | (0.70, 0.40, 0.52, 8.6) |
-| 2 | (0.55, 0.28, 0.11, 8.4) | (0.487, 0.553, 0.164, 0.379) | (0.40, 0.28, 0.23, 10.1) | (0.79, 0.55, 0.46, 20.2) |
-| 3 | (0.55, 0.28, 0.11, 8.4) | (0.477, 0.534, 0.190, 0.399) | (0.39, 0.27, 0.26, 10.6) | (0.78, 0.54, 0.52, 21.2) |
-| 4 | (0.49, 0.13, 0.21, 5.1) | (0.313, 0.306, 0.127, 0.206) | (0.29, 0.20, 0.19, 5.8) | (0.58, 0.40, 0.38, 11.6) |
-| 5 | (0.49, 0.13, 0.21, 5.1) | (0.778, 0.348, 0.226, 0.293) | (0.57, 0.21, 0.30, 8.0) | (1.15, 0.42, 0.61, 16.0) |
+| 1 | (0.59, 0.20, 0.21, 7.7) | (0.476, 0.628, 0.133, 0.294) | (0.39, 0.30, 0.19, 8.0) | (0.78, 0.60, 0.39, 16.0) |
+| 2 | (0.55, 0.28, 0.11, 8.4) | (0.462, 0.391, 0.091, 0.291) | (0.38, 0.23, 0.15, 7.9) | (0.76, 0.45, 0.29, 15.9) |
+| 3 | (0.55, 0.28, 0.11, 8.4) | (0.253, 0.253, 0.191, 0.085) | (0.25, 0.18, 0.26, 2.8) | (0.51, 0.36, 0.52, 5.6) |
+| 4 | (0.49, 0.13, 0.21, 5.1) | (0.586, 0.728, 0.139, 0.327) | (0.46, 0.33, 0.20, 8.8) | (0.92, 0.67, 0.40, 17.6) |
+| 5 | (0.49, 0.13, 0.21, 5.1) | (0.383, 0.347, 0.220, 0.203) | (0.33, 0.21, 0.29, 5.7) | (0.67, 0.42, 0.59, 11.5) |
 
 *(Format: Length, Width, Height, Weight)*
 
@@ -111,21 +111,21 @@ This section compares 5 random samples across the three major generation phases.
 ### Phase 2: GAN Latent Space (Normalized [0, 1])
 | Smp | Item_L | Item_W | Item_H | Item_Wt | Data Type | Range |
 |:---| :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | 0.407321 | 0.316304 | 0.187959 | 0.145243 | float32 | [0.0, 1.0] |
-| 2 | 0.487344 | 0.553240 | 0.164399 | 0.378951 | float32 | [0.0, 1.0] |
-| 3 | 0.477302 | 0.533920 | 0.189528 | 0.398614 | float32 | [0.0, 1.0] |
-| 4 | 0.313121 | 0.306140 | 0.127329 | 0.206238 | float32 | [0.0, 1.0] |
-| 5 | 0.778325 | 0.347603 | 0.226387 | 0.293298 | float32 | [0.0, 1.0] |
+| 1 | 0.476097 | 0.627602 | 0.132853 | 0.293912 | float32 | [0.0, 1.0] |
+| 2 | 0.462050 | 0.390871 | 0.090550 | 0.291068 | float32 | [0.0, 1.0] |
+| 3 | 0.253262 | 0.252543 | 0.190989 | 0.085131 | float32 | [0.0, 1.0] |
+| 4 | 0.586178 | 0.728447 | 0.139183 | 0.326799 | float32 | [0.0, 1.0] |
+| 5 | 0.382662 | 0.347230 | 0.219575 | 0.203317 | float32 | [0.0, 1.0] |
 
 
 ### Phase 3: GAN Denormalized (Reconstructed Source)
 | Smp | Rec_Len | Rec_Wid | Rec_Hei | Rec_Wgt | Data Type | Unit |
 |:---| :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | 0.348 | 0.201 | 0.258 | 4.30 | float32 | Physical |
-| 2 | 0.397 | 0.277 | 0.231 | 10.12 | float32 | Physical |
-| 3 | 0.391 | 0.271 | 0.260 | 10.61 | float32 | Physical |
-| 4 | 0.291 | 0.198 | 0.188 | 5.82 | float32 | Physical |
-| 5 | 0.575 | 0.211 | 0.303 | 7.99 | float32 | Physical |
+| 1 | 0.390 | 0.301 | 0.194 | 8.00 | float32 | Physical |
+| 2 | 0.382 | 0.225 | 0.145 | 7.93 | float32 | Physical |
+| 3 | 0.254 | 0.181 | 0.262 | 2.80 | float32 | Physical |
+| 4 | 0.458 | 0.333 | 0.201 | 8.82 | float32 | Physical |
+| 5 | 0.333 | 0.211 | 0.295 | 5.75 | float32 | Physical |
 
 ---
 

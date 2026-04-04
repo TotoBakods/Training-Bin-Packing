@@ -39,9 +39,36 @@ $$L_{final} = |L_{gen}|, \quad W_{final} = |W_{gen}|, \quad H_{final} = |H_{gen}
 
 ---
 
-## 2. Stage 2: Training Configuration & Hyperparameters
-
 To achieve a stable Nash Equilibrium on the NVIDIA RTX 3060, the following hardware-optimized parameters were utilized for the final **1,000-epoch** production run.
+
+```python
+# GAN Min-Max Architecture (Generator & Discriminator)
+class Generator(nn.Module):
+    def __init__(self, latent_dim, output_dim=4):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Linear(latent_dim, 256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm1d(256),
+            nn.Linear(256, 512),
+            nn.BatchNorm1d(512),
+            nn.Linear(512, 1024),
+            nn.Linear(1024, output_dim),
+            nn.Sigmoid() # Constrain to [0, 1] Unit-Space
+        )
+
+class Discriminator(nn.Module):
+    def __init__(self, input_dim=4):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Linear(input_dim, 512),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Dropout(0.3),
+            nn.Linear(512, 256),
+            nn.Linear(256, 1),
+            nn.Sigmoid() # Real vs. Fake Probability
+        )
+```
 
 | Parameter | Value | Description |
 |:---|:---|:---|
@@ -65,9 +92,21 @@ Our implementation strategy leverages the **Two-Time-Scale Update Rule (TTUR)** 
 
 ---
 
-## 3. Stage 3: Stability & Convergence Results
-
 The training achieved a near-perfect Nash Equilibrium, where the Discriminator and Generator have reached a state of balanced competitive tension.
+
+```python
+# Two-Time-Scale Update Rule (TTUR) & Label Smoothing
+optimizer_G = optim.Adam(G.parameters(), lr=0.0002, betas=(0.5, 0.999))
+optimizer_D = optim.Adam(D.parameters(), lr=0.0002, betas=(0.5, 0.999))
+
+# One-Sided Label Smoothing (Real = 0.9)
+valid = torch.full((batch_size, 1), 0.9).to(device)
+fake  = torch.zeros((batch_size, 1)).to(device)
+
+# Adversarial Step
+g_loss = BCELoss(D(G(z)), valid) # G tries to fool D
+d_loss = (BCELoss(D(real), valid) + BCELoss(D(G(z).detach()), fake)) / 2
+```
 
 ### 3.1 Plot Analysis: Loss Trend Metrics
 ![GAN Loss Curves](Documents/04_Machine_Learning/Performance_Metrics/metrics_visuals/gan_loss_curves.png)
@@ -92,9 +131,22 @@ The final Parity value of **0.106** signifies that the models are in "Competitiv
 
 ---
 
-## 4. Stage 4: Scientific Fidelity & Multi-Dimensional Audit
-
 To verify that the GAN is not just learning average values but capturing the multi-modal distribution of warehouse SKUs, we perform high-dimensional projection and correlation audits.
+
+```python
+# Industrial-Spec SKU Generation (Sampling)
+def generate_skus(num_samples, generator, scaler):
+    # 1. Sample from Latent Gaussian Manifold
+    z = torch.randn(num_samples, 100).to(device)
+    
+    # 2. Neural Transformation (Sigmoid-Bounded [0, 1])
+    with torch.no_grad():
+        synthetic_norm = generator(z).cpu().numpy()
+        
+    # 3. Inverse Transform (Synthesis Sandwich Re-scaling)
+    skus_metric = scaler.inverse_transform(synthetic_norm)
+    return skus_metric # Returns Physical (cm / kg) values
+```
 
 ### 4.1 Visual Fidelity Dashboard
 ![GAN KDE Overlays](Documents/04_Machine_Learning/Performance_Metrics/metrics_visuals/gan_kde_overlays.png)

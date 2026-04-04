@@ -59,6 +59,25 @@ $$ \mathcal{J} = \lambda_1 \mathcal{F}_{density} + \lambda_2 \mathcal{F}_{stabil
 
 ## 2. Adaptive Neural Architecture: Pruned for Inference
 
+```python
+class PackingModel(nn.Module):
+    """3-Layer MLP Optimized for sub-1.5ms Inference"""
+    def __init__(self, input_dim=19, output_dim=4):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(0.1),
+            nn.Linear(128, 256),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(0.1),
+            nn.Linear(256, 128),
+            nn.Linear(128, output_dim),
+            nn.Sigmoid() # Constrain to [0, 1] Unit Space
+        )
+```
+
 To maintain high throughput in the hybrid Genetic Algorithm-Extremal Optimization (GA-EO) search loop, we optimized the `PackingModel` for minimal latency.
 
 ### 2.1 The Pruning Advantage
@@ -74,9 +93,19 @@ While deep architectures (5+ layers) capture complex spatial relationships, they
 
 ---
 
-## 3. Physics-Informed Training Protocol
-
 Training is conducted using a **Physics-Informed Loss** function that heavily penalizes Z-axis instability to ensure floor-first packing strategies.
+
+```python
+# Physics-Informed Loss: Prioritizing Vertical Support
+def coordinate_loss(pred, target):
+    # Weighting: [X: 1.0, Y: 1.0, Z: 2.0, Rot: 1.0]
+    weights = torch.tensor([1.0, 1.0, 2.0, 1.0]).to(device)
+    
+    mse = (pred - target) ** 2
+    weighted_mse = mse * weights
+    
+    return torch.mean(weighted_mse)
+```
 
 ### 3.1 Researcher-Aligned Hyperparameters (Protocol Table)
 Our training configuration strictly adheres to the parameters utilized in high-fidelity 3D-BPP research (Zhang et al., 2024; Zhao et al., 2021).
@@ -96,9 +125,22 @@ Our training configuration strictly adheres to the parameters utilized in high-f
 
 ---
 
-## 5. Industrial Performance Audit: Results
-
 The system was evaluated across three scaling scenarios (200, 400, and 600 items) to assess the robustness of the **Coordinate Sandwich** pipeline. Metrics include **PSR**, **BBox Efficiency**, and **Logistical Access Score**.
+
+```python
+# Propose-and-Repair: The Hybrid Execution Loop
+def optimize_layout(items, model):
+    # 1. Neural "Prophet" Logic (Strategic Intent)
+    raw_proposals = model(items.features)
+    
+    # 2. Heuristic "Correction" (Physical Enforcement)
+    final_layout = repair_solution_compact(
+        raw_proposals * WH_MAX, 
+        items.properties,
+        fast_mode=True # EO-GA Refinement
+    )
+    return final_layout
+```
 
 ### 5.1. The Industrial Scorecard: Multi-Dimensional Benchmark
 

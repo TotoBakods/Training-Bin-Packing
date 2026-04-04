@@ -33,6 +33,15 @@ The pipeline begins by receiving a high-dimensional feature vector representing 
 
 **Transformation**: The raw SKU data is normalized and decoupled from the database, feeding the model a standardized strategic context.
 
+```python
+# Stage 0: 19-Feature Vector Extraction (Feature Engineering)
+x_raw[:, 0:3] = item_dims / ITEM_MAX_DIM          # Normalized Geometry
+x_raw[:, 4:7] = [is_fragile, is_stackable, ... ]  # Physical Constraints
+x_raw[:, 7:10] = wh_dims / WH_MAX_DIM             # Global Environment
+x_raw[:, 12]   = item_vol / (wh_vol + 1e-6)       # Relational Density
+x_raw[:, 13:16]= item_area / WH_MAX_AREA          # Footprint Ratios
+```
+
 ---
 
 ## 3. Stage 1: The Neural Prophet (Strategic Intent)
@@ -44,6 +53,16 @@ In this stage, the **Evolutionary Optimizer (EO)** or **Hybrid EO-GA** model act
 
 > [!NOTE]
 > The Neural stage does not account for collisions or precision. Its role is to provide a "Strategic Hint"—identifying the most mathematically promising zone for space utilization.
+
+```python
+# Stage 1: $O(1)$ Strategic Coordination Proposal
+with torch.no_grad():
+    # Input: 19-feature vector | Output: [x, y, z, rotation]
+    raw_output = neural_prophet(feature_vector)
+
+# Denormalization to Warehouse Metric Space
+proposed_p = raw_output * warehouse_max_bounds
+```
 
 ---
 
@@ -58,6 +77,18 @@ $$I(i, j) = \begin{cases} 1 & \text{if } \text{Overlap}(i, j) \\ 0 & \text{other
 ### 4.2 Forensic Correction
 If $\sum I(i, j) > 0$, the heuristic performs a localized search around the neural anchor $\hat{\mathbf{p}}_i$. 
 - **Projection**: $\mathbf{x}_{\text{phys}} = \text{clamp}(\hat{\mathbf{x}} \odot \mathbf{W}, 0, \mathbf{W} - \mathbf{d}_i)$.
+
+```python
+# Stage 2: Feasibility Projection (Repair)
+def repair_proposal(anchor_x, anchor_y, item_dims, grid):
+    # Generate feasibility candidates via Adjacency Touch-Points
+    candidates = grid.get_touch_points() + [ (anchor_x, anchor_y) ]
+    
+    # Sort by proximity to Neural Anchor (Strategic Intent)
+    for cx, cy in sorted(candidates, key=lambda p: dist(p, (anchor_x, anchor_y))):
+        if not detect_collision(cx, cy, item_dims):
+            return cx, cy # Deterministic Feasible Coordinate
+```
 
 - **Projection**: $\mathbf{x}_{\text{phys}} = \text{clamp}(\hat{\mathbf{x}} \odot \mathbf{W}, 0, \mathbf{W} - \mathbf{d}_i)$.
 
@@ -77,6 +108,21 @@ $$z_{i, \text{final}} = \max(\{0\} \cup \{z_j + h_j \mid \text{Support}(i, j)\})
 ### 5.2 The Stability Gate (SSR)
 The Support Stability Rate (SSR) is calculated:
 $$\text{SSR} = \frac{\text{Area}_{\text{contact}}}{\text{Area}_{\text{base}}} \geq \text{Threshold} (e.g., 0.8)$$
+
+```python
+# Stage 3: Physics Settlement & SSR Gate
+def apply_gravity(x, y, dims, placed_items):
+    # Spatial Query for items directly below footprint
+    neighbors = spatial_grid.query(x, y, dims.dx, dims.dy)
+    
+    # Calculate highest support surface
+    z_settle = max([it.z + it.h for it in neighbors] + [0.0])
+    
+    # Verify Area-Based Stability Threshold
+    if calculate_support_area(x, y, z_settle) < (dims.area * 0.8):
+        return REJECT_PLACEMENT # Trigger Search-Space Expansion
+    return z_settle
+```
 
 | Stability Distribution | Component Heatmap |
 |:---:|:---:|

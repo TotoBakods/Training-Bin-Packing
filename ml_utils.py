@@ -219,9 +219,11 @@ class MLOptimizer:
                 
                 callback(20, 0, 0, None, 0, 0, 0, message="ML Inference complete. Applying Physics Settlement...")
                 
+                # Higher callback interval for fast_mode to reduce JSON/List conversion overhead
+                cb_interval = 200 if is_eo_ga else 50
                 solution = repair_solution_compact(
                     solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
-                    callback=intermediate_callback, fast_mode=is_eo_ga
+                    callback=intermediate_callback, callback_interval=cb_interval, fast_mode=is_eo_ga
                 )
             else:
                 solution = repair_solution_compact(

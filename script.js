@@ -811,6 +811,11 @@ function onViewModeChange(value) {
     
     if (value === 'live') {
         if (statusText) statusText.textContent = "LIVE VIEW";
+        
+        // Hide diagnostics when in Live View (not saved result)
+        const diagPanel = document.getElementById('inference-diagnostics');
+        if (diagPanel) diagPanel.style.display = 'none';
+        
         updateVisualization();
         loadAnalytics();
         return;
@@ -839,6 +844,10 @@ function onViewModeChange(value) {
         if (statusAlgo) statusAlgo.textContent = algoName;
         if (statusElapsed) statusElapsed.textContent = res.metrics.execution_time ? res.metrics.execution_time.toFixed(2) + 's' : '-';
         if (statusGen) statusGen.textContent = 'Completed';
+        
+        // Update Best Fitness
+        const bestFit = document.getElementById('best-fitness');
+        if (bestFit && res.metrics.fitness) bestFit.textContent = res.metrics.fitness.toFixed(4);
         
         // Calculate placed items (items with Z < 1000)
         if (statusPlaced && res.solution) {
@@ -877,6 +886,7 @@ function onViewModeChange(value) {
 function updateMetricsDashboard(m) {
     if (!m) return;
     
+    // Standard Metrics
     const elements = {
         'metric-space': (m.space_utilization * 100).toFixed(1) + '%',
         'metric-runtime': m.execution_time ? m.execution_time.toFixed(2) + 's' : '0.00s',
@@ -894,7 +904,31 @@ function updateMetricsDashboard(m) {
     
     // Update fitness separately
     const bestFit = document.getElementById('best-fitness');
-    if (bestFit) bestFit.textContent = m.fitness.toFixed(4);
+    if (bestFit && m.fitness) bestFit.textContent = m.fitness.toFixed(4);
+
+    // Inference Diagnostics Panel
+    const diagPanel = document.getElementById('inference-diagnostics');
+    const inf = m.inference_metrics;
+    
+    if (inf && diagPanel) {
+        diagPanel.style.display = 'block';
+        
+        const diagElements = {
+            'diag-latency': (inf.total_latency_ms || 0).toFixed(1) + 'ms',
+            'diag-displacement': (inf.avg_displacement || 0).toFixed(3) + 'm',
+            'diag-efficiency': ((inf.volumetric_efficiency || 0) * 100).toFixed(1) + '%',
+            'diag-ssr': (inf.ssr_pct || 0).toFixed(1) + '%',
+            'diag-psr': (inf.psr_pct || 0).toFixed(1) + '%',
+            'diag-placed': (inf.placed_count || 0)
+        };
+        
+        for (const [id, val] of Object.entries(diagElements)) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        }
+    } else if (diagPanel) {
+        diagPanel.style.display = 'none';
+    }
 }
 
 function refreshViewModePicker() {
@@ -1124,6 +1158,7 @@ function startOptimization() {
 }
 
 let currentOptimizationType = null;
+let optimization_state_start_time = 0;
 
 function startOptimizationRequest(algo, params) {
     let endpoint = `/api/optimize/${algo}`;
@@ -1137,6 +1172,7 @@ function startOptimizationRequest(algo, params) {
         .then(data => {
             if (data.success) {
                 isOptimizing = true;
+                optimization_state_start_time = Date.now();
                 const startBtn = document.getElementById('start-btn');
                 const stopBtn = document.getElementById('stop-btn');
                 const statusText = document.getElementById('status-text');
@@ -1199,6 +1235,15 @@ function startPolling() {
                     if (statusDot) statusDot.classList.remove('active');
 
                     loadAnalytics(); // Refresh stats
+                    
+                    // Update diagnostics if available in final status
+                    if (status.inference_metrics) {
+                        updateMetricsDashboard({
+                            ...status,
+                            inference_metrics: status.inference_metrics,
+                            execution_time: (Date.now() - optimization_state_start_time) / 1000 // approx
+                        });
+                    }
 
                     if (currentOptimizationType !== 'compare') {
                         updateVisualization(); // Reload items from DB to ensure view matches final result

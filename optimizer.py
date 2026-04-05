@@ -308,7 +308,8 @@ def _search_candidates_gpu(cands_xy, rots_list, l, w, h,
             # Aggressive Early Stop: If we find a floor placement near the predicted target, 
             # take it immediately without evaluating further candidates or rotations.
             _floor_thresh = max(0.01, float(min_z) + 0.01)
-            fc = valid_t & (final_z_t <= _floor_thresh) & (dist_t < 0.1)
+            # Increased distance threshold from 0.1 to 0.5 for faster early-exit in EO-GA
+            fc = valid_t & (final_z_t <= _floor_thresh) & (dist_t < 0.5)
             if fc.any():
                 i = fc.nonzero(as_tuple=True)[0][0].item()
                 sc = (final_z_t[i].item(), rel_y_t[i].item(),
@@ -546,95 +547,78 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
             # Fallback: round-robin within level
             return target_zones[item_i % len(target_zones)]
 
-        # ── PHASE 1: Simulate NF assignment (dry-run) to predict fragile overflow ──
-        sim_used    = {zi: 0.0 for zi in range(num_zones)}
-        sim_l_idx   = 0
-        for item_i in non_fragile_list:
-            sim_l_idx          = _overflow_level(sim_used, sim_l_idx)
-            best_zi            = _best_zone_in_level(item_i, sim_l_idx, sim_used)
+        # ── PHASE 1: Predict Warehouse Occupancy and Target Levels ──
+        total_nf_vol = sum(volumes[i] for i in non_fragile_indices)
+        total_fr_vol = sum(volumes[i] for i in fragile_indices)
+        total_vol    = total_nf_vol + total_fr_vol
+        
+        # Dry-run simulation to find exactly which levels will be occupied
+        sim_used = {zi: 0.0 for zi in range(num_zones)}
+        sim_l_idx = 0
+        max_occupied_l_idx = 0
+        for item_i in non_fragile_list + fragile_list:
+            sim_l_idx = _overflow_level(sim_used, sim_l_idx)
+            best_zi   = _best_zone_in_level(item_i, sim_l_idx, sim_used)
             sim_used[best_zi] += volumes[item_i]
+            max_occupied_l_idx = max(max_occupied_l_idx, sim_l_idx)
 
-        # Simulate fragile assignment on top of the NF simulation.
-        sim_frag_l_idx              = sim_l_idx
-        fragile_overflow_per_upper  = {}   # upper_zi -> [item indices]
-        for item_i in fragile_list:
-            sim_frag_l_idx              = _overflow_level(sim_used, sim_frag_l_idx)
-            best_zi                     = _best_zone_in_level(item_i, sim_frag_l_idx, sim_used)
-            sim_used[best_zi]          += volumes[item_i]
-            if sim_frag_l_idx > 0:        # item lands in an upper zone
-                fragile_overflow_per_upper.setdefault(best_zi, []).append(item_i)
+        # ── PHASE 2: Allocate Non-Fragile Base Layers ──
+        item_zone_idx = {}
+        zone_used_vols = {zi: 0.0 for zi in range(num_zones)}
+        
+        # If we only use one level, fill strictly bottom-up
+        if max_occupied_l_idx == 0:
+            for item_i in non_fragile_list:
+                best_zi = _best_zone_in_level(item_i, 0, zone_used_vols)
+                item_zone_idx[item_i] = best_zi
+                zone_used_vols[best_zi] += volumes[item_i]
+        else:
+            # Multi-shelf mode: Distribute NF base layers proportionally
+            # across all active levels.
+            nf_ratio = total_nf_vol / max(total_vol, 1e-6)
+            nf_items_remaining = list(non_fragile_list)
+            
+            for l_idx in range(max_occupied_l_idx + 1):
+                lvl = unique_z_levels[l_idx]
+                lvl_targets = zones_by_lvl[lvl]
+                # Target NF volume for this level based on its predicted usage
+                lvl_predicted_vol = sum(sim_used[zi] for zi in lvl_targets)
+                lvl_nf_budget = lvl_predicted_vol * nf_ratio
+                
+                print(f"DEBUG shelf: Level {l_idx} (z={lvl}) budget={lvl_nf_budget:.2f} (pred_vol={lvl_predicted_vol:.2f})")
+                
+                lvl_nf_used = 0.0
+                to_remove = []
+                for i, item_i in enumerate(nf_items_remaining):
+                    if lvl_nf_used >= lvl_nf_budget:
+                        break
+                    best_zi = _best_zone_in_level(item_i, l_idx, zone_used_vols)
+                    item_zone_idx[item_i] = best_zi
+                    zone_used_vols[best_zi] += volumes[item_i]
+                    lvl_nf_used += volumes[item_i]
+                    to_remove.append(i)
+                
+                print(f"DEBUG shelf: Level {l_idx} assigned {len(to_remove)} NF items.")
+                
+                # Update remaining list (backwards to keep indices valid)
+                for i in reversed(to_remove):
+                    nf_items_remaining.pop(i)
+            
+            # Any leftover NF (due to rounding) goes to bottom level
+            for item_i in nf_items_remaining:
+                best_zi = _best_zone_in_level(item_i, 0, zone_used_vols)
+                item_zone_idx[item_i] = best_zi
+                zone_used_vols[best_zi] += volumes[item_i]
 
-        # ── PHASE 2: Pre-reserve NF base layer for upper zones with fragile overflow ──
-        nf_reserved_for_upper = set()    # item indices already assigned to an upper zone
-
-        for upper_zi, frag_items in sorted(fragile_overflow_per_upper.items()):
-            if not frag_items:
-                continue
-
-            upper_floor_area = zone_floor_areas[upper_zi]
-            upper_cap        = zone_caps[upper_zi]
-
-            # Target floor coverage: match fragile footprint, capped at 40% of zone floor.
-            fragile_footprint = sum(
-                items_props[i, 0] * items_props[i, 1] for i in frag_items
-            )
-            target_coverage = min(fragile_footprint, upper_floor_area * 0.40)
-
-            # Each zone is an INDEPENDENT stacking column: NF items sit at the zone floor,
-            # fragile items stack on top of NF. They do NOT compete for the same volume —
-            # they occupy different height slices within the same zone.
-            # Therefore the NF budget is purely 40% of the zone's own capacity
-            # (roughly the lower 40% of zone height), irrespective of fragile item sizes.
-            available_for_nf = upper_cap * 0.40
-            # Safety: skip only if there is genuinely no floor area to place NF.
-            if upper_floor_area <= 0 or target_coverage <= 0:
-                continue
-
-            # Pick smallest-volume NF items first to minimise disruption to bottom zone.
-            nf_candidates = sorted(
-                [i for i in non_fragile_list if i not in nf_reserved_for_upper],
-                key=lambda i: volumes[i]
-            )
-
-            moved_coverage = 0.0
-            moved_vol      = 0.0
-            deferred       = 0
-            for item_i in nf_candidates:
-                if moved_coverage >= target_coverage or moved_vol >= available_for_nf:
-                    break
-                item_zone_idx[item_i]        = upper_zi
-                zone_used_vols[upper_zi]    += volumes[item_i]
-                nf_reserved_for_upper.add(item_i)
-                moved_coverage              += items_props[item_i, 0] * items_props[item_i, 1]
-                moved_vol                   += volumes[item_i]
-                deferred                    += 1
-
-            print(
-                f"DEBUG look-ahead: Pre-reserved {deferred} NF items → upper zone {upper_zi} "
-                f"(coverage={moved_coverage:.2f}/{target_coverage:.2f}, "
-                f"vol={moved_vol:.2f}/{available_for_nf:.2f})"
-            )
-
-        # ── PHASE 3: Fill bottom zone with remaining NF items (maximise bottom shelf) ──
-        nf_for_bottom = [i for i in non_fragile_list if i not in nf_reserved_for_upper]
-        bottom_l_idx  = 0
-        for item_i in nf_for_bottom:
-            bottom_l_idx              = _overflow_level(zone_used_vols, bottom_l_idx)
-            best_zi                   = _best_zone_in_level(item_i, bottom_l_idx, zone_used_vols)
-            item_zone_idx[item_i]     = best_zi
-            zone_used_vols[best_zi]  += volumes[item_i]
-
-        # ── PHASE 4: Assign fragile items (overflow lands on top of NF base) ──
-        frag_l_idx = bottom_l_idx
+        # ── PHASE 3: Assign Fragile Items (Stack on top of NF bases) ──
+        frag_l_idx = 0
         for item_i in fragile_list:
             frag_l_idx                = _overflow_level(zone_used_vols, frag_l_idx)
             best_zi                   = _best_zone_in_level(item_i, frag_l_idx, zone_used_vols)
             item_zone_idx[item_i]     = best_zi
             zone_used_vols[best_zi]  += volumes[item_i]
 
-        # ── PHASE 5: Build stacking order: NF-first (all zones), then F-last (all zones) ──
-        # Guarantees that within every zone the non-fragile base layer is placed before
-        # any fragile items are dropped on top — regardless of which level the zone is on.
+        # ── PHASE 4: Build Stacking Order (NF-First per Zone) ──
         sorted_indices = []
         for z_idx in range(num_zones):
             sorted_indices.extend([i for i in non_fragile_list if item_zone_idx.get(i) == z_idx])
@@ -642,13 +626,9 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
             sorted_indices.extend([i for i in fragile_list     if item_zone_idx.get(i) == z_idx])
 
         print(
-            f"DEBUG look-ahead: {len(nf_reserved_for_upper)} NF items pre-reserved for upper zones, "
-            f"{len(nf_for_bottom)} NF items assigned to bottom zone, "
-            f"across {len(unique_z_levels)} Z-levels."
+            f"DEBUG look-ahead: Proportional stacking active across {max_occupied_l_idx + 1} levels. "
+            f"NF Ratio: {total_nf_vol/max(total_vol, 1e-6):.2%}."
         )
-
-
-
 
     else:
         # Single zone: build NF/F lists and treat entire warehouse as zone 0
@@ -787,7 +767,8 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
         elif az is not None or (not fast_mode and volumes[idx] > 0.5):
             cand_limit = 5000
         else:
-            cand_limit = 1000 if fast_mode else 3000
+            # Aggressive throttling for EO-GA fast_mode
+            cand_limit = 400 if fast_mode else 3000
         search_cands = sorted_cands[:cand_limit]
 
         def _search(cand_list, is_fast, search_az=az):
@@ -813,7 +794,9 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
             ry1 = float(az['y1']) if az else 0.0
             rx2 = float(az['x2']) if az else wh_len
             ry2 = float(az['y2']) if az else wh_wid
-            for step in [0.25, 0.10, 0.05]:
+            # Skip the densest lattice (0.05m) in fast_mode to prevent hanging
+            lattice_steps = [0.25, 0.10] if fast_mode else [0.25, 0.10, 0.05]
+            for step in lattice_steps:
                 if best_pos is not None:
                     break
                 retry_cands = set()

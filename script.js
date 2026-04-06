@@ -2323,8 +2323,8 @@ function applyPreset(name) {
         });
     } else if (name === 'long-hall') {
         const newConfig = {
-            name: "Long Hall", length: 30, width: 5, height: 4, levels: 2, grid_size: 1,
-            door_x: 0, door_y: 2.5, id: currentWarehouseId
+            name: "Long Hall (Compact)", length: 20, width: 4, height: 6, levels: 2, grid_size: 1,
+            door_x: 0, door_y: 2, id: currentWarehouseId
         };
         fetch(`${API_BASE_URL}/api/warehouse/config`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
@@ -2332,15 +2332,15 @@ function applyPreset(name) {
             clearZones().then(() => {
                 const zones = [];
                 const racks = [
-                    { name: 'Left Wall', x1: 1, y1: 0.5, x2: 29, y2: 1.5 },
-                    { name: 'Right Wall', x1: 1, y1: 3.5, x2: 29, y2: 4.5 }
+                    { name: 'Left Wall', x1: 1, y1: 0.5, x2: 19, y2: 1.5 },
+                    { name: 'Right Wall', x1: 1, y1: 2.5, x2: 19, y2: 3.5 }
                 ];
                 racks.forEach(r => {
-                    zones.push({ ...r, name: `${r.name} (Bottom)`, z1: 0, z2: 2, zone_type: 'allocation', metadata: { levels: 1 } });
-                    zones.push({ ...r, name: `${r.name} (Top)`, z1: 2, z2: 4, zone_type: 'allocation', metadata: { levels: 1 } });
+                    zones.push({ ...r, name: `${r.name} (Lower)`, z1: 0, z2: 3, zone_type: 'allocation', metadata: { levels: 1 } });
+                    zones.push({ ...r, name: `${r.name} (Upper)`, z1: 3, z2: 6, zone_type: 'allocation', metadata: { levels: 1 } });
                 });
                 const promises = zones.map(z => fetch(`${API_BASE_URL}/api/warehouse/zones`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...z, warehouse_id: currentWarehouseId }) }));
-                Promise.all(promises).then(() => { loadWarehouseConfig(); alert('Applied: Long Hall (30x5m, 4 Zones)'); });
+                Promise.all(promises).then(() => { loadWarehouseConfig(); alert('Applied: Compact Long Hall (20x4m, 4 Zones, 216m³ capacity)'); });
             });
         });
     } else if (name === 'massive-center') {
@@ -2370,8 +2370,8 @@ function applyPreset(name) {
         });
     } else if (name === 'l-shape') {
         const newConfig = {
-            name: "L-Shape Warehouse", length: 20, width: 20, height: 5, levels: 2, grid_size: 1,
-            door_x: 10, door_y: 0, id: currentWarehouseId
+            name: "L-Shape (Compact)", length: 10, width: 10, height: 6, levels: 2, grid_size: 1,
+            door_x: 5, door_y: 0, id: currentWarehouseId
         };
         fetch(`${API_BASE_URL}/api/warehouse/config`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
@@ -2379,23 +2379,23 @@ function applyPreset(name) {
             if (d.success) {
                 clearZones().then(() => {
                     const zones = [];
-                    // The L-Shape Cutout Exclusion Zone
+                    // Compact Cutout
                     zones.push({
-                        name: "L-Shape Cutout", x1: 10, y1: 10, x2: 20, y2: 20,
-                        z1: 0, z2: 5, zone_type: 'exclusion', metadata: {}
+                        name: "L-Shape Cutout", x1: 5, y1: 5, x2: 10, y2: 10,
+                        z1: 0, z2: 6, zone_type: 'exclusion', metadata: {}
                     });
                     
                     const racks = [
-                        { name: 'Top Arm Rack', x1: 2, y1: 2, x2: 8, y2: 18 },
-                        { name: 'Right Arm Rack', x1: 12, y1: 2, x2: 18, y2: 8 }
+                        { name: 'Rack Arm A', x1: 1, y1: 1, x2: 4, y2: 7 },
+                        { name: 'Rack Arm B', x1: 4, y1: 1, x2: 10, y2: 4 }
                     ];
                     racks.forEach(r => {
-                        zones.push({ ...r, name: `${r.name} (Lower)`, z1: 0, z2: 2.5, zone_type: 'allocation', metadata: { levels: 1 } });
-                        zones.push({ ...r, name: `${r.name} (Upper)`, z1: 2.5, z2: 5, zone_type: 'allocation', metadata: { levels: 1 } });
+                        zones.push({ ...r, name: `${r.name} (Lower)`, z1: 0, z2: 3, zone_type: 'allocation', metadata: { levels: 1 } });
+                        zones.push({ ...r, name: `${r.name} (Upper)`, z1: 3, z2: 6, zone_type: 'allocation', metadata: { levels: 1 } });
                     });
 
                     const promises = zones.map(z => fetch(`${API_BASE_URL}/api/warehouse/zones`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...z, warehouse_id: currentWarehouseId }) }));
-                    Promise.all(promises).then(() => { loadWarehouseConfig(); alert('Applied: L-Shape Warehouse (Exclusion + 4 Allocation Zones)'); });
+                    Promise.all(promises).then(() => { loadWarehouseConfig(); alert('Applied: Compact L-Shape (10x10m, 5 Zones, 216m³ capacity)'); });
                 });
             }
         });

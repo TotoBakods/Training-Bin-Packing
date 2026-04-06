@@ -27,9 +27,12 @@ The pipeline begins by receiving a high-dimensional feature vector representing 
 |:---:|:---:|:---|
 | **Dimensionality** | 3 | $l_i, w_i, h_i$ (Length, Width, Height) |
 | **Physicality** | 2 | $m_i$ (Weight), $\text{Fragility}$ (Boolean) |
-| **Constraints** | 2 | $\text{Stackable}$ (Boolean), $\text{Heavy}$ (Boolean) |
-| **Environment** | 6 | Warehouse $W, D, H$, current SKU count, total volume |
-| **Orientation** | 6 | Discrete rotation masks (0°, 90°, 180°, etc.) |
+| **Constraints** | 2 | $\text{Stackable}$ (Boolean), $\text{CanRotate}$ (Boolean) |
+| **Environment** | 3 | Warehouse $L, W, H$ (Global Context) |
+| **Volumetric** | 3 | $V_{rel, item}, V_{rel, wh}, V_{item}/V_{bin}$ |
+| **Surfaces** | 3 | $A_{rel, item}, A_{rel, wh}, A_{item}/A_{bin}$ |
+| **Relational** | 2 | $l/L, w/W$ (Dimension Ratios) |
+| **Sequence** | 1 | Sequence Progress (Normalized Index) |
 
 **Transformation**: The raw SKU data is normalized and decoupled from the database, feeding the model a standardized strategic context.
 

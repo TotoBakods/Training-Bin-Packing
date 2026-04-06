@@ -86,9 +86,9 @@ While deep architectures (5+ layers) capture complex spatial relationships, they
 | Architecture Stage | Neurons | Activation | Regularization |
 |:---|:---:|:---:|:---|
 | **Input** | 19 | - | - |
-| **Hidden 1** | 128 | ReLU | LayerNorm |
-| **Hidden 2** | 256 | ReLU | Dropout (0.1) |
-| **Hidden 3** | 128 | ReLU | LayerNorm |
+| **Hidden 1** | 128 | LeakyReLU (0.1) | BatchNorm1d |
+| **Hidden 2** | 256 | LeakyReLU (0.1) | Dropout (0.1) |
+| **Hidden 3** | 128 | LeakyReLU (0.1) | BatchNorm1d |
 | **Output** | 4 | Sigmoid | Unit Projection |
 
 ---

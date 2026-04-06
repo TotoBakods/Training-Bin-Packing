@@ -674,7 +674,7 @@ def optimize_ga():
                 items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
             finalize_optimization(
                 best_solution,
-                'ML - Genetic Algorithm',
+                'ML - GA',
                 weights,
                 optimization_state['start_time'],
                 warehouse_id,
@@ -739,7 +739,7 @@ def optimize_eo():
                 items, warehouse, weights, callback=update_progress, optimization_state=optimization_state)
             finalize_optimization(
                 best_solution,
-                'ML - Extremal Opt',
+                'ML - EO',
                 weights,
                 optimization_state['start_time'],
                 warehouse_id,

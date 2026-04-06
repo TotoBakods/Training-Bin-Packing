@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     switchView('controls');
     updateAlgorithmParams(); // Initialize algorithm params
     initResizer(); // Initialize UI resizer
+    refreshViewModePicker(); // Populate previous results
 
     // Search input handler
     const searchInput = document.getElementById('item-search');
@@ -831,7 +832,7 @@ function onViewModeChange(value) {
         renderItems(solutionItems);
         
         // Update Metrics Dashboard
-        updateMetricsDashboard(res.metrics);
+        updateMetricsDashboard(res.metrics, res.solution);
         
         if (statusText) statusText.textContent = `RESULT: ${value}`;
         
@@ -883,15 +884,40 @@ function onViewModeChange(value) {
     }
 }
 
-function updateMetricsDashboard(m) {
+function updateMetricsDashboard(m, solution = null) {
     if (!m) return;
     
+    // Calculate missing metrics from solution if available
+    let totalItems = m.total_items;
+    let freeSpace = m.free_space_vol;
+    
+    if (solution && (!totalItems || !freeSpace)) {
+        totalItems = solution.length;
+        const fittingItems = solution.filter(i => (i.z || 0) < 1000);
+        
+        // Calculate volume if we have warehouseConfig
+        if (warehouseConfig && warehouseConfig.length) {
+            const whVol = warehouseConfig.length * warehouseConfig.width * warehouseConfig.height;
+            let itemsVol = 0;
+            fittingItems.forEach(i => {
+                // We need original dimensions for volume calculation
+                const orig = allItemsData[i.id];
+                if (orig) {
+                    itemsVol += orig.length * orig.width * orig.height;
+                }
+            });
+            freeSpace = Math.max(0, whVol - itemsVol);
+        }
+    }
+
     // Standard Metrics
     const elements = {
         'metric-space': (m.space_utilization * 100).toFixed(1) + '%',
         'metric-runtime': m.execution_time ? m.execution_time.toFixed(2) + 's' : '0.00s',
-        'metric-access': m.accessibility.toFixed(2),
-        'metric-stability': (m.stability * 100).toFixed(1) + '%'
+        'metric-access': m.accessibility ? m.accessibility.toFixed(2) : '0.00',
+        'metric-stability': (m.stability * 100).toFixed(1) + '%',
+        'metric-count': totalItems || '-',
+        'metric-free-space': freeSpace ? freeSpace.toFixed(2) + ' m³' : '-'
     };
     
     for (const [id, val] of Object.entries(elements)) {
@@ -944,20 +970,18 @@ function refreshViewModePicker() {
     liveOpt.textContent = 'LIVE / CURRENT STATE';
     select.appendChild(liveOpt);
 
-    // Add Algorithm Results if they exist
+    // Add Algorithm Results (Always available to fetch from DB)
     const standardAlgos = ['ML - GA', 'ML - EO', 'ML - Hybrid GA-EO', 'ML - Hybrid EO-GA'];
     
-    if (Object.keys(comparisonResults).length > 0 || currentOptimizationType === 'compare') {
-        const group = document.createElement('optgroup');
-        group.label = 'SAVED ALGORITHM RUNS';
-        standardAlgos.forEach(algo => {
-            const opt = document.createElement('option');
-            opt.value = algo;
-            opt.textContent = 'Result: ' + algo.replace('ML - ', '');
-            group.appendChild(opt);
-        });
-        select.appendChild(group);
-    }
+    const group = document.createElement('optgroup');
+    group.label = 'ALGORITHM RESULTS (FETCH FROM DB)';
+    standardAlgos.forEach(algo => {
+        const opt = document.createElement('option');
+        opt.value = algo;
+        opt.textContent = 'Result: ' + algo.replace('ML - ', '');
+        group.appendChild(opt);
+    });
+    select.appendChild(group);
 
     // Try to restore previous value or default
     if (Array.from(select.options).some(o => o.value === currentValue)) {
@@ -1403,12 +1427,12 @@ function loadAnalytics() {
             const mStab = document.getElementById('metric-stability');
             const mCount = document.getElementById('metric-count');
 
-            if (mSpace) mSpace.textContent = (data.space_utilization * 100).toFixed(1) + '%';
-            if (mFreeSpace) mFreeSpace.textContent = data.free_space_vol ? data.free_space_vol.toFixed(2) + ' m³' : '0.00 m³';
-            if (mRuntime) mRuntime.textContent = data.execution_time ? data.execution_time.toFixed(2) + 's' : '0.00s';
-            if (mAccess) mAccess.textContent = data.accessibility.toFixed(2);
-            if (mStab) mStab.textContent = (data.stability * 100).toFixed(1) + '%';
-            if (mCount) mCount.textContent = data.total_items;
+            if (mSpace) { mSpace.textContent = (data.space_utilization * 100).toFixed(1) + '%'; mSpace.style.color = ''; }
+            if (mFreeSpace) { mFreeSpace.textContent = data.free_space_vol ? data.free_space_vol.toFixed(2) + ' m³' : '0.00 m³'; mFreeSpace.style.color = ''; }
+            if (mRuntime) { mRuntime.textContent = data.execution_time ? data.execution_time.toFixed(2) + 's' : '0.00s'; mRuntime.style.color = ''; }
+            if (mAccess) { mAccess.textContent = data.accessibility.toFixed(2); mAccess.style.color = ''; }
+            if (mStab) { mStab.textContent = (data.stability * 100).toFixed(1) + '%'; mStab.style.color = ''; }
+            if (mCount) { mCount.textContent = data.total_items; mCount.style.color = ''; }
 
             // Also update rendered count
             countRenderedBoxes();

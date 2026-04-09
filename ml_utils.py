@@ -223,12 +223,14 @@ class MLOptimizer:
                 cb_interval = 200 if is_eo_ga else 50
                 solution = repair_solution_compact(
                     solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
-                    callback=intermediate_callback, callback_interval=cb_interval, fast_mode=is_eo_ga
+                    callback=intermediate_callback, callback_interval=cb_interval, fast_mode=is_eo_ga,
+                    item_categories=[item.get('category', 'General') for item in items]
                 )
             else:
                 solution = repair_solution_compact(
                     solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
-                    fast_mode=is_eo_ga
+                    fast_mode=is_eo_ga,
+                    item_categories=[item.get('category', 'General') for item in items]
                 )
             repair_end = time.time()
             repair_latency = (repair_end - repair_start) * 1000 # ms

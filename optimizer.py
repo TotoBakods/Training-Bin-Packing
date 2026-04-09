@@ -445,7 +445,7 @@ def _perform_search_cpu(cands, rots, l, w, h,
     return best
 
 
-def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zones=None, layer_heights=None, callback=None, callback_interval=50, fast_mode=False, max_candidates=None):
+def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zones=None, layer_heights=None, callback=None, callback_interval=50, fast_mode=False, max_candidates=None, item_categories=None):
     """Repair solution by placing items in valid positions with gravity."""
     # Defaults
     if layer_heights is None or len(layer_heights) == 0:
@@ -471,6 +471,17 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
     
     # Sort zones by Z-base (Bottom first), then Y1, then X1 for back-to-front, bottom-to-top filling
     use_zones = sorted(use_zones, key=lambda zn: (zn.get('z1', 0), zn.get('y1', 0), zn.get('x1', 0)))
+    
+    # Map item categories to specific zones by name (case-insensitive)
+    cat_to_zones = {}
+    if item_categories:
+        unique_cats = set(c for c in item_categories if c)
+        for zi, zne in enumerate(use_zones):
+            zname = zne.get('name', '').lower()
+            for cat in unique_cats:
+                if cat.lower() in zname:
+                    if cat not in cat_to_zones: cat_to_zones[cat] = []
+                    cat_to_zones[cat].append(zi)
     
     num_zones = len(use_zones)
 
@@ -529,6 +540,18 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
         def _best_zone_in_level(item_i, lvl_idx, used_vols):
             lvl          = unique_z_levels[lvl_idx]
             target_zones = zones_by_lvl[lvl]
+
+            # --- CATEGORY MATCHING ---
+            # If item has a category-specific zone at this level, use only those.
+            if item_categories:
+                item_cat = item_categories[item_i]
+                matching_zone_indices = cat_to_zones.get(item_cat, [])
+                if matching_zone_indices:
+                    cat_targets = [zi for zi in target_zones if zi in matching_zone_indices]
+                    if cat_targets:
+                        target_zones = cat_targets
+            # -------------------------
+
             l, w, h      = items_props[item_i, 0:3]
             eligible     = []
             for zi in target_zones:

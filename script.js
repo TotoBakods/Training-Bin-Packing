@@ -1636,6 +1636,29 @@ function initCategoryChart(data) {
     });
 }
 
+// X-ray feature
+let currentlyXrayedItemId = null;
+window.xrayItem = function(itemId) {
+    if (currentlyXrayedItemId === itemId) {
+        currentlyXrayedItemId = null;
+        updateVisualization();
+        return;
+    }
+    currentlyXrayedItemId = itemId;
+    itemsGroup.children.forEach(mesh => {
+        if (mesh.userData && mesh.userData.id === itemId) {
+            mesh.material.emissive.setHex(0x00A5FF);
+            mesh.material.emissiveIntensity = 0.8;
+            mesh.material.transparent = false;
+            mesh.material.opacity = 1.0;
+        } else {
+            mesh.material.emissive.setHex(0x000000);
+            mesh.material.transparent = true;
+            mesh.material.opacity = 0.15;
+        }
+    });
+};
+
 // Item list
 function loadItemsList() {
     console.log('loadItemsList called');
@@ -1706,6 +1729,19 @@ function loadItemsList() {
                 tr.appendChild(tdFrag);
 
                 const tdAction = document.createElement('td');
+                tdAction.style.display = 'flex';
+                tdAction.style.gap = '5px';
+                
+                const xrayBtn = document.createElement('button');
+                xrayBtn.innerHTML = '👁️';
+                xrayBtn.className = 'xray-btn-item'; 
+                xrayBtn.title = 'Highlight (X-Ray)';
+                xrayBtn.style.background = 'none';
+                xrayBtn.style.border = 'none';
+                xrayBtn.style.cursor = 'pointer';
+                xrayBtn.onclick = () => window.xrayItem(item.id);
+                tdAction.appendChild(xrayBtn);
+
                 const btn = document.createElement('button');
                 btn.innerHTML = '🗑️';
                 btn.className = 'delete-btn-item'; 
@@ -2365,6 +2401,50 @@ function applyPreset(name) {
                 });
                 const promises = zones.map(z => fetch(`${API_BASE_URL}/api/warehouse/zones`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...z, warehouse_id: currentWarehouseId }) }));
                 Promise.all(promises).then(() => { loadWarehouseConfig(); alert('Applied: Compact Long Hall (20x4m, 4 Zones, 216m³ capacity)'); });
+            });
+        });
+    } else if (name === 'large-zoned') {
+        const newConfig = {
+            name: "Large Zoned Warehouse", length: 60, width: 40, height: 10, levels: 3, grid_size: 2,
+            door_x: 30, door_y: 0, id: currentWarehouseId
+        };
+        fetch(`${API_BASE_URL}/api/warehouse/config`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig)
+        }).then(() => {
+            clearZones().then(() => {
+                fetch(`${API_BASE_URL}/api/items?warehouse_id=${currentWarehouseId}`)
+                .then(res => res.json())
+                .then(items => {
+                    const categories = [...new Set(items.map(i => i.category || 'General'))];
+                    const zones = [];
+                    const cols = Math.ceil(Math.sqrt(categories.length)) || 1;
+                    const rows = Math.ceil(categories.length / cols) || 1;
+                    
+                    const cw = 60 / cols;
+                    const cd = 40 / rows;
+                    
+                    categories.forEach((cat, idx) => {
+                        const r = Math.floor(idx / cols);
+                        const c = idx % cols;
+                        zones.push({
+                            name: `${cat} Zone`,
+                            x1: c * cw + 2, y1: r * cd + 2,
+                            x2: (c + 1) * cw - 2, y2: (r + 1) * cd - 2,
+                            z1: 0, z2: 10,
+                            zone_type: 'allocation',
+                            metadata: { levels: 3 }
+                        });
+                    });
+                    
+                    if (zones.length === 0) {
+                        loadWarehouseConfig();
+                        alert('Applied: Large Zoned Warehouse. No items/categories found to create zones.');
+                        return;
+                    }
+                    
+                    const promises = zones.map(z => fetch(`${API_BASE_URL}/api/warehouse/zones`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...z, warehouse_id: currentWarehouseId }) }));
+                    Promise.all(promises).then(() => { loadWarehouseConfig(); alert(`Applied: Large Zoned (${categories.length} Category Zones created)`); });
+                });
             });
         });
     } else if (name === 'massive-center') {

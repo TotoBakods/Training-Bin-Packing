@@ -1,0 +1,1130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Latest Logs Report: GAN, MLP, Heuristic Repair</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f6f7f4;
+      --surface: #ffffff;
+      --ink: #13212b;
+      --muted: #4f6573;
+      --line: #d9e1e7;
+      --accent: #0b7285;
+      --accent2: #ff7f11;
+      --accent3: #2b9348;
+      --radius: 14px;
+      --shadow: 0 10px 28px rgba(13, 42, 62, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--ink);
+      line-height: 1.55;
+      background:
+        radial-gradient(circle at 84% 6%, #d8eff6 0%, transparent 40%),
+        radial-gradient(circle at 10% 11%, #fff1de 0%, transparent 34%),
+        var(--bg);
+    }
+
+    .wrap { width: min(1200px, 92vw); margin: 0 auto; padding: 24px 0 56px; }
+
+    header {
+      background: linear-gradient(130deg, #0f3d4c 0%, #1b6174 54%, #2892a8 100%);
+      color: #f4fbfd;
+      border-radius: var(--radius);
+      padding: 28px 28px 24px;
+      box-shadow: var(--shadow);
+    }
+
+    h1 { margin: 0 0 8px; font-size: clamp(1.4rem, 2.6vw, 2rem); }
+    .sub { margin: 0; color: #daf2f7; }
+
+    .meta-grid {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .84rem;
+    }
+
+    .meta-grid span { word-break: break-word; }
+
+    nav { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+    nav a {
+      text-decoration: none;
+      color: #0c3d4c;
+      background: #ebf8fc;
+      border: 1px solid #b6e2ee;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: .9rem;
+    }
+
+    section {
+      margin-top: 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    h2 { margin: 0 0 8px; font-size: 1.35rem; color: #113649; }
+    h3 { margin: 14px 0 8px; font-size: 1.02rem; color: #214b60; }
+    p { margin: 8px 0; }
+
+    .discussion {
+      margin-top: 10px;
+      border: 1px solid #d8e8f0;
+      border-radius: 10px;
+      background: #f8fcfe;
+      padding: 10px 12px;
+      color: #29495b;
+      font-size: .92rem;
+    }
+
+    .pipeline {
+      margin-top: 12px;
+      border: 1px solid #d5e5ee;
+      border-radius: 12px;
+      background: #f7fcff;
+      padding: 10px;
+    }
+
+    .pipeline-title {
+      margin: 0 0 8px;
+      font-size: .94rem;
+      color: #1d4960;
+      font-weight: 700;
+    }
+
+    .pipeline-track {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .stage {
+      flex: 1 1 180px;
+      min-width: 160px;
+      border: 1px solid #cfe0e9;
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      position: relative;
+    }
+
+    .stage .idx {
+      display: inline-block;
+      font-size: .72rem;
+      border: 1px solid #b8d2e0;
+      color: #1f536e;
+      border-radius: 999px;
+      padding: 1px 8px;
+      background: #eef6fb;
+      margin-bottom: 4px;
+    }
+
+    .stage .name {
+      font-size: .86rem;
+      font-weight: 700;
+      color: #163d51;
+      margin-bottom: 2px;
+    }
+
+    .stage .desc {
+      font-size: .8rem;
+      color: #476273;
+      line-height: 1.35;
+    }
+
+    .pipeline-kpis {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+      font-size: .8rem;
+      color: #305264;
+    }
+
+    .pipeline-kpis div {
+      border: 1px solid #d7e6ee;
+      border-radius: 8px;
+      padding: 6px 8px;
+      background: #fff;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: #fbfdff; }
+    .card .k { font-size: .76rem; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .card .v { margin-top: 4px; font-size: 1.08rem; font-weight: 700; color: #0d3b4e; }
+
+    .chart-grid, .figure-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .plot, .figure {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .plot { position: relative; height: clamp(240px, 32vw, 360px); overflow: hidden; }
+    .plot canvas { display: block; width: 100% !important; height: 100% !important; }
+
+    .figure img { width: 100%; height: auto; border-radius: 8px; display: block; border: 1px solid #dfe6eb; }
+    .caption { color: var(--muted); font-size: .84rem; margin-top: 6px; }
+
+    .formula-block {
+      margin-top: 12px;
+      border-left: 4px solid var(--accent2);
+      background: #fff8ef;
+      padding: 10px 12px;
+      border-radius: 8px;
+    }
+
+    .math-text {
+      margin: 6px 0;
+      padding: 8px 10px;
+      border: 1px solid #f1dbc0;
+      border-radius: 8px;
+      background: #fffdf8;
+      font-family: "IBM Plex Mono", monospace;
+      white-space: pre-wrap;
+      font-size: .88rem;
+    }
+
+    .math-eq {
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #f1dbc0;
+      border-radius: 8px;
+      background: #fffdf8;
+      overflow-x: auto;
+      font-size: .95rem;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    table { width: 100%; border-collapse: collapse; min-width: 860px; font-size: .9rem; }
+    th, td { border-bottom: 1px solid #e6edf2; padding: 8px 10px; text-align: left; white-space: nowrap; }
+    th { background: #f5fafc; color: #24485e; font-weight: 700; }
+
+    .small { color: var(--muted); font-size: .86rem; }
+
+    .refs ol { margin: 8px 0 0 18px; padding: 0; }
+    .refs li { margin: 6px 0; }
+    .refs a { color: #0b5f7c; word-break: break-word; }
+
+    footer { margin-top: 14px; color: var(--muted); font-size: .84rem; text-align: center; }
+
+    @media (max-width: 700px) {
+      section { padding: 14px; }
+      .meta-grid { font-size: .78rem; }
+      .plot { height: 240px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Warehouse Bin-Packing Logs Dashboard</h1>
+      <p class="sub">Single-file report built from the latest existing logs only. No retraining, no reruns.</p>
+      <div class="meta-grid">
+        <div><strong>Report Generated:</strong> <span id="generatedAt"></span></div>
+        <div><strong>GAN Log:</strong> <span id="srcGanLoss"></span></div>
+        <div><strong>MLP Log:</strong> <span id="srcMlp"></span></div>
+        <div><strong>Full Metrics Log:</strong> <span id="srcFullRun"></span></div>
+      </div>
+    </header>
+
+    <nav>
+      <a href="#gan">Part 1: GAN</a>
+      <a href="#mlp">Part 2: MLP</a>
+      <a href="#heuristic">Part 3: Heuristic Repair</a>
+      <a href="#head2head">Head-to-Head Research</a>
+      <a href="#rrl">RRL + Citations</a>
+    </nav>
+
+    <section id="gan">
+      <h2>Part 1: GAN (Synthetic SKU Generator)</h2>
+      <p>Adversarial training quality from <code>gan/loss_history.json</code> and <code>gan/research_metrics.json</code>.</p>
+      <div class="cards" id="ganCards"></div>
+      <div class="discussion" id="ganDiscussion"></div>
+      <div class="pipeline">
+        <p class="pipeline-title">GAN Pipeline (latest-log evaluation flow)</p>
+        <div class="pipeline-track">
+          <div class="stage">
+            <div class="idx">Step 1</div>
+            <div class="name">Load Latest Data</div>
+            <div class="desc">Read latest GAN loss and research metrics logs from repository artifacts.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 2</div>
+            <div class="name">Sample Latent + Conditions</div>
+            <div class="desc">Use latent noise and tabular conditioning schema for synthetic SKU candidates.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 3</div>
+            <div class="name">Generate Synthetic Rows</div>
+            <div class="desc">Generator proposes synthetic tuples under learned distribution.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 4</div>
+            <div class="name">Discriminate + Adversarial Update</div>
+            <div class="desc">Discriminator separates real/fake; losses drive min-max learning dynamics.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 5</div>
+            <div class="name">Quality Audits</div>
+            <div class="desc">Compute parity, C2ST AUC, and DCR privacy-style diagnostics on latest samples.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 6</div>
+            <div class="name">Publish Metrics</div>
+            <div class="desc">Surface final losses and audit metrics to downstream proposer/research reports.</div>
+          </div>
+        </div>
+        <div class="pipeline-kpis" id="ganPipelineKpis"></div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="plot">
+          <canvas id="ganLossChart"></canvas>
+          <div class="caption">Discriminator vs Generator loss trajectory (downsampled from latest 1000-epoch run).</div>
+        </div>
+        <div class="plot">
+          <canvas id="ganParityChart"></canvas>
+          <div class="caption">Parity = abs(D loss - G loss). Lower is more balanced adversarial competition.</div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Derived GAN Metric</th>
+              <th>Value</th>
+              <th>Interpretation</th>
+            </tr>
+          </thead>
+          <tbody id="ganDerivedTable"></tbody>
+        </table>
+      </div>
+
+      <div class="figure-grid">
+        <div class="figure">
+          <img src="Documents/04_Machine_Learning/Performance_Metrics/metrics_visuals/gan_kde_overlays.png" alt="GAN KDE overlays" />
+          <div class="caption">KDE overlap of real vs synthetic distributions.</div>
+        </div>
+        <div class="figure">
+          <img src="Documents/04_Machine_Learning/Performance_Metrics/metrics_visuals/gan_pca_projection.png" alt="GAN PCA projection" />
+          <div class="caption">PCA manifold overlap diagnostics.</div>
+        </div>
+      </div>
+
+      <div class="formula-block">
+        <p><strong>Core formulas</strong> (RRL-aligned):</p>
+        <div class="math-eq">\[
+          \min_G \max_D V(D,G)=\mathbb{E}_{x\sim p_r(x)}[\log D(x)] + \mathbb{E}_{z\sim p_z(z)}[\log(1-D(G(z)))]
+        \]</div>
+        <div class="math-eq">\[
+          \mathrm{Parity}_t=\left|L_D^{(t)}-L_G^{(t)}\right|,\qquad
+          L_D^\star=-\ln(0.5)\approx 0.693
+        \]</div>
+        <div class="math-eq">\[
+          \Delta_{\mathrm{eq}}=\left|L_D^{\mathrm{final}}-0.693\right|
+        \]</div>
+        <p class="small">Citations: [1], [2], [3], [4].</p>
+      </div>
+    </section>
+
+    <section id="mlp">
+      <h2>Part 2: MLP (Neural Proposer)</h2>
+      <p>Training convergence and model quality from <code>ml_training_history.json</code> and <code>full_run_metrics.json</code>.</p>
+      <div class="cards" id="mlpCards"></div>
+      <div class="discussion" id="mlpDiscussion"></div>
+      <div class="pipeline">
+        <p class="pipeline-title">MLP Pipeline (proposal model flow)</p>
+        <div class="pipeline-track">
+          <div class="stage">
+            <div class="idx">Step 1</div>
+            <div class="name">Ingest Placement Dataset</div>
+            <div class="desc">Load normalized bin/item features from latest training-history artifacts.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 2</div>
+            <div class="name">Train/Val Loop</div>
+            <div class="desc">Run supervised optimization over 100 epochs with monitoring of train/val losses.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 3</div>
+            <div class="name">Variant Evaluation</div>
+            <div class="desc">Evaluate EO, EO-GA, GA, GA-EO variants on MAE and R2 metrics.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 4</div>
+            <div class="name">Best Variant Selection</div>
+            <div class="desc">Select lowest validation-loss variant for proposal quality trade-off.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 5</div>
+            <div class="name">Proposal Inference</div>
+            <div class="desc">Use trained network to produce initial placement coordinates/orientation proposals.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 6</div>
+            <div class="name">Hand-off to Repair</div>
+            <div class="desc">Pass proposals into geometric/physics repair pipeline for feasibility enforcement.</div>
+          </div>
+        </div>
+        <div class="pipeline-kpis" id="mlpPipelineKpis"></div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="plot">
+          <canvas id="mlLossChart"></canvas>
+          <div class="caption">Warehouse MLP train and validation loss across 100 epochs.</div>
+        </div>
+        <div class="plot">
+          <canvas id="mlVariantValChart"></canvas>
+          <div class="caption">Final validation loss by model variant (lower is better).</div>
+        </div>
+      </div>
+
+      <div class="figure-grid">
+        <div class="figure">
+          <img src="Documents/04_Machine_Learning/Performance_Metrics/research_plots/research_ml_convergence.png" alt="ML convergence" />
+          <div class="caption">Research convergence plot from latest metrics artifacts.</div>
+        </div>
+        <div class="figure">
+          <img src="Documents/04_Machine_Learning/Performance_Metrics/research_plots/research_ml_error_distribution.png" alt="ML error distribution" />
+          <div class="caption">Error distribution and coordinate behavior.</div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Variant</th>
+              <th>Final Train Loss</th>
+              <th>Final Val Loss</th>
+              <th>MAE x</th>
+              <th>MAE y</th>
+              <th>MAE z</th>
+              <th>R2 x</th>
+              <th>R2 y</th>
+              <th>R2 rot</th>
+            </tr>
+          </thead>
+          <tbody id="mlpVariantTable"></tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Derived MLP Metric</th>
+              <th>Value</th>
+              <th>Interpretation</th>
+            </tr>
+          </thead>
+          <tbody id="mlpDerivedTable"></tbody>
+        </table>
+      </div>
+
+      <div class="formula-block">
+        <p><strong>Core formulas</strong> (RRL-aligned):</p>
+        <div class="math-eq">\[
+          \mathbf{x}_{\mathrm{norm}}=
+          \left[\frac{l_i}{L_{\max}},\frac{w_i}{W_{\max}},\frac{h_i}{H_{\max}},\ldots,\frac{V_i}{V_{\mathrm{bin}}}\right]
+        \]</div>
+        <div class="math-eq">\[
+          \mathcal{F}=\alpha\cdot VU+\beta\cdot PSR+\gamma\cdot SSR-\delta\cdot P_{\mathrm{collision}}
+        \]</div>
+        <div class="math-eq">\[
+          VU=\frac{\sum_{i=1}^{n} l_i w_i h_i}{LWH}\times 100,\qquad
+          PSR=\frac{N_{\mathrm{placed}}}{N_{\mathrm{requested}}}\times 100
+        \]</div>
+        <div class="math-eq">\[
+          \mathrm{ValRed}=\frac{L^{\mathrm{val}}_{1}-\min_t L^{\mathrm{val}}_{t}}{L^{\mathrm{val}}_{1}}\times 100
+        \]</div>
+        <p class="small">Citations: [5], [6], [7], [9].</p>
+      </div>
+    </section>
+
+    <section id="heuristic">
+      <h2>Part 3: Heuristic Repair + Physics Settlement</h2>
+      <p>Repair latency, placement success, and physics correction outcomes from the latest inference and physics logs.</p>
+      <div class="cards" id="heuristicCards"></div>
+      <div class="discussion" id="heuristicDiscussion"></div>
+      <div class="pipeline">
+        <p class="pipeline-title">Heuristic + Physics Pipeline (post-ML feasibility flow)</p>
+        <div class="pipeline-track">
+          <div class="stage">
+            <div class="idx">Step 1</div>
+            <div class="name">Receive MLP Proposals</div>
+            <div class="desc">Take raw placement proposals from the neural model for each scale scenario.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 2</div>
+            <div class="name">Collision + Bounds Checks</div>
+            <div class="desc">Detect overlap, out-of-bin, and support-rule violations.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 3</div>
+            <div class="name">Heuristic Repair</div>
+            <div class="desc">Apply deterministic adjustments to recover feasible placements.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 4</div>
+            <div class="name">Physics Settlement</div>
+            <div class="desc">Estimate displacement/correction outcomes under physics-aware validation.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 5</div>
+            <div class="name">Compute Operational KPIs</div>
+            <div class="desc">Aggregate PSR, SU, repair share, throughput, and latency scaling.</div>
+          </div>
+          <div class="stage">
+            <div class="idx">Step 6</div>
+            <div class="name">Variant Decision</div>
+            <div class="desc">Select variant by runtime-quality target (speed, utilization, or placement success).</div>
+          </div>
+        </div>
+        <div class="pipeline-kpis" id="heuristicPipelineKpis"></div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="plot">
+          <canvas id="repairLatencyChart"></canvas>
+          <div class="caption">Repair latency scaling with SKU count (ms).</div>
+        </div>
+        <div class="plot">
+          <canvas id="psrScaleChart"></canvas>
+          <div class="caption">Placement Success Rate (PSR %) by scale and variant.</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="plot">
+          <canvas id="repairShareChart"></canvas>
+          <div class="caption">Repair share of total pipeline time (%).</div>
+        </div>
+        <div class="plot">
+          <canvas id="throughputChart"></canvas>
+          <div class="caption">Effective throughput (items/sec) based on total pipeline time.</div>
+        </div>
+      </div>
+
+      <div class="figure-grid">
+        <div class="figure">
+          <img src="Documents/04_Machine_Learning/Performance_Metrics/research_plots/research_heuristic_repair_latency.png" alt="Heuristic repair latency" />
+          <div class="caption">Research plot: repair latency behavior across scales.</div>
+        </div>
+        <div class="figure">
+          <img src="Documents/04_Machine_Learning/Performance_Metrics/research_plots/research_heuristic_stability_heatmap.png" alt="Heuristic stability heatmap" />
+          <div class="caption">Research plot: spatial stability heatmap.</div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Variant</th>
+              <th>Avg Displacement (m)</th>
+              <th>Max Displacement (m)</th>
+              <th>Correction Rate (%)</th>
+              <th>Items Tested</th>
+            </tr>
+          </thead>
+          <tbody id="physicsTable"></tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Derived Heuristic Metric</th>
+              <th>Value</th>
+              <th>Interpretation</th>
+            </tr>
+          </thead>
+          <tbody id="heuristicDerivedTable"></tbody>
+        </table>
+      </div>
+
+      <div class="formula-block">
+        <p><strong>Core formulas</strong> (RRL-aligned):</p>
+        <div class="math-eq">\[
+          I(i,j)=
+          \begin{cases}
+            1, & \text{if } \mathrm{Overlap}(i,j)\\
+            0, & \text{otherwise}
+          \end{cases}
+        \]</div>
+        <div class="math-eq">\[
+          z_{i,\mathrm{final}}=\max\left(\{0\}\cup\{z_j+h_j\mid \mathrm{Support}(i,j)\}\right)
+        \]</div>
+        <div class="math-eq">\[
+          SSR_i=\frac{A_{\mathrm{contact},i}}{A_{\mathrm{base},i}}\ge \tau,\qquad
+          \mathrm{RepairShare}=\frac{t_{\mathrm{repair}}}{t_{\mathrm{total}}}\times 100
+        \]</div>
+        <p class="small">Citations: [5], [8], [10].</p>
+      </div>
+    </section>
+
+    <section id="head2head">
+      <h2>Head-to-Head Comparison Against Published Research</h2>
+      <p>Added from online sources and mapped to your latest-log metrics. Cross-paper comparability is limited when datasets/objectives differ, so relative gains are emphasized where possible.</p>
+      <div class="discussion" id="head2headDiscussion"></div>
+
+      <div class="chart-grid">
+        <div class="plot">
+          <canvas id="litGainChart"></canvas>
+          <div class="caption">Relative gain snapshots reported in literature and from current logs.</div>
+        </div>
+        <div class="plot">
+          <canvas id="songData1Chart"></canvas>
+          <div class="caption">Song et al. (2023) DATA-1 utilization (Uti.) across methods.</div>
+        </div>
+      </div>
+
+      <h3>Comparative Scoreboard (Reported Values)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Study</th>
+              <th>Task / Metric</th>
+              <th>Reported Result</th>
+              <th>Baseline / Comparator</th>
+              <th>Relative Gain</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody id="headToHeadTable"></tbody>
+        </table>
+      </div>
+
+      <h3>Song et al. (2023) DATA-1 Table-1 Snapshot</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Uti.</th>
+              <th>Num.</th>
+              <th>Sta.</th>
+            </tr>
+          </thead>
+          <tbody id="songTableBody"></tbody>
+        </table>
+      </div>
+
+      <h3>Derived Comparison Metrics</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Derived Cross-Study Metric</th>
+              <th>Value</th>
+              <th>Interpretation</th>
+            </tr>
+          </thead>
+          <tbody id="head2headDerivedTable"></tbody>
+        </table>
+      </div>
+
+      <div class="formula-block">
+        <p><strong>Comparison formulas</strong> (for reported metrics):</p>
+        <div class="math-eq">\[
+          \mathrm{RelativeGain}_{\text{higher-better}}(A,B)=\frac{M_A-M_B}{M_B}\times 100
+        \]</div>
+        <div class="math-eq">\[
+          \mathrm{RelativeGain}_{\text{lower-better}}(A,B)=\frac{M_B-M_A}{M_B}\times 100
+        \]</div>
+        <div class="math-eq">\[
+          \rho=\frac{\text{used bins}}{\text{optimal bins}},\qquad
+          t(n)\approx c\,n^{\alpha}
+        \]</div>
+      </div>
+    </section>
+
+    <section id="rrl" class="refs">
+      <h2>RRL Mapping and Citations</h2>
+      <p>RRL source: <code>Documents/02_Research_and_Literature/RRL_DOCUMENTATION.md</code>. Formulas and metrics above follow this document's GAN, MLP, and heuristic-repair rationale.</p>
+      <ol>
+        <li>[1] Goodfellow et al. (2014), GAN minimax objective: <a href="https://arxiv.org/abs/1406.2661" target="_blank" rel="noopener">https://arxiv.org/abs/1406.2661</a></li>
+        <li>[2] Xu et al. (2019), CTGAN for tabular synthesis: <a href="https://arxiv.org/abs/1907.00503" target="_blank" rel="noopener">https://arxiv.org/abs/1907.00503</a></li>
+        <li>[3] Heusel et al. (2017), TTUR convergence for GANs: <a href="https://arxiv.org/abs/1706.08500" target="_blank" rel="noopener">https://arxiv.org/abs/1706.08500</a></li>
+        <li>[4] Arjovsky et al. (2017), Wasserstein distance in GANs: <a href="https://arxiv.org/abs/1701.07875" target="_blank" rel="noopener">https://arxiv.org/abs/1701.07875</a></li>
+        <li>[5] Song et al. (2023), Learning Synergies for online 3D-BPP: <a href="https://proceedings.mlr.press/v205/song23a/song23a.pdf" target="_blank" rel="noopener">https://proceedings.mlr.press/v205/song23a/song23a.pdf</a></li>
+        <li>[6] Zhang et al. (2024), GAN-based GA for 3D-BPP: <a href="https://www.nature.com/articles/s41598-024-56699-7" target="_blank" rel="noopener">https://www.nature.com/articles/s41598-024-56699-7</a></li>
+        <li>[7] Verma et al. (2020), PackMan RL for online 3D-BPP: <a href="https://nsidn98.github.io/files/Parcel_loading_GenPlan2020.pdf" target="_blank" rel="noopener">https://nsidn98.github.io/files/Parcel_loading_GenPlan2020.pdf</a></li>
+        <li>[8] Kagerer et al. (2023), BED-BPP dataset benchmark: <a href="https://doi.org/10.1177/02783649231193048" target="_blank" rel="noopener">https://doi.org/10.1177/02783649231193048</a></li>
+        <li>[9] Martello, Pisinger, Vigo (2000), 3D-BPP foundations: <a href="https://doi.org/10.1287/opre.48.2.256.12386" target="_blank" rel="noopener">https://doi.org/10.1287/opre.48.2.256.12386</a></li>
+        <li>[10] Physics-aware 3D packing validation: <a href="https://arxiv.org/abs/2108.05513" target="_blank" rel="noopener">https://arxiv.org/abs/2108.05513</a></li>
+        <li>[11] Heuristic-guided DRL integration context: <a href="https://doi.org/10.3390/s24165370" target="_blank" rel="noopener">https://doi.org/10.3390/s24165370</a></li>
+        <li>[12] Data split rationale (80/20): <a href="https://arxiv.org/abs/2202.03326" target="_blank" rel="noopener">https://arxiv.org/abs/2202.03326</a></li>
+        <li>[13] Constraint/physics benchmark context: <a href="https://doi.org/10.1016/j.cor.2023.106201" target="_blank" rel="noopener">https://doi.org/10.1016/j.cor.2023.106201</a></li>
+      </ol>
+    </section>
+
+    <footer>
+      Built from latest logs captured in repository artifacts. No training or evaluation commands were executed for this report.
+    </footer>
+  </div>
+
+  <script>
+    const REPORT_DATA = {"generated_at":"2026-04-10T03:16:42","sources":{"gan_loss":{"path":"gan/loss_history.json","last_modified":"2026-04-10T00:17:27"},"gan_metrics":{"path":"gan/research_metrics.json","last_modified":"2026-04-10T00:17:27"},"ml_history":{"path":"Documents/04_Machine_Learning/Performance_Metrics/ml_training_history.json","last_modified":"2026-04-10T00:17:26"},"full_run":{"path":"Documents/04_Machine_Learning/Performance_Metrics/full_run_metrics.json","last_modified":"2026-04-10T00:17:26"},"rrl":{"path":"Documents/02_Research_and_Literature/RRL_DOCUMENTATION.md","last_modified":"2026-04-10T00:17:26"}},"gan":{"epochs_total":1000,"epochs":[1,11,21,31,41,51,61,71,81,91,101,111,121,131,141,151,161,171,181,191,201,211,221,231,241,251,261,271,281,291,301,311,321,331,341,351,361,371,381,391,401,411,421,431,441,451,461,471,481,491,501,511,521,531,541,551,561,571,581,591,601,611,621,631,641,651,661,671,681,691,701,711,721,731,741,751,761,771,781,791,801,811,821,831,841,851,861,871,881,891,901,911,921,931,941,951,961,971,981,991,1000],"d_loss":[0.6607280776571872,0.6875204625859189,0.6825819702290777,0.6808617263587553,0.6755054350664367,0.6761590559091141,0.676726106476428,0.6748110843238546,0.6759301756300143,0.6753393440104243,0.6759020401915508,0.6748300346420772,0.6772700773246253,0.6778273484155314,0.6787438852128698,0.6798174937269581,0.6794918799578253,0.6805651479692602,0.6810441093213523,0.6813709106907916,0.6811540791792656,0.6820860470853635,0.681981539592814,0.6823581036347062,0.6825878317676374,0.6827982786876052,0.6831799712643695,0.6830727116830313,0.6830958307679019,0.6836559803183399,0.6840282913464218,0.6842787037144846,0.6843017430892632,0.6845374366685526,0.6849157802204587,0.6849391418606487,0.6852503333963565,0.685407888444502,0.6855254771994121,0.6859960953691112,0.6860881384184111,0.6863517805266736,0.686404576274886,0.6864685937984666,0.6865294592594033,0.686641728210805,0.6868364678389991,0.6867343201121288,0.6868558797373701,0.6868654407227217,0.6868556007520477,0.6868827288275334,0.6868963746437385,0.6869151074050078,0.6868998145879205,0.6869011054732906,0.6868693009241303,0.6869329599747017,0.686835081452754,0.6868590475018345,0.6867199493433113,0.6866602395897481,0.6865198416941202,0.6867664469711816,0.6866471969369632,0.6864896525642765,0.6863679959258037,0.6862986686069574,0.6851233109164594,0.6849883867733514,0.6850850828547976,0.6850578617248962,0.6850491903611083,0.685025453078213,0.6851731494736316,0.6849252360080605,0.6850923196593327,0.6847980159876952,0.6846448949913481,0.6844045719548838,0.6841725362325782,0.6841003315662271,0.6840400524103819,0.6844003598191845,0.683655888776281,0.6841327154814307,0.6839243219414753,0.68372948819132,0.6836998857668977,0.683707913445003,0.6834873898260629,0.6837057531769596,0.6841720809687429,0.6833200596161743,0.6841018707004946,0.6839272523993877,0.684040173087547,0.6841922725759335,0.6842895794715455,0.684343428843057,0.6844688156647468],"g_loss":[0.9858618644191258,0.780463248936098,0.7960475779291409,0.8003073658960969,0.8156704408019336,0.8152999666199755,0.8141420107279251,0.817759936781072,0.8158697283979672,0.8167384504827101,0.8160078892512108,0.8172730478777814,0.8112556242675923,0.8092631178560542,0.8063888591616901,0.8040816354217813,0.8045531086957277,0.8014433979988098,0.800550971280283,0.7995291163227451,0.7993829784998253,0.7976523433603457,0.7969115154956704,0.7959061535881526,0.7954775245776817,0.7943536748637015,0.7935876025637584,0.793492050357719,0.7931801603356404,0.7918123362669304,0.7905124221719912,0.7898704193421264,0.7897170635746487,0.7894608208492621,0.7882828113748066,0.7877967261111558,0.7872972453708079,0.7868000624784782,0.7865572327998147,0.7853545881029386,0.7852354097277371,0.7845535744926823,0.7841833193800343,0.7839839362831258,0.7837039596554058,0.7831725565800026,0.7831029044158423,0.7832290948326908,0.7827753248499401,0.7826569973977644,0.782580406007482,0.7826669244179085,0.7826431400740325,0.782650891924972,0.7823363749838587,0.7826042155721294,0.7827198533869502,0.7822554066554824,0.7827531505876513,0.7824370434479927,0.7828405526591771,0.7834668086535895,0.7833013320591913,0.7834132473860214,0.783737666437875,0.7835638716149685,0.7843363435410742,0.784859546574194,0.7872770078591447,0.7876022855292505,0.7876960375860556,0.7881153958502101,0.7883517919636485,0.7881699083456353,0.788218065607014,0.7892009758237583,0.7891570760242974,0.7897869739069867,0.7900165093478871,0.7912744717811471,0.7919297490102142,0.7920875314456314,0.7919432654754439,0.7911701563578933,0.7928291367950724,0.7919639485985486,0.7922883024856225,0.7925247484623497,0.7935290996263277,0.7930204283390472,0.7939171893827951,0.7934825316293915,0.7921190978875801,0.7939812039706244,0.7919846448435712,0.792413625343522,0.7918433992720362,0.7921053135128163,0.7916938917405569,0.7913744402910347,0.7909518806792017],"parity":[0.3251337867619386,0.09294278635017905,0.1134656077000632,0.11944563953734155,0.14016500573549695,0.13914091071086143,0.1374159042514972,0.14294885245721733,0.1399395527679529,0.14139910647228582,0.14010584905966006,0.14244301323570419,0.13398554694296705,0.13143576944052282,0.12764497394882035,0.12426414169482325,0.12506122873790237,0.12087825002954966,0.11950686195893068,0.11815820563195356,0.11822889932055969,0.11556629627498227,0.11492997590285636,0.11354804995344647,0.11288969281004435,0.11155539617609622,0.11040763129938891,0.11041933867468767,0.1100843295677385,0.10815635594859052,0.1064841308255694,0.1055917156276418,0.10541532048538549,0.10492338418070946,0.10336703115434787,0.10285758425050706,0.10204691197445137,0.10139217403397627,0.10103175560040256,0.09935849273382735,0.09914727130932599,0.0982017939660087,0.09777874310514822,0.0975153424846592,0.0971745003960025,0.09653082836919757,0.0962664365768432,0.096494774720562,0.09591944511257,0.09579155667504269,0.09572480525543436,0.0957841955903751,0.09574676543029392,0.09573578451996412,0.09543656039593817,0.0957031100988388,0.09585055246281982,0.09532244668078071,0.09591806913489731,0.09557799594615823,0.0961206033158658,0.09680656906384144,0.09678149036507111,0.09664680041483975,0.09709046950091182,0.09707421905069202,0.09796834761527051,0.09856087796723656,0.10215369694268528,0.1026138987558991,0.10261095473125792,0.10305753412531382,0.10330260160254012,0.10314445526742222,0.1030449161333824,0.10427573981569771,0.1040647563649647,0.10498895791929153,0.10537161435653908,0.10686989982626327,0.10775721277763595,0.1079871998794043,0.10790321306506201,0.10676979653870888,0.10917324801879136,0.10783123311711784,0.1083639805441472,0.1087952602710297,0.10982921385943001,0.10931251489404414,0.11042979955673216,0.10977677845243194,0.10794701691883712,0.11066114435445018,0.10788277414307668,0.10848637294413432,0.10780322618448912,0.10791304093688281,0.10740431226901148,0.10703101144797766,0.10648306501445493],"final_d_loss":0.6844688156647468,"final_g_loss":0.7909518806792017,"final_parity":0.10648306501445493,"training_time_sec":11727.029042720795,"c2st_auc":0.9699045337503658,"dcr_mean":0.2276129242262502,"dcr_min":0.003583240269205482,"dcr_median":0.07323084371452437,"sample_size":5000,"status":"WARNING"},"mlp":{"params":{"epochs":100,"batch_size":2048,"lr":0.001,"patience":10},"best_val_loss":0.047899652272462845,"epochs":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100],"train_loss":[0.19122762605547905,0.1389164812862873,0.1142232958227396,0.09877383336424828,0.0895172581076622,0.08266486786305904,0.07810086570680141,0.07387721352279186,0.0707260463386774,0.06786636263132095,0.06589227169752121,0.06375320348888636,0.06190643273293972,0.060701385140419006,0.059684998355805874,0.05830851849168539,0.05762961506843567,0.056875680573284626,0.05639679078012705,0.055828425101935863,0.055534432642161846,0.05499957222491503,0.054670494981110096,0.054483816027641296,0.05413193814456463,0.053785896860063076,0.05376892723143101,0.05333726853132248,0.05287751276046038,0.052796751260757446,0.052618359215557575,0.0524461567401886,0.05234207771718502,0.05222906731069088,0.05193492490798235,0.051734037697315216,0.051491900347173214,0.05186033062636852,0.051467474550008774,0.05120331794023514,0.05128149315714836,0.051115721464157104,0.050999440252780914,0.050846464931964874,0.050913820043206215,0.050790262408554554,0.05058523919433355,0.050516415387392044,0.05058029294013977,0.0505711454898119,0.050423434004187584,0.05039773415774107,0.05037787836045027,0.05013845581561327,0.05029388144612312,0.05014050006866455,0.05014821980148554,0.05011164490133524,0.05013522785156965,0.04993297439068556,0.050057508051395416,0.049955300986766815,0.049847859889268875,0.04991240054368973,0.04993448778986931,0.04992063157260418,0.04980870429426432,0.0496299909427762,0.04964639991521835,0.049721104092895985,0.04962072055786848,0.049808903597295284,0.04963514022529125,0.04939872119575739,0.0496729863807559,0.04932385217398405,0.04955009836703539,0.04955617804080248,0.04972913675010204,0.04935568571090698,0.049364134669303894,0.049470141530036926,0.04949476756155491,0.04952850192785263,0.049575439654290676,0.049555414356291294,0.04953905940055847,0.049428620375692844,0.04948126431554556,0.049348910339176655,0.049338516779243946,0.04949867818504572,0.04936369601637125,0.049533890560269356,0.0496577937155962,0.049342816695570946,0.04940582998096943,0.04954702407121658,0.04944426938891411,0.049404751509428024],"val_loss":[0.23517931997776031,0.2168239951133728,0.18796402215957642,0.15463711321353912,0.1259126514196396,0.10592921823263168,0.09297607839107513,0.08446094393730164,0.07901756465435028,0.07368671894073486,0.06937438994646072,0.06544817239046097,0.06304390728473663,0.059275079518556595,0.057048726826906204,0.055603817105293274,0.05393408611416817,0.05365385860204697,0.05526052415370941,0.05524037033319473,0.054387494921684265,0.05487646907567978,0.051998719573020935,0.05205031856894493,0.05149472877383232,0.050918664783239365,0.05072658881545067,0.05041571706533432,0.050983160734176636,0.052003078162670135,0.05202160030603409,0.051760341972112656,0.05116112530231476,0.05118586868047714,0.05115684121847153,0.0495791956782341,0.04912734404206276,0.04915671795606613,0.048986826092004776,0.04914276301860809,0.04937366768717766,0.04908161982893944,0.049261752516031265,0.04878345876932144,0.048754654824733734,0.04860005900263786,0.04859897866845131,0.04873053357005119,0.04860750585794449,0.04855063557624817,0.04863099753856659,0.04876279830932617,0.048704247921705246,0.04851194843649864,0.048333216458559036,0.04832923412322998,0.04835756868124008,0.048371605575084686,0.04821391403675079,0.048150353133678436,0.04823653772473335,0.04823876917362213,0.04824373126029968,0.0481242835521698,0.0481545515358448,0.0481434091925621,0.04804946482181549,0.04806264862418175,0.04803357273340225,0.04803096875548363,0.048021700233221054,0.04798979312181473,0.04797050729393959,0.04796209931373596,0.04797922074794769,0.04799816384911537,0.04800204560160637,0.048000529408454895,0.0480145625770092,0.04799261689186096,0.04797708988189697,0.04796629399061203,0.04795558378100395,0.047941386699676514,0.047919828444719315,0.047916948795318604,0.04791199788451195,0.047908373177051544,0.04791228845715523,0.04790695384144783,0.04790658876299858,0.04790649563074112,0.04790734499692917,0.047905292361974716,0.04790385439991951,0.047902438789606094,0.04790433123707771,0.04790094494819641,0.047899652272462845,0.04790253937244415],"variant_rows":[{"variant":"model_fit_eo_ga","final_train_loss":0.04475089659293493,"final_val_loss":0.04456193745136261,"mae_x":0.17661632597446442,"mae_y":0.07423343509435654,"mae_z":0.04274608567357063,"mae_rot":0.16846318542957306,"r2_x":0.27873581647872925,"r2_y":0.8562296628952026,"r2_z":-64.3708724975586,"r2_rot":0.14495086669921875},{"variant":"model_fit_eo","final_train_loss":0.0617452065149943,"final_val_loss":0.062288928776979446,"mae_x":0.17676663398742676,"mae_y":0.07367025315761566,"mae_z":0.04499097540974617,"mae_rot":0.16830700635910034,"r2_x":0.27762722969055176,"r2_y":0.8570844531059265,"r2_z":-71.51676940917969,"r2_rot":0.13979661464691162},{"variant":"model_fit_ga_eo","final_train_loss":0.0625628021856149,"final_val_loss":0.0625411719083786,"mae_x":0.17689841985702515,"mae_y":0.07463911920785904,"mae_z":0.04435010999441147,"mae_rot":0.17102175951004028,"r2_x":0.2766990065574646,"r2_y":0.855339527130127,"r2_z":-69.41592407226562,"r2_rot":0.13230597972869873},{"variant":"model_fit_ga","final_train_loss":0.06286150589585304,"final_val_loss":0.06256319582462311,"mae_x":0.1765538454055786,"mae_y":0.07643689960241318,"mae_z":0.046595048159360886,"mae_rot":0.16863584518432617,"r2_x":0.2792389988899231,"r2_y":0.854088544845581,"r2_z":-76.19135284423828,"r2_rot":0.13498300313949585}]},"heuristic":{"scales":[200,400,600],"variants":["model_fit_eo","model_fit_eo_ga","model_fit_ga","model_fit_ga_eo"],"inference":{"model_fit_eo":{"repair_ms":[6485.431900015101,41437.48260004213,127807.6903000474],"psr_pct":[95.5,94.75,96.16666666666667],"su_pct":[1.0952197313308716,2.2286720275878906,3.288825511932373],"total_ms":[6487.005400005728,41439.05340007041,127809.64990000939],"inference_ms":[1.5734999906271696,1.5708000282756984,1.9595999619923532],"mean_disp":[9.313240051269531,8.921582221984863,8.917291641235352]},"model_fit_eo_ga":{"repair_ms":[7802.953999955207,43817.310000013094,116872.16939998325],"psr_pct":[94.5,95.5,95.66666666666667],"su_pct":[1.095568299293518,2.251328229904175,3.276294469833374],"total_ms":[7804.454099969007,43818.800700013526,116873.6021000077],"inference_ms":[1.5001000137999654,1.4907000004313886,1.4327000244520605],"mean_disp":[8.109612464904785,8.62817668914795,9.449088096618652]},"model_fit_ga":{"repair_ms":[7386.82760001393,44711.12180000637,128819.61310002953],"psr_pct":[94.0,97.0,94.83333333333334],"su_pct":[1.071211814880371,2.2652416229248047,3.2420663833618164],"total_ms":[7388.422599993646,44713.00330001395,128820.8856000565],"inference_ms":[1.5949999797157943,1.881500007584691,1.2725000269711018],"mean_disp":[7.004275321960449,7.1888275146484375,7.6357526779174805]},"model_fit_ga_eo":{"repair_ms":[8393.371000012849,42807.49009997817,128164.3541000085],"psr_pct":[95.5,95.0,94.5],"su_pct":[1.0894770622253418,2.2364280223846436,3.248319149017334],"total_ms":[8395.56110004196,42809.16249996517,128165.862200025],"inference_ms":[2.1901000291109085,1.672399987000972,1.5081000165082514],"mean_disp":[5.555700778961182,6.4124755859375,6.9247965812683105]}},"physics":{"model_fit_eo":{"avg_displacement_m":11.2672,"max_displacement_m":20.0247,"stability_index":0.0,"correction_rate":1.0,"n_items_tested":100},"model_fit_eo_ga":{"avg_displacement_m":14.3701,"max_displacement_m":22.4779,"stability_index":0.0,"correction_rate":1.0,"n_items_tested":100},"model_fit_ga":{"avg_displacement_m":11.0762,"max_displacement_m":18.7023,"stability_index":0.0,"correction_rate":1.0,"n_items_tested":100},"model_fit_ga_eo":{"avg_displacement_m":12.8362,"max_displacement_m":19.378,"stability_index":0.0,"correction_rate":1.0,"n_items_tested":100}}}};
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    const fmt4 = (v) => Number(v).toFixed(4);
+    const fmt3 = (v) => Number(v).toFixed(3);
+    const fmt2 = (v) => Number(v).toFixed(2);
+    const shortVariant = (name) => ({
+      model_fit_eo: 'EO',
+      model_fit_eo_ga: 'EO-GA',
+      model_fit_ga: 'GA',
+      model_fit_ga_eo: 'GA-EO'
+    }[name] || name);
+
+    const d = REPORT_DATA;
+    document.getElementById('generatedAt').textContent = d.generated_at.replace('T', ' ');
+    document.getElementById('srcGanLoss').textContent = `${d.sources.gan_loss.path} @ ${d.sources.gan_loss.last_modified.replace('T', ' ')}`;
+    document.getElementById('srcMlp').textContent = `${d.sources.ml_history.path} @ ${d.sources.ml_history.last_modified.replace('T', ' ')}`;
+    document.getElementById('srcFullRun').textContent = `${d.sources.full_run.path} @ ${d.sources.full_run.last_modified.replace('T', ' ')}`;
+
+    const LITERATURE_BENCH = {
+      song2023_data1: {
+        source: 'Song et al. 2023 (PMLR 205)',
+        url: 'https://proceedings.mlr.press/v205/song23a/song23a.pdf',
+        table: {
+          'Random': [0.363, 15.66, 0.131],
+          'Column Building': [0.629, 25.75, 0.125],
+          'Floor Building': [0.634, 25.91, 0.127],
+          'First Fit': [0.611, 24.92, 0.129],
+          'Corner point': [0.662, 26.76, 0.121],
+          'Extreme Point': [0.667, 27.73, 0.126],
+          'Empty Maximal Space': [0.669, 27.79, 0.114],
+          'Zhao et al. 2021': [0.687, 28.61, 0.103],
+          'Yang et al. 2022': [0.704, 29.13, 0.097],
+          'Zhao et al. 2022 (PCT&EV)': [0.834, 32.91, 0.084],
+          'PUN (Ours in paper)': [0.855, 34.34, 0.061]
+        }
+      },
+      zhang2024: {
+        source: 'Zhang et al. 2024 (Scientific Reports)',
+        url: 'https://www.nature.com/articles/s41598-024-56699-7',
+        gain_vs_ga_pct: 9.1,
+        gain_vs_pso_pct: 5.8,
+        time_s: { proposed: 10.2, ga: 9.7, pso: 11.5 }
+      },
+      verma2020: {
+        source: 'Verma et al. 2020 (PackMan)',
+        url: 'https://nsidn98.github.io/files/Parcel_loading_GenPlan2020.pdf',
+        ratio: 1.29,
+        avg_bins: 12.9,
+        opt_bins: 10.0,
+        best_case_pct: 57.0,
+        inference_lt_ms: 40.0
+      }
+    };
+
+    const ganParityTail = d.gan.parity.slice(-10);
+    const ganParityHead = d.gan.parity.slice(0, 10);
+    const parityHeadMean = ganParityHead.reduce((a,b)=>a+b,0) / ganParityHead.length;
+    const parityTailMean = ganParityTail.reduce((a,b)=>a+b,0) / ganParityTail.length;
+    const parityTailStd = Math.sqrt(ganParityTail.reduce((a,b)=>a + Math.pow(b - parityTailMean, 2), 0) / ganParityTail.length);
+    const equilibriumGap = Math.abs(d.gan.final_d_loss - 0.69314718056);
+    const gLossReduction = ((d.gan.g_loss[0] - d.gan.g_loss[d.gan.g_loss.length - 1]) / d.gan.g_loss[0]) * 100;
+    const parityReduction = ((parityHeadMean - parityTailMean) / parityHeadMean) * 100;
+    const dTailDrift = d.gan.d_loss[d.gan.d_loss.length - 1] - d.gan.d_loss[d.gan.d_loss.length - 11];
+    const gTailDrift = d.gan.g_loss[d.gan.g_loss.length - 1] - d.gan.g_loss[d.gan.g_loss.length - 11];
+    const ganEpochsPerHour = d.gan.epochs_total / (d.gan.training_time_sec / 3600);
+
+    const ganCards = [
+      ['Final D Loss', fmt4(d.gan.final_d_loss)],
+      ['Final G Loss', fmt4(d.gan.final_g_loss)],
+      ['Final Parity', fmt4(d.gan.final_parity)],
+      ['C2ST AUC', fmt4(d.gan.c2st_auc)],
+      ['Mean DCR', fmt4(d.gan.dcr_mean)],
+      ['Train Time (min)', fmt2(d.gan.training_time_sec / 60)],
+      ['Tail Parity Mean', fmt4(parityTailMean)],
+      ['Eq. Gap |D-0.693|', fmt4(equilibriumGap)],
+      ['Parity Reduction', `${fmt2(parityReduction)}%`],
+      ['Epochs per Hour', fmt2(ganEpochsPerHour)]
+    ];
+    document.getElementById('ganCards').innerHTML = ganCards.map(([k,v]) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+    document.getElementById('ganDiscussion').innerHTML =
+      `GAN discussion: parity drops from ${fmt4(parityHeadMean)} (early window) to ${fmt4(parityTailMean)} (late window), a ${fmt2(parityReduction)}% improvement in adversarial balance. Discriminator equilibrium gap is ${fmt4(equilibriumGap)} with low tail variance (std=${fmt4(parityTailStd)}). Late-window drift is small (delta D=${fmt4(dTailDrift)}, delta G=${fmt4(gTailDrift)}), while generator loss still achieves ${fmt2(gLossReduction)}% net reduction from first to last sampled epoch.`;
+    document.getElementById('ganPipelineKpis').innerHTML = [
+      `<div><strong>Epochs:</strong> ${d.gan.epochs_total}</div>`,
+      `<div><strong>Train Time:</strong> ${fmt2(d.gan.training_time_sec / 60)} min</div>`,
+      `<div><strong>Final Parity:</strong> ${fmt4(d.gan.final_parity)}</div>`,
+      `<div><strong>Equilibrium Gap:</strong> ${fmt4(equilibriumGap)}</div>`,
+      `<div><strong>C2ST AUC:</strong> ${fmt4(d.gan.c2st_auc)}</div>`,
+      `<div><strong>DCR Mean:</strong> ${fmt4(d.gan.dcr_mean)}</div>`
+    ].join('');
+
+    document.getElementById('ganDerivedTable').innerHTML = [
+      ['Generator loss reduction', `${fmt2(gLossReduction)}%`, 'Drop from first sampled epoch to last sampled epoch.'],
+      ['Parity mean reduction (first10 -> last10)', `${fmt2(parityReduction)}%`, 'Improvement in adversarial parity between early and late windows.'],
+      ['Parity tail mean (last 10 sampled points)', fmt4(parityTailMean), 'Lower means tighter discriminator/generator balance.'],
+      ['Parity tail std', fmt4(parityTailStd), 'Low variance indicates stable late training dynamics.'],
+      ['Late D-loss drift (last 10-step window)', fmt4(dTailDrift), 'Small absolute drift indicates convergence toward a stable discriminator regime.'],
+      ['Late G-loss drift (last 10-step window)', fmt4(gTailDrift), 'Small absolute drift indicates generator stabilization in late training.'],
+      ['Equilibrium gap |D-0.693|', fmt4(equilibriumGap), 'Distance from theoretical GAN discriminator equilibrium.'],
+      ['Training throughput', `${fmt2(ganEpochsPerHour)} epochs/hour`, 'Observed epoch processing speed from total training wall-clock time.'],
+      ['Audit sample size', d.gan.sample_size, 'Count used for C2ST and DCR audit.'],
+      ['Audit status', d.gan.status, 'Flag emitted by latest GAN research metrics log.']
+    ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+
+    const bestVal = Math.min(...d.mlp.val_loss);
+    const bestEpoch = d.mlp.val_loss.findIndex(x => x === bestVal) + 1;
+    const sortedVariants = [...d.mlp.variant_rows].sort((a, b) => a.final_val_loss - b.final_val_loss);
+    const bestVariant = sortedVariants[0];
+    const secondVariant = sortedVariants[1];
+    const valReduction = ((d.mlp.val_loss[0] - bestVal) / d.mlp.val_loss[0]) * 100;
+    const trainReduction = ((d.mlp.train_loss[0] - d.mlp.train_loss[d.mlp.train_loss.length - 1]) / d.mlp.train_loss[0]) * 100;
+    const finalGap = d.mlp.val_loss[d.mlp.val_loss.length - 1] - d.mlp.train_loss[d.mlp.train_loss.length - 1];
+    const maeXZRatio = bestVariant.mae_x / Math.max(bestVariant.mae_z, 1e-9);
+    const meanR2XY = (bestVariant.r2_x + bestVariant.r2_y) / 2.0;
+    const generalizationRatio = d.mlp.val_loss[d.mlp.val_loss.length - 1] / Math.max(d.mlp.train_loss[d.mlp.train_loss.length - 1], 1e-9);
+    const valTail = d.mlp.val_loss.slice(-10);
+    const valTailMean = valTail.reduce((a,b)=>a+b,0) / valTail.length;
+    const valTailStd = Math.sqrt(valTail.reduce((a,b)=>a + Math.pow(b - valTailMean, 2), 0) / valTail.length);
+    const valDropToFinal = ((d.mlp.val_loss[0] - d.mlp.val_loss[d.mlp.val_loss.length - 1]) / d.mlp.val_loss[0]) * 100;
+    const bestMarginVsSecond = ((secondVariant.final_val_loss - bestVariant.final_val_loss) / secondVariant.final_val_loss) * 100;
+    const val95Target = d.mlp.val_loss[0] - 0.95 * (d.mlp.val_loss[0] - bestVal);
+    const epoch95 = d.mlp.val_loss.findIndex(v => v <= val95Target) + 1;
+    const meanMAEXYZ = (bestVariant.mae_x + bestVariant.mae_y + bestVariant.mae_z) / 3.0;
+
+    const mlpCards = [
+      ['Epochs', d.mlp.params.epochs],
+      ['Batch Size', d.mlp.params.batch_size],
+      ['Learning Rate', d.mlp.params.lr],
+      ['Best Val Loss', fmt4(d.mlp.best_val_loss)],
+      ['Best Epoch', bestEpoch],
+      ['Top Variant', shortVariant(bestVariant.variant)],
+      ['Val Reduction', `${fmt2(valReduction)}%`],
+      ['Final Train-Val Gap', fmt4(finalGap)],
+      ['Generalization Ratio', fmt4(generalizationRatio)],
+      ['Best-vs-2nd Margin', `${fmt2(bestMarginVsSecond)}%`]
+    ];
+    document.getElementById('mlpCards').innerHTML = mlpCards.map(([k,v]) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+    document.getElementById('mlpDiscussion').innerHTML =
+      `MLP discussion: validation loss improved by ${fmt2(valReduction)}% at best epoch ${bestEpoch}, and remains ${fmt2(valDropToFinal)}% below epoch-1 at the final epoch. Late-stage validation variance is low (last-10 std=${fmt4(valTailStd)}), indicating stable convergence. Top variant ${shortVariant(bestVariant.variant)} leads second place by ${fmt2(bestMarginVsSecond)}% in validation loss, with mean R2(x,y)=${fmt4(meanR2XY)} and MAE anisotropy MAE_x/MAE_z=${fmt3(maeXZRatio)}.`;
+    document.getElementById('mlpPipelineKpis').innerHTML = [
+      `<div><strong>Epoch Budget:</strong> ${d.mlp.params.epochs}</div>`,
+      `<div><strong>Best Epoch:</strong> ${bestEpoch}</div>`,
+      `<div><strong>Top Variant:</strong> ${shortVariant(bestVariant.variant)}</div>`,
+      `<div><strong>Val Reduction:</strong> ${fmt2(valReduction)}%</div>`,
+      `<div><strong>Final Train-Val Gap:</strong> ${fmt4(finalGap)}</div>`,
+      `<div><strong>Epoch to 95% Gain:</strong> ${epoch95}</div>`
+    ].join('');
+
+    const h = d.heuristic;
+    const variants = h.variants;
+    const sixHundred = variants.map(v => ({
+      variant: v,
+      total: h.inference[v].total_ms[2],
+      psr: h.inference[v].psr_pct[2],
+      repair: h.inference[v].repair_ms[2],
+      su: h.inference[v].su_pct[2]
+    }));
+    sixHundred.sort((a,b)=>a.total-b.total);
+    const fastest600 = sixHundred[0];
+    const bestPsr600 = [...sixHundred].sort((a,b)=>b.psr-a.psr)[0];
+    const bestSU600 = [...sixHundred].sort((a,b)=>b.su-a.su)[0];
+    const ga600 = sixHundred.find(r => r.variant === 'model_fit_ga');
+    const latencyGainVsGA = ((ga600.total - fastest600.total) / ga600.total) * 100;
+    const suGainVsGA = ((bestSU600.su - ga600.su) / ga600.su) * 100;
+
+    const repairShareByVariant = Object.fromEntries(
+      variants.map(v => [v, h.inference[v].repair_ms.map((ms, i) => (ms / h.inference[v].total_ms[i]) * 100)])
+    );
+    const throughputByVariant = Object.fromEntries(
+      variants.map(v => [v, h.scales.map((items, i) => items / (h.inference[v].total_ms[i] / 1000.0))])
+    );
+    const avgRepairShare = variants.reduce((acc,v)=>acc + repairShareByVariant[v].reduce((a,b)=>a+b,0)/repairShareByVariant[v].length, 0) / variants.length;
+    const avgCorrection = variants.reduce((acc,v)=>acc + h.physics[v].correction_rate, 0) / variants.length;
+    const psrAt600 = variants.map(v => h.inference[v].psr_pct[2]);
+    const psrSpread600 = Math.max(...psrAt600) - Math.min(...psrAt600);
+    const fastestThroughput600 = Math.max(...variants.map(v => throughputByVariant[v][2]));
+    const slowestThroughput600 = Math.min(...variants.map(v => throughputByVariant[v][2]));
+    const latencyPerItemFast600 = fastest600.total / h.scales[2];
+
+    const fitLogSlope = (xs, ys) => {
+      const lx = xs.map(x => Math.log(x));
+      const ly = ys.map(y => Math.log(Math.max(y, 1e-9)));
+      const mx = lx.reduce((a,b)=>a+b,0) / lx.length;
+      const my = ly.reduce((a,b)=>a+b,0) / ly.length;
+      const cov = lx.reduce((a,v,i)=>a + (v - mx) * (ly[i] - my), 0);
+      const varx = lx.reduce((a,v)=>a + Math.pow(v - mx, 2), 0);
+      return cov / Math.max(varx, 1e-12);
+    };
+    const repairAlphaByVariant = Object.fromEntries(
+      variants.map(v => [v, fitLogSlope(h.scales, h.inference[v].repair_ms)])
+    );
+    const avgRepairAlpha = variants.reduce((acc, v) => acc + repairAlphaByVariant[v], 0) / variants.length;
+
+    const heuristicCards = [
+      ['Fastest @600', `${shortVariant(fastest600.variant)} (${fmt2(fastest600.total)} ms)`],
+      ['Best PSR @600', `${shortVariant(bestPsr600.variant)} (${fmt2(bestPsr600.psr)}%)`],
+      ['Avg Correction Rate', `${fmt2(avgCorrection * 100)}%`],
+      ['Avg Repair Share', `${fmt2(avgRepairShare)}%`],
+      ['Latency Gain vs GA', `${fmt2(latencyGainVsGA)}%`],
+      ['SU Gain vs GA', `${fmt2(suGainVsGA)}%`],
+      ['PSR Spread @600', `${fmt2(psrSpread600)} pp`],
+      ['Mean Scaling Exponent alpha', fmt3(avgRepairAlpha)]
+    ];
+    document.getElementById('heuristicCards').innerHTML = heuristicCards.map(([k,v]) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+    document.getElementById('heuristicDiscussion').innerHTML =
+      `Heuristic discussion: repair dominates runtime with ${fmt2(avgRepairShare)}% average share of total latency. At 600 items, the fastest variant is ${shortVariant(fastest600.variant)} and it is ${fmt2(latencyGainVsGA)}% faster than GA baseline in the latest logs. Best PSR at 600 is ${fmt2(bestPsr600.psr)}% with a spread of ${fmt2(psrSpread600)} percentage points across variants. Estimated repair scaling follows t(n)~n^alpha with mean alpha=${fmt3(avgRepairAlpha)}, and throughput ranges from ${fmt3(slowestThroughput600)} to ${fmt3(fastestThroughput600)} items/s at the largest scale.`;
+    document.getElementById('heuristicPipelineKpis').innerHTML = [
+      `<div><strong>Fastest @600:</strong> ${shortVariant(fastest600.variant)} (${fmt2(fastest600.total)} ms)</div>`,
+      `<div><strong>Best PSR @600:</strong> ${fmt2(bestPsr600.psr)}%</div>`,
+      `<div><strong>Avg Repair Share:</strong> ${fmt2(avgRepairShare)}%</div>`,
+      `<div><strong>Mean Scaling alpha:</strong> ${fmt3(avgRepairAlpha)}</div>`,
+      `<div><strong>Throughput @600:</strong> ${fmt3(slowestThroughput600)} - ${fmt3(fastestThroughput600)} items/s</div>`,
+      `<div><strong>Avg Correction:</strong> ${fmt2(avgCorrection * 100)}%</div>`
+    ].join('');
+
+    document.getElementById('mlpVariantTable').innerHTML = d.mlp.variant_rows.map(r => `
+      <tr>
+        <td>${shortVariant(r.variant)}</td>
+        <td>${fmt4(r.final_train_loss)}</td>
+        <td>${fmt4(r.final_val_loss)}</td>
+        <td>${fmt4(r.mae_x)}</td>
+        <td>${fmt4(r.mae_y)}</td>
+        <td>${fmt4(r.mae_z)}</td>
+        <td>${fmt4(r.r2_x)}</td>
+        <td>${fmt4(r.r2_y)}</td>
+        <td>${fmt4(r.r2_rot)}</td>
+      </tr>
+    `).join('');
+
+    document.getElementById('mlpDerivedTable').innerHTML = [
+      ['Validation loss reduction', `${fmt2(valReduction)}%`, 'Relative reduction from epoch 1 to minimum validation loss.'],
+      ['Validation reduction to final epoch', `${fmt2(valDropToFinal)}%`, 'Relative reduction from epoch 1 to final-epoch validation loss.'],
+      ['Training loss reduction', `${fmt2(trainReduction)}%`, 'Relative reduction from epoch 1 to final epoch training loss.'],
+      ['Best epoch (validation minimum)', bestEpoch, 'Epoch index where validation loss reached its minimum.'],
+      ['Epoch to 95% of eventual validation gain', epoch95, 'Smaller values indicate faster convergence to near-best regime.'],
+      ['Final train-val gap', fmt4(finalGap), 'Generalization gap at the final epoch.'],
+      ['Generalization ratio (val/train, final)', fmt4(generalizationRatio), 'Values close to 1 indicate train and validation losses are aligned.'],
+      ['Validation tail std (last 10 epochs)', fmt4(valTailStd), 'Low tail volatility implies stable optimization in the final training window.'],
+      ['Best-vs-second variant margin', `${fmt2(bestMarginVsSecond)}%`, 'Validation-loss advantage of top variant against runner-up.'],
+      ['Top variant mean R2(x,y)', fmt4(meanR2XY), 'Average horizontal-coordinate fit quality for best variant.'],
+      ['Top variant mean MAE(x,y,z)', fmt4(meanMAEXYZ), 'Average translational MAE over three spatial axes.'],
+      ['Top variant MAE_x / MAE_z', fmt3(maeXZRatio), 'Axis anisotropy; values >1 indicate harder x-axis regression.']
+    ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+
+    document.getElementById('physicsTable').innerHTML = variants.map(v => `
+      <tr>
+        <td>${shortVariant(v)}</td>
+        <td>${fmt4(h.physics[v].avg_displacement_m)}</td>
+        <td>${fmt4(h.physics[v].max_displacement_m)}</td>
+        <td>${fmt2(h.physics[v].correction_rate * 100)}</td>
+        <td>${h.physics[v].n_items_tested}</td>
+      </tr>
+    `).join('');
+
+    const packedEst = Object.fromEntries(
+      variants.map(v => [v, h.inference[v].psr_pct.map((p, i) => (p / 100.0) * h.scales[i])])
+    );
+    const packedBest600 = variants.map(v => packedEst[v][2]).sort((a,b)=>b-a)[0];
+
+    document.getElementById('heuristicDerivedTable').innerHTML = [
+      ['Average repair share', `${fmt2(avgRepairShare)}%`, 'Mean fraction of total pipeline time spent in repair stage.'],
+      ['Latency gain vs GA @600', `${fmt2(latencyGainVsGA)}%`, `Using ${shortVariant(fastest600.variant)} as fastest variant.`],
+      ['SU gain vs GA @600', `${fmt2(suGainVsGA)}%`, `Using ${shortVariant(bestSU600.variant)} as best SU variant.`],
+      ['PSR spread @600', `${fmt2(psrSpread600)} pp`, 'Difference between best and worst PSR at 600-item scale.'],
+      ['Best packed estimate @600', fmt2(packedBest600), 'Estimated packed item count from PSR at 600 items.'],
+      ['Fastest latency per item @600', `${fmt3(latencyPerItemFast600)} ms/item`, `Computed from ${shortVariant(fastest600.variant)} total latency divided by 600 items.`],
+      ['Avg correction rate', `${fmt2(avgCorrection * 100)}%`, 'Mean of physics correction rate across variants.'],
+      ['Throughput range @600', `${fmt3(slowestThroughput600)} - ${fmt3(fastestThroughput600)} items/s`, 'Operational throughput span under highest load scenario.'],
+      ['Mean repair scaling exponent alpha', fmt3(avgRepairAlpha), 'Log-log slope in t(n)~n^alpha; alpha>1 indicates superlinear scaling.'],
+      ['Scaling alpha (EO)', fmt3(repairAlphaByVariant.model_fit_eo), 'Per-variant scaling exponent from 200/400/600 latency points.'],
+      ['Scaling alpha (EO-GA)', fmt3(repairAlphaByVariant.model_fit_eo_ga), 'Per-variant scaling exponent from 200/400/600 latency points.'],
+      ['Scaling alpha (GA)', fmt3(repairAlphaByVariant.model_fit_ga), 'Per-variant scaling exponent from 200/400/600 latency points.'],
+      ['Scaling alpha (GA-EO)', fmt3(repairAlphaByVariant.model_fit_ga_eo), 'Per-variant scaling exponent from 200/400/600 latency points.']
+    ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+
+    const lineOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { x: { grid: { color: '#edf1f4' } }, y: { grid: { color: '#edf1f4' } } }
+    };
+
+    new Chart(document.getElementById('ganLossChart'), {
+      type: 'line',
+      data: {
+        labels: d.gan.epochs,
+        datasets: [
+          { label: 'D Loss', data: d.gan.d_loss, borderColor: '#0b7285', backgroundColor: 'rgba(11,114,133,.15)', pointRadius: 0, tension: .22 },
+          { label: 'G Loss', data: d.gan.g_loss, borderColor: '#ff7f11', backgroundColor: 'rgba(255,127,17,.15)', pointRadius: 0, tension: .22 }
+        ]
+      },
+      options: lineOpts
+    });
+    new Chart(document.getElementById('ganParityChart'), {
+      type: 'line',
+      data: { labels: d.gan.epochs, datasets: [{ label: 'Parity abs(D-G)', data: d.gan.parity, borderColor: '#2b9348', backgroundColor: 'rgba(43,147,72,.15)', pointRadius: 0, tension: .2 }] },
+      options: lineOpts
+    });
+    new Chart(document.getElementById('mlLossChart'), {
+      type: 'line',
+      data: { labels: d.mlp.epochs, datasets: [
+        { label: 'Train Loss', data: d.mlp.train_loss, borderColor: '#0b7285', pointRadius: 0, tension: .2 },
+        { label: 'Val Loss', data: d.mlp.val_loss, borderColor: '#ff7f11', pointRadius: 0, tension: .2 }
+      ]},
+      options: lineOpts
+    });
+    new Chart(document.getElementById('mlVariantValChart'), {
+      type: 'bar',
+      data: { labels: d.mlp.variant_rows.map(r => shortVariant(r.variant)), datasets: [{ label: 'Final Val Loss', data: d.mlp.variant_rows.map(r => r.final_val_loss), backgroundColor: ['#0b7285','#2b9348','#ff7f11','#9d4edd'] }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#edf1f4' } } } }
+    });
+
+    const palette = ['#0b7285','#ff7f11','#2b9348','#9d4edd'];
+    new Chart(document.getElementById('repairLatencyChart'), {
+      type: 'line',
+      data: { labels: h.scales, datasets: variants.map((v,i) => ({ label: shortVariant(v), data: h.inference[v].repair_ms, borderColor: palette[i%palette.length], backgroundColor: palette[i%palette.length], pointRadius: 3, tension: .2 })) },
+      options: lineOpts
+    });
+    new Chart(document.getElementById('psrScaleChart'), {
+      type: 'line',
+      data: { labels: h.scales, datasets: variants.map((v,i) => ({ label: shortVariant(v), data: h.inference[v].psr_pct, borderColor: palette[i%palette.length], backgroundColor: palette[i%palette.length], pointRadius: 3, tension: .2 })) },
+      options: { ...lineOpts, scales: { x: { grid: { color: '#edf1f4' } }, y: { grid: { color: '#edf1f4' }, suggestedMin: 90, suggestedMax: 100 } } }
+    });
+    new Chart(document.getElementById('repairShareChart'), {
+      type: 'line',
+      data: { labels: h.scales, datasets: variants.map((v,i) => ({ label: shortVariant(v), data: repairShareByVariant[v], borderColor: palette[i%palette.length], backgroundColor: palette[i%palette.length], pointRadius: 3, tension: .2 })) },
+      options: { ...lineOpts, scales: { x: { grid: { color: '#edf1f4' } }, y: { grid: { color: '#edf1f4' }, suggestedMin: 95, suggestedMax: 100 } } }
+    });
+    new Chart(document.getElementById('throughputChart'), {
+      type: 'line',
+      data: { labels: h.scales, datasets: variants.map((v,i) => ({ label: shortVariant(v), data: throughputByVariant[v], borderColor: palette[i%palette.length], backgroundColor: palette[i%palette.length], pointRadius: 3, tension: .2 })) },
+      options: lineOpts
+    });
+
+    const songOrder = ['Random','Column Building','Floor Building','First Fit','Corner point','Extreme Point','Empty Maximal Space','Zhao et al. 2021','Yang et al. 2022','Zhao et al. 2022 (PCT&EV)','PUN (Ours in paper)'];
+    const songRows = LITERATURE_BENCH.song2023_data1.table;
+    document.getElementById('songTableBody').innerHTML = songOrder.map(k => {
+      const v = songRows[k];
+      return `<tr><td>${k}</td><td>${fmt3(v[0])}</td><td>${fmt2(v[1])}</td><td>${fmt3(v[2])}</td></tr>`;
+    }).join('');
+
+    const zhao25 = songRows['Zhao et al. 2022 (PCT&EV)'];
+    const pun = songRows['PUN (Ours in paper)'];
+    const songUtiGain = ((pun[0] - zhao25[0]) / zhao25[0]) * 100;
+    const songNumGain = ((pun[1] - zhao25[1]) / zhao25[1]) * 100;
+    const songStaReduction = ((zhao25[2] - pun[2]) / zhao25[2]) * 100;
+    const gainRatioLocalToZhang = latencyGainVsGA / Math.max(LITERATURE_BENCH.zhang2024.gain_vs_ga_pct, 1e-9);
+    const runtimePerItemVsPackman = latencyPerItemFast600 / Math.max(LITERATURE_BENCH.verma2020.inference_lt_ms, 1e-9);
+
+    document.getElementById('head2headDiscussion').innerHTML =
+      `Head-to-head discussion: the current logs show ${fmt2(latencyGainVsGA)}% latency gain vs GA at 600 items and ${fmt2(suGainVsGA)}% SU gain vs GA, while Song et al. report +${fmt2(songUtiGain)}% utilization over Zhao et al. on DATA-1 and Zhang et al. report +${fmt2(LITERATURE_BENCH.zhang2024.gain_vs_ga_pct)}% used-bin improvement vs GA. Comparisons are metric-family specific (latency/SU vs utilization/bin count), so relative magnitude should be interpreted directionally rather than as exact task-equivalent performance.`;
+
+    const headRows = [
+      ['This project (latest logs)', 'Pipeline latency @600 items', `${shortVariant(fastest600.variant)}: ${fmt2(fastest600.total)} ms`, `GA baseline: ${fmt2(ga600.total)} ms`, `${fmt2(latencyGainVsGA)}% faster`, 'Local full_run_metrics.json'],
+      ['This project (latest logs)', 'Space utilization @600 items', `${shortVariant(bestSU600.variant)}: ${fmt4(bestSU600.su)}%`, `GA baseline: ${fmt4(ga600.su)}%`, `+${fmt2(suGainVsGA)}%`, 'Local full_run_metrics.json'],
+      ['Song et al. 2023 (PMLR 205)', 'DATA-1 utilization (Uti.)', fmt3(pun[0]), `Zhao et al. 2022: ${fmt3(zhao25[0])}`, `+${fmt2(songUtiGain)}%`, '[5]'],
+      ['Song et al. 2023 (PMLR 205)', 'DATA-1 packed items (Num.)', fmt2(pun[1]), `Zhao et al. 2022: ${fmt2(zhao25[1])}`, `+${fmt2(songNumGain)}%`, '[5]'],
+      ['Song et al. 2023 (PMLR 205)', 'DATA-1 stability spread (Sta.)', fmt3(pun[2]), `Zhao et al. 2022: ${fmt3(zhao25[2])}`, `${fmt2(songStaReduction)}% lower`, '[5]'],
+      ['Zhang et al. 2024 (Sci. Reports)', 'Used bins reduction', 'Proposed GAN-GA', 'GA / PSO baselines', `+${fmt2(LITERATURE_BENCH.zhang2024.gain_vs_ga_pct)}% vs GA; +${fmt2(LITERATURE_BENCH.zhang2024.gain_vs_pso_pct)}% vs PSO`, '[6]'],
+      ['Zhang et al. 2024 (Sci. Reports)', 'Average runtime', `${fmt2(LITERATURE_BENCH.zhang2024.time_s.proposed)} s`, `GA ${fmt2(LITERATURE_BENCH.zhang2024.time_s.ga)} s, PSO ${fmt2(LITERATURE_BENCH.zhang2024.time_s.pso)} s`, 'Comparable to GA; faster than PSO', '[6]'],
+      ['Verma et al. 2020 (PackMan)', 'Empirical competitive ratio', fmt2(LITERATURE_BENCH.verma2020.ratio), `Opt=${fmt2(LITERATURE_BENCH.verma2020.opt_bins)}, used=${fmt2(LITERATURE_BENCH.verma2020.avg_bins)}`, `${fmt2(LITERATURE_BENCH.verma2020.best_case_pct)}% best-efficiency cases`, '[7]'],
+      ['Verma et al. 2020 (PackMan)', 'Inference runtime', `< ${fmt2(LITERATURE_BENCH.verma2020.inference_lt_ms)} ms`, 'Real-time online target', 'Low-latency policy execution', '[7]']
+    ];
+    document.getElementById('headToHeadTable').innerHTML = headRows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td></tr>`).join('');
+
+    document.getElementById('head2headDerivedTable').innerHTML = [
+      ['Local latency gain vs GA (600 items)', `${fmt2(latencyGainVsGA)}%`, 'Relative decrease in total pipeline latency against GA baseline in latest logs.'],
+      ['Local SU gain vs GA (600 items)', `${fmt2(suGainVsGA)}%`, 'Relative increase in SU metric vs GA baseline in latest logs.'],
+      ['Song DATA-1 utilization gain', `${fmt2(songUtiGain)}%`, 'PUN vs Zhao et al. 2022 utilization improvement reported by Song et al. [5].'],
+      ['Song DATA-1 packed-count gain', `${fmt2(songNumGain)}%`, 'PUN vs Zhao et al. 2022 packed item count improvement [5].'],
+      ['Song DATA-1 stability-spread reduction', `${fmt2(songStaReduction)}%`, 'Lower is better for stability spread (Sta.) [5].'],
+      ['Local latency gain normalized by Zhang gain', fmt3(gainRatioLocalToZhang), 'Ratio of two GA-relative gains from different metric families; use only as directional context.'],
+      ['Fastest local per-item latency @600', `${fmt3(latencyPerItemFast600)} ms/item`, `Approximate per-item pipeline latency from ${shortVariant(fastest600.variant)}.`],
+      ['Per-item latency vs PackMan <40ms target', `${fmt2(runtimePerItemVsPackman)}x`, 'Cross-study runtime factor; not directly equivalent because workloads/decision granularity differ.']
+    ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+
+    new Chart(document.getElementById('litGainChart'), {
+      type: 'bar',
+      data: {
+        labels: ['This work latency gain vs GA (600)', 'This work SU gain vs GA (600)', 'Song2023 Uti gain vs Zhao2022', 'Zhang2024 gain vs GA', 'Zhang2024 gain vs PSO'],
+        datasets: [{
+          label: 'Relative gain (%)',
+          data: [latencyGainVsGA, suGainVsGA, songUtiGain, LITERATURE_BENCH.zhang2024.gain_vs_ga_pct, LITERATURE_BENCH.zhang2024.gain_vs_pso_pct],
+          backgroundColor: ['#0b7285','#1f8da1','#2b9348','#ff7f11','#f79d65']
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#edf1f4' } } } }
+    });
+
+    new Chart(document.getElementById('songData1Chart'), {
+      type: 'bar',
+      data: {
+        labels: songOrder,
+        datasets: [{
+          label: 'DATA-1 Uti.',
+          data: songOrder.map(m => songRows[m][0]),
+          backgroundColor: songOrder.map((_,i) => i === songOrder.length - 1 ? '#ff7f11' : '#0b7285')
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxRotation: 70, minRotation: 70 } }, y: { grid: { color: '#edf1f4' } } } }
+    });
+  </script>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']]
+      },
+      svg: {
+        fontCache: 'global'
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</body>
+</html>

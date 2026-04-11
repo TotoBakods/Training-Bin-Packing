@@ -1,0 +1,252 @@
+0001: APPENDIX
+0002: A. IMPLEMENTATION CODE SNIPPETS AND RESULTS
+0003: 19-Feature Vector Extraction (Feature Engineering)
+0004: Figure 9. 19 Feature Vector Extraction
+0005: B. GAN Implementation, Augmentation, and Impact Assessment
+0006: Generator and Discriminator Architecture
+0007: Figure 10. Generator and Discriminator Architecture
+0008: Figure 11. GAN Training Loss Curves — Nash Equilibrium Convergence
+0009: TTUR Implementation and One-Sided Label Smoothing
+0010: Figure 12. GAN Training Loss Curves — Nash Equilibrium Convergence
+0011: Figure 13. GAN Parity (Model Harmony) — Absolute Difference between Discriminator and Generator Loss (|D_loss - G_loss|) across 1,000 Epochs
+0012: Figure 14. Distance to Equilibrium (DTE) — Discriminator and Generator Distance from Nash Equilibrium (0.693) across 1,000 Epochs
+0013: Figure 15. KDE Distribution Audit — Probability Density Comparison of Real (Blue) vs. Synthetic (Red) Items across Length, Width, Height, and Weight Features
+0014: Figure 16. PCA Projection 2D Latent Map of Real (Blue) vs. Synthetic (Red) Warehouse Items, Confirming Distribution Overlap and Manifold Coverage
+0015: Figure 17. Correlation Delta Heatmap Pearson Correlation Difference across Length, Width, Height, and Weight Feature Pairs
+0016: GAN Academic Audit Scores Impact Quantification
+0017: Metric
+0018: Project Result
+0019: CTGAN Baseline
+0020: Status
+0021: Source
+0022: C2ST AUC-ROC
+0023: 0.9699
+0024: 0.82 – 0.94
+0025: VALIDATED
+0026: Lopez-Paz (2017)
+0027: Mean DCR
+0028: 0.0073
+0029: 0.01 – 0.05
+0030: EXCELLENT
+0031: Meehan (2020)
+0032: Median DCR
+0033: 0.0290
+0034: 0.02 – 0.06
+0035: STABLE
+0036: SDMetrics Baseline
+0037: Representative Synthetic SKU Output Physicality Validation
+0038: Item ID
+0039: Length (m)
+0040: Width (m)
+0041: Height (m)
+0042: Weight (kg)
+0043: Fragility
+0044: Stackable
+0045: Priority
+0046: SYN8ef2
+0047: 0.56
+0048: 0.16
+0049: 0.24
+0050: 4.80
+0051: No
+0052: Yes
+0053: 2
+0054: SYNa45b
+0055: 0.42
+0056: 0.31
+0057: 0.15
+0058: 2.15
+0059: No
+0060: Yes
+0061: 1
+0062: SYN3291
+0063: 0.28
+0064: 0.28
+0065: 0.42
+0066: 6.30
+0067: Yes
+0068: No
+0069: 3
+0070: SYNf1c0
+0071: 0.65
+0072: 0.45
+0073: 0.32
+0074: 12.40
+0075: No
+0076: Yes
+0077: 2
+0078: SYN99d4
+0079: 0.18
+0080: 0.12
+0081: 0.10
+0082: 0.85
+0083: No
+0084: Yes
+0085: 1
+0086: Figure 18. Log-Scale Neural Architecture Convergence (EO-GA Variant) Training MSE Loss and Fitness Score over 100 Epochs
+0087: Deep Learning MLP Regression Model
+0088: Figure 19. MLP Packing Model
+0089: Physics-Informed Loss Function (Weighted MSE)
+0090: Figure 20. Weighted MSE
+0091: Figure 21. Regression Error Distribution (Physics-Biased) Normalized MAE per Output Dimension: X-Coord, Y-Coord, Z-Coord, and Rotation
+0092: Figure 22. High-Fidelity 3D Packing Visualizations Stage 1 (Raw MLP Neural Allocation) vs. Stage 2 (Post-Heuristic Physical State) for EO-GA, GA-EO, EO, and GA Variants at 600-Item Scale
+0093: Figure 23. Neural-Heuristic Pipeline Progression Stage A: Neural Intent, Stage B: EO Heuristic Projection (Feasibility Repair), Stage C: GA + Physics Settlement (Final Stable State
+0094: Hybrid Sequential Optimization (EO + GA)
+0095: Figure 24. Strategic Coordination
+0096: Stage 2 EO Feasibility Projection and Touch-Point Repair
+0097: Figure 25. Stage 2 Snippet
+0098: Stage 3 Physics Settlement and SSR Gate
+0099: Figure 26. Stage 3 Snippet
+0100: The Complete Propose-and-Repair Execution Loop
+0101: Figure 27. Hybrid Execution Loop
+0102: Figure 28. Comparative SSR Analysis — Support Stability Rate (%) for All Four Variants at 200, 400, and 600 SKU Scales
+0103: Figure 29. Spatial Stability Heatmap — Mean Settlement Displacement (Contact Units) across the Warehouse Floor (X-Y Plane) for the EO-GA Variant
+0104: Multi-Scale Scaling Results — Complete Hybrid Framework Validation
+0105: Scale (SKUs)
+0106: Algorithm
+0107: Repair Latency (ms)
+0108: Fitness Score
+0109: PSR / SSR
+0110: VU (%)
+0111: 200
+0112: Standalone EO
+0113: 6,966
+0114: 30.82%
+0115: 95.50% / 100%
+0116: 1.10%
+0117: 200
+0118: Hybrid EO-GA
+0119: 7,499
+0120: 31.07%
+0121: 95.50% / 100%
+0122: 1.10%
+0123: 200
+0124: Standalone GA
+0125: 6,696
+0126: 30.69%
+0127: 94.00% / 100%
+0128: 1.07%
+0129: 200
+0130: Hybrid GA-EO
+0131: 6,805
+0132: 31.00%
+0133: 95.50% / 100%
+0134: 1.09%
+0135: 400
+0136: Standalone EO
+0137: 34,223
+0138: 30.69%
+0139: 94.75% / 100%
+0140: 2.23%
+0141: 400
+0142: Hybrid EO-GA
+0143: 39,061
+0144: 31.12%
+0145: 96.50% / 100%
+0146: 2.26%
+0147: 400
+0148: Standalone GA
+0149: 37,405
+0150: 30.77%
+0151: 97.00% / 100%
+0152: 2.27%
+0153: 400
+0154: Hybrid GA-EO
+0155: 34,818
+0156: 30.97%
+0157: 95.00% / 100%
+0158: 2.24%
+0159: 600
+0160: Standalone EO
+0161: 104,024
+0162: 30.73%
+0163: 96.17% / 100%
+0164: 3.29%
+0165: 600
+0166: Hybrid EO-GA
+0167: 103,439
+0168: 31.24%
+0169: 95.33% / 100%
+0170: 3.28%
+0171: 600
+0172: Standalone GA
+0173: 110,575
+0174: 30.78%
+0175: 94.83% / 100%
+0176: 3.24%
+0177: 600
+0178: Hybrid GA-EO
+0179: 109,287
+0180: 31.02%
+0181: 94.50% / 100%
+0182: 3.25%
+0183: Industrial Scorecard — 4-Variant Benchmark at 600 SKU Scale
+0184: Table XII. Industrial Scorecard — PSR, BBox Efficiency, Access Score, and Repair Overhead for All Variants at 600 SKU Scale
+0185: Model Variant
+0186: PSR (%)
+0187: BBox Eff. (%)
+0188: Access Score
+0189: Repair Time
+0190: Industrial Ranking
+0191: EO-GA (ML-Seeded Hybrid)
+0192: 95.33
+0193: 92.44
+0194: 0.112
+0195: 103.4s
+0196: Best for Density
+0197: GA-EO (ML-Seeded Hybrid)
+0198: 94.50
+0199: 92.37
+0200: 0.104
+0201: 109.3s
+0202: Stability Focused
+0203: EO (Standalone)
+0204: 96.17
+0205: 75.56
+0206: 0.099
+0207: 102.8s
+0208: High-Speed Logic
+0209: GA (Standalone)
+0210: 94.83
+0211: 82.44
+0212: 0.098
+0213: 110.6s
+0214: Legacy Baseline
+0215: Figure 30. Cross-Model Volumetric Utility (%) — Industrial Benchmark at 600 SKU Scale for EO-GA, GA-EO, EO, and GA Variants
+0216: Figure 31. Speed-Accuracy Pareto Manifold — Geometric Efficiency (%) vs. Total Pipeline Latency (ms) at 600-Item Scale for All Four Variants
+0217: Figure 32. Volumetric Utility (%) Scaling — All Variants across 200, 400, and 600 SKU Scales
+0218: Figure 33. Placement Success Rate (%) — PSR Consistency across 200, 400, and 600 SKU Scenarios for All Four Model Variants
+0219: Figure 34. Pipeline Scaling Efficiency — Repair Latency (Seconds) vs. SKU Count for EO and EO- GA from 200 to 600 Items
+0220: Figure 35. Spatial Support Heatmap (Warehouse Floor) — Item Density (Support Contacts) across Warehouse Length and Width for the EO-GA Configuration
+0221: SOTA Comparison — ML-Seeded Hybrid vs. Baseline Methodologies
+0222: Methodology
+0223: Support Enforcement
+0224: Complexity
+0225: Strategic Insight
+0226: Outcome
+0227: Classical EP (Crainic et al.)
+0228: None
+0229: High
+0230: None
+0231: No stability guarantee
+0232: Action Masking (Zhao et al., 2021)
+0233: Partial
+0234: Medium
+0235: Static rules
+0236: Partial stability only
+0237: Standalone EO (This Study)
+0238: Full (SSR ≥ 0.8)
+0239: Low
+0240: Global only
+0241: 96.17% PSR, 75.56% BBox Eff.
+0242: Standalone GA (This Study)
+0243: Full (SSR ≥ 0.8)
+0244: Low
+0245: Local only
+0246: 94.83% PSR, 82.44% BBox Eff.
+0247: Hybrid EO-GA (This Study)
+0248: Full (SSR ≥ 0.8)
+0249: Low
+0250: Dynamic Evolution
+0251: 95.33% PSR, 92.44% BBox Eff.
+0252: Core Data Structures and Spatial Optimization logic

@@ -105,8 +105,9 @@ def train_model(csv_path, model_name):
     model = PackingModel()
     model.to(device)
     
-    # Weighted Loss: Increased Z-weight to 2.0 to force accurate stacking heights
-    weight_v = torch.tensor([2.0, 2.0, 2.0, 1.0]).to(device)
+    # Weighted Loss: emphasize Z only for stacking-height accuracy
+    # [x, y, z, rot] -> z has higher weight
+    weight_v = torch.tensor([1.0, 1.0, 2.0, 1.0]).to(device)
     def weighted_mse_loss(input, target):
         return (weight_v * (input - target) ** 2).mean()
 

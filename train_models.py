@@ -19,6 +19,7 @@ BATCH_SIZE = 2048          # Optimized for high-throughput GPU utilization
 LR = 0.001
 VAL_SPLIT = 0.2
 PATIENCE = 10              # Improved early-stopping for faster convergence
+ITEMS_PER_SCENARIO = 50    # Matches generate_training_data.py
 HISTORY_LOG_DIR = os.path.join("Documents", "04_Machine_Learning", "Performance_Metrics")
 os.makedirs(HISTORY_LOG_DIR, exist_ok=True)
 
@@ -28,54 +29,56 @@ if not os.path.exists(MODELS_DIR):
 class WarehouseDataset(Dataset):
     def __init__(self, csv_file):
         self.data = pd.read_csv(csv_file)
-        
-        # Original 10 features
-        orig_x = self.data[['item_l', 'item_w', 'item_h', 'weight', 'fragile', 'stackable', 'can_rotate', 'wh_l', 'wh_w', 'wh_h']].values.astype(np.float32)
-        
-        # Derived features (8 more)
-        l, w, h = orig_x[:, 0], orig_x[:, 1], orig_x[:, 2]
-        wh_l, wh_w, wh_h = orig_x[:, 7], orig_x[:, 8], orig_x[:, 9]
-        
-        item_vol = l * w * h
-        wh_vol = wh_l * wh_w * wh_h
-        item_area = l * w
-        wh_area = wh_l * wh_w
-        
-        # Build 19-feature set
+
         n = len(self.data)
+        item_l = self.data['item_l'].values.astype(np.float32)
+        item_w = self.data['item_w'].values.astype(np.float32)
+        item_h = self.data['item_h'].values.astype(np.float32)
+        weight = self.data['weight'].values.astype(np.float32)
+        wh_l = self.data['wh_l'].values.astype(np.float32)
+        wh_w = self.data['wh_w'].values.astype(np.float32)
+        wh_h = self.data['wh_h'].values.astype(np.float32)
+
+        item_l_max = max(float(item_l.max()), 1.0)
+        item_w_max = max(float(item_w.max()), 1.0)
+        item_h_max = max(float(item_h.max()), 1.0)
+        weight_max = max(float(weight.max()), 1.0)
+        wh_l_max = max(float(wh_l.max()), 1.0)
+        wh_w_max = max(float(wh_w.max()), 1.0)
+        wh_h_max = max(float(wh_h.max()), 1.0)
+
+        item_vol = item_l * item_w * item_h
+        wh_vol = wh_l * wh_w * wh_h
+        item_area = item_l * item_w
+        wh_area = wh_l * wh_w
+
         self.x = np.zeros((n, 19), dtype=np.float32)
-        
-        # 1-10: Basic
-        self.x[:, 0:3] = orig_x[:, 0:3] / 10.0
-        self.x[:, 3] = orig_x[:, 3] / 100.0
-        self.x[:, 4:7] = orig_x[:, 4:7]
-        self.x[:, 7:10] = orig_x[:, 7:10] / 100.0
-        
-        # 11-18: Advanced
-        self.x[:, 10] = item_vol / 10.0
-        self.x[:, 11] = wh_vol / 1000.0
+
+        # Keep training normalization aligned with evaluate_metrics.py and live inference.
+        self.x[:, 0] = item_l / item_l_max
+        self.x[:, 1] = item_w / item_w_max
+        self.x[:, 2] = item_h / item_h_max
+        self.x[:, 3] = weight / weight_max
+        self.x[:, 4] = self.data['fragile'].values.astype(np.float32)
+        self.x[:, 5] = self.data['stackable'].values.astype(np.float32)
+        self.x[:, 6] = self.data['can_rotate'].values.astype(np.float32)
+        self.x[:, 7] = wh_l / wh_l_max
+        self.x[:, 8] = wh_w / wh_w_max
+        self.x[:, 9] = wh_h / wh_h_max
+        self.x[:, 10] = item_vol / max(item_l_max * item_w_max * item_h_max, 1e-6)
+        self.x[:, 11] = wh_vol / max(wh_l_max * wh_w_max * wh_h_max, 1e-6)
         self.x[:, 12] = item_vol / (wh_vol + 1e-6)
-        self.x[:, 13] = item_area / 10.0
-        self.x[:, 14] = wh_area / 100.0
+        self.x[:, 13] = item_area / max(item_l_max * item_w_max, 1e-6)
+        self.x[:, 14] = wh_area / max(wh_l_max * wh_w_max, 1e-6)
         self.x[:, 15] = item_area / (wh_area + 1e-6)
-        self.x[:, 16] = l / (wh_l + 1e-6)
-        self.x[:, 17] = w / (wh_w + 1e-6)
-        
-        # 19: Sequence Progress (Normalized index in dataset / CSV)
-        # Note: In real scenarios this is item_index / total_items
-        self.x[:, 18] = np.arange(n) / float(n)
-        
-        # Targets: x, y, z, rot
+        self.x[:, 16] = item_l / (wh_l + 1e-6)
+        self.x[:, 17] = item_w / (wh_w + 1e-6)
+        self.x[:, 18] = (np.arange(n) % ITEMS_PER_SCENARIO) / float(ITEMS_PER_SCENARIO)
+
         self.y = self.data[['target_x', 'target_y', 'target_z', 'target_rot']].values.astype(np.float32)
-        
-        # Normalise targets by warehouse dims
-        wh_l = self.data['wh_l'].values.astype(np.float32) + 1e-5
-        wh_w = self.data['wh_w'].values.astype(np.float32) + 1e-5
-        wh_h = self.data['wh_h'].values.astype(np.float32) + 1e-5
-        
-        self.y[:, 0] = self.y[:, 0] / wh_l
-        self.y[:, 1] = self.y[:, 1] / wh_w
-        self.y[:, 2] = self.y[:, 2] / wh_h
+        self.y[:, 0] = self.y[:, 0] / (wh_l + 1e-5)
+        self.y[:, 1] = self.y[:, 1] / (wh_w + 1e-5)
+        self.y[:, 2] = self.y[:, 2] / (wh_h + 1e-5)
         self.y[:, 3] = self.y[:, 3] / 6.0
 
     def __len__(self):

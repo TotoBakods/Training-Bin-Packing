@@ -445,7 +445,7 @@ def _perform_search_cpu(cands, rots, l, w, h,
     return best
 
 
-def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zones=None, layer_heights=None, callback=None, callback_interval=50, fast_mode=False, max_candidates=None, item_categories=None):
+def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zones=None, layer_heights=None, callback=None, callback_interval=50, fast_mode=False, max_candidates=None, item_categories=None, item_names=None):
     """Repair solution by placing items in valid positions with gravity."""
     # Defaults
     if layer_heights is None or len(layer_heights) == 0:
@@ -727,8 +727,15 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
     def _log_item(idx, pass_name, zi, is_nf, min_z, b_x, b_y, b_z, b_dx, b_dy, b_dz, used_fallback):
         frag_label = 'NF' if is_nf else 'FR'
         fb_flag    = ' [FALLBACK]' if used_fallback else ''
+        
+        # Enhanced item details
+        name = f"({item_names[idx]})" if item_names and idx < len(item_names) else ""
+        af = items_props[idx, 5]
+        prio = int(items_props[idx, 9]) if items_props.shape[1] > 9 else 1
+
         _log_f.write(
-            f'  {pass_name} | item={idx:>4d} {frag_label} zone={zi} '
+            f'  {pass_name} | item={idx:>4d} {name:<20} {frag_label} '
+            f'prio={prio} af={af:.2f} zone={zi} '
             f'dims=({b_dx:.2f}x{b_dy:.2f}x{b_dz:.2f}) '
             f'min_z={min_z:.3f} '
             f'→ xyz=({b_x:.3f},{b_y:.3f},{b_z:.3f})'
@@ -1212,7 +1219,7 @@ def fitness_function(solution_list, items, warehouse, weights=None):
         if idx is not None:
             sol_array[idx] = [item_sol['x'], item_sol['y'], item_sol['z'], item_sol['rotation']]
 
-    items_props = np.zeros((num_items, 9))
+    items_props = np.zeros((num_items, 10))
     for i, item in enumerate(items):
         items_props[i] = [
             item['length'], item['width'], item['height'],
@@ -1220,6 +1227,7 @@ def fitness_function(solution_list, items, warehouse, weights=None):
             item['access_freq'], item.get('weight', 0),
             hash(item.get('category', '')) % 10000,
             item.get('fragility', 0),
+            item.get('priority', 1)
         ]
 
     wh_dims = (warehouse['length'], warehouse['width'], warehouse['height'],

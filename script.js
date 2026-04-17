@@ -252,7 +252,8 @@ function onMouseClick(event) {
             <strong>${data.name || 'Item ' + data.id}</strong>
             <div style="font-size:0.8rem; color:#bbb;">
                 ${data.width}x${data.height}x${data.length}m<br>
-                Weight: ${data.weight}kg<br>
+                Weight: ${data.weight}kg | Prio: <span style="color:var(--accent-primary)">${data.priority || 1}</span><br>
+                Access: <span style="color:var(--warning)">${data.access_freq || 0}</span><br>
                 Pos: ${data.x.toFixed(2)}, ${data.y.toFixed(2)}, ${data.z.toFixed(2)}<br>
                 Fragile: ${data.fragility ? '<span style="color:#FF6B8A">Yes ⚠️</span>' : '<span style="color:#00FF9D">No</span>'}
             </div>
@@ -1696,10 +1697,10 @@ function loadItemsList() {
             headerRow.style.color = 'var(--accent-primary)';
             headerRow.style.borderBottom = '1px solid #444';
             
-            ['Name', 'Dim', 'Cat', 'F', 'Action'].forEach((text, idx) => {
+            ['Name', 'Dim', 'Cat', 'F', 'P', 'AF', 'Action'].forEach((text, idx) => {
                 const th = document.createElement('th');
                 th.textContent = text;
-                const widths = ['35%', '25%', '15%', '10%', '15%'];
+                const widths = ['30%', '15%', '15%', '5%', '5%', '10%', '20%'];
                 th.style.width = widths[idx];
                 headerRow.appendChild(th);
             });
@@ -1727,6 +1728,16 @@ function loadItemsList() {
                 const tdFrag = document.createElement('td');
                 tdFrag.textContent = item.fragility ? '⚠️' : '🛡️';
                 tr.appendChild(tdFrag);
+
+                const tdPrio = document.createElement('td');
+                tdPrio.textContent = item.priority || 1;
+                tdPrio.style.color = 'var(--accent-primary)';
+                tr.appendChild(tdPrio);
+
+                const tdAccess = document.createElement('td');
+                tdAccess.textContent = item.access_freq || 0;
+                tdAccess.style.color = 'var(--warning)';
+                tr.appendChild(tdAccess);
 
                 const tdAction = document.createElement('td');
                 tdAction.style.display = 'flex';

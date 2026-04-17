@@ -12,6 +12,8 @@ from optimizer import (
 import platform
 import psutil
 
+ITEMS_PER_SCENARIO = 50
+
 def get_system_metadata():
     """Captures hardware and software environment details for documentation."""
     metadata = {
@@ -109,6 +111,7 @@ class MLOptimizer:
 
         # Pre-process items
         zones = get_exclusion_zones(warehouse['id'])
+        zones = get_exclusion_zones(warehouse['id'])
         exclusion_zones_arr = None
         if zones:
              ex_zones = [z for z in zones if z['zone_type'] == 'exclusion']
@@ -116,7 +119,7 @@ class MLOptimizer:
                  exclusion_zones_arr = np.array([[z['x1'], z['y1'], z['x2'], z['y2']] for z in ex_zones])
         
         # Props for repair
-        items_props = np.zeros((num_items, 9), dtype=np.float32)
+        items_props = np.zeros((num_items, 10), dtype=np.float32)
         
         # Features for Model: 19 advanced geometric features (including Sequence Progress)
         features = np.zeros((num_items, 19), dtype=np.float32)
@@ -128,6 +131,10 @@ class MLOptimizer:
         # Pre-calculate warehouse values
         wh_vol = wh_l * wh_w * wh_h
         wh_area = wh_l * wh_w
+        item_l_max = max(float(max(item['length'] for item in items)), 1.0)
+        item_w_max = max(float(max(item['width'] for item in items)), 1.0)
+        item_h_max = max(float(max(item['height'] for item in items)), 1.0)
+        weight_max = max(float(max(item.get('weight', 0) for item in items)), 1.0)
         
         for i, item in enumerate(items):
             # Props (for heuristic)
@@ -136,7 +143,8 @@ class MLOptimizer:
                 item['can_rotate'], item['stackable'],
                 item['access_freq'], item.get('weight', 0),
                 hash(item.get('category', '')) % 10000,
-                item.get('fragility', 0)
+                item.get('fragility', 0),
+                item.get('priority', 1)
             ]
             
             # Features (for Neural Network)
@@ -145,30 +153,29 @@ class MLOptimizer:
             item_area = l * w
             
             features[i] = [
-                l / 10.0, 
-                w / 10.0, 
-                h / 10.0,
-                item.get('weight', 0) / 100.0, 
+                l / item_l_max,
+                w / item_w_max,
+                h / item_h_max,
+                item.get('weight', 0) / weight_max,
                 1.0 if item.get('fragility', 0) else 0.0,
                 1.0 if item.get('stackable', 1) else 0.0,
                 1.0 if item.get('can_rotate', 1) else 0.0,
-                wh_l / 100.0,
-                wh_w / 100.0,
-                wh_h / 100.0,
+                1.0,
+                1.0,
+                1.0,
                 # Advanced features
-                item_vol / 10.0,
-                wh_vol / 1000.0,
+                item_vol / max(item_l_max * item_w_max * item_h_max, 1e-6),
+                1.0,
                 item_vol / (wh_vol + 1e-6),
-                item_area / 10.0,
-                wh_area / 100.0,
+                item_area / max(item_l_max * item_w_max, 1e-6),
+                1.0,
                 item_area / (wh_area + 1e-6),
                 l / (wh_l + 1e-6),
                 w / (wh_w + 1e-6),
                 # 19. Sequence Progress (Proxy for fill level)
-                i / float(num_items)
+                (i % ITEMS_PER_SCENARIO) / float(ITEMS_PER_SCENARIO)
             ]
-
-        # Inference
+        
         try:
             inference_start = time.time()
             with torch.no_grad():
@@ -224,13 +231,15 @@ class MLOptimizer:
                 solution = repair_solution_compact(
                     solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
                     callback=intermediate_callback, callback_interval=cb_interval, fast_mode=is_eo_ga,
-                    item_categories=[item.get('category', 'General') for item in items]
+                    item_categories=[item.get('category', 'General') for item in items],
+                    item_names=[item.get('name', 'N/A') for item in items]
                 )
             else:
                 solution = repair_solution_compact(
                     solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
                     fast_mode=is_eo_ga,
-                    item_categories=[item.get('category', 'General') for item in items]
+                    item_categories=[item.get('category', 'General') for item in items],
+                    item_names=[item.get('name', 'N/A') for item in items]
                 )
             repair_end = time.time()
             repair_latency = (repair_end - repair_start) * 1000 # ms

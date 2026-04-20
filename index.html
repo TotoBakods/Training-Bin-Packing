@@ -10,9 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -26,51 +24,55 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                 </svg>
+                <span class="nav-label">Controls</span>
             </div>
             <div class="nav-item" onclick="switchView('items')" title="Items Database">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
+                <span class="nav-label">Items</span>
             </div>
             <div class="nav-item" onclick="switchView('analytics')" title="Analytics">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
+                <span class="nav-label">Analytics</span>
             </div>
             <div class="nav-item" onclick="switchView('warehouse')" title="Warehouse Config">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
+                <span class="nav-label">Warehouse</span>
             </div>
         </nav>
 
         <!-- Header -->
         <header id="header">
-            <h2 style="font-weight: 700; letter-spacing: 1px;">CORE <span
-                    style="color:var(--accent-primary)">LOGISTICS</span></h2>
+            <div class="header-brand">
+                <h2>CORE <span>LOGISTICS</span></h2>
+            </div>
             <div class="header-controls">
                 <div class="select-wrapper">
-                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 5px;">WAREHOUSE</span>
+                    <span>Warehouse</span>
                     <select id="warehouse-select" onchange="switchWarehouse(this.value)">
                         <option value="1">Loading...</option>
                     </select>
                 </div>
                 <div class="select-wrapper" id="view-mode-wrapper">
-                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 5px;">RESULT VIEW</span>
+                    <span>Result View</span>
                     <select id="view-mode-select" onchange="onViewModeChange(this.value)">
-                        <option value="live">LIVE RESULTS</option>
+                        <option value="live">Live Results</option>
                     </select>
                 </div>
             </div>
         </header>
 
-        <!-- Main Viewport -->
+        <!-- Main 3D Viewport -->
         <main id="viewport">
             <div id="three-container"></div>
-            <!-- Tooltip -->
             <div id="tooltip"></div>
         </main>
 
@@ -79,14 +81,15 @@
         <!-- Inspector / Right Sidebar -->
         <aside id="inspector">
 
-            <!-- Controls View -->
+            <!-- ── Controls View ─────────────────────────────── -->
             <div id="view-controls" class="view-panel">
+
                 <div class="panel-section">
                     <div class="section-title">Optimization Engine</div>
                     <div class="input-group">
                         <label>Algorithm</label>
-                        <div class="select-wrapper">
-                            <select id="algorithm-select" onchange="updateAlgorithmParams()">
+                        <div class="select-wrapper" style="padding: 6px 10px;">
+                            <select id="algorithm-select" onchange="updateAlgorithmParams()" style="width: 100%;">
                                 <option value="ga">Genetic Algorithm</option>
                                 <option value="eo">Extremal Optimization</option>
                                 <option value="ga-eo">Hybrid (GA + EO)</option>
@@ -99,97 +102,83 @@
 
                 <div class="panel-section">
                     <div class="section-title">Status</div>
-                    <div
-                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                         <div class="status-indicator">
                             <div id="status-dot" class="dot"></div>
-                            <span id="status-text"
-                                style="color: var(--text-main); font-size: 0.9rem; margin-left: 8px;">IDLE</span>
+                            <span id="status-text" style="font-size: 0.85rem; font-weight: 500;">IDLE</span>
                         </div>
-                        <span id="progress-percent"
-                            style="color: var(--accent-primary); font-family: 'JetBrains Mono';">0%</span>
+                        <span id="progress-percent" style="color: var(--accent-primary); font-family: var(--font-mono); font-size: 0.82rem;">0%</span>
                     </div>
-                    <div
-                        style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 10px;">
-                        <div id="progress-bar-fill"
-                            style="width: 0%; height: 100%; background: var(--accent-primary); transition: width 0.3s;">
-                        </div>
+                    <div class="progress-track" style="margin-bottom: 10px;">
+                        <div id="progress-bar-fill" class="progress-fill" style="width: 0%;"></div>
                     </div>
-                    <!-- Extended Status Info -->
-                    <div
-                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;">
-                        <div>Algorithm: <span id="status-algo" style="color: var(--text-main);">-</span></div>
-                        <div>Gen/Iter: <span id="status-gen" style="color: var(--text-main);">-</span></div>
-                        <div>Placed: <span id="status-placed" style="color: var(--success);">-</span></div>
-                        <div>Elapsed: <span id="status-elapsed" style="color: var(--text-main);">-</span></div>
+                    <div class="status-grid">
+                        <div>Algorithm: <span id="status-algo">—</span></div>
+                        <div>Gen/Iter: <span id="status-gen">—</span></div>
+                        <div>Placed: <span id="status-placed" style="color: var(--success);">—</span></div>
+                        <div>Elapsed: <span id="status-elapsed">—</span></div>
                     </div>
-                    <div
-                        style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
-                        <span>Best Fitness:</span>
-                        <span id="best-fitness"
-                            style="color: var(--text-main); font-family: 'JetBrains Mono';">0.0000</span>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">
+                        <span>Best Fitness</span>
+                        <span id="best-fitness" style="color: var(--text-main); font-family: var(--font-mono);">0.0000</span>
                     </div>
                 </div>
 
                 <div class="panel-section">
                     <div class="section-title">Parameters</div>
-                    <div id="algorithm-params" style="display:none;">
-                    </div>
-
-                    <div id="compare-params" style="display:none;">
-                    </div>
+                    <div id="algorithm-params" style="display:none;"></div>
+                    <div id="compare-params" style="display:none;"></div>
                 </div>
 
                 <div class="panel-section">
                     <div class="section-title">Visualization</div>
                     <div class="input-group">
                         <label>Color Items By</label>
-                        <select id="color-mode" onchange="onColorModeChange(this.value)"
-                            style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px;">
-                            <option value="category">Category</option>
-                            <option value="weight">Weight Heatmap</option>
-                            <option value="access">Access Frequency</option>
-                            <option value="fragility">Fragility</option>
-                            <option value="priority">Priority</option>
-                            <option value="stackable">Stackable</option>
-                            <option value="displacement">ML Prediction Error (m)</option>
-                        </select>
+                        <div class="select-wrapper" style="padding: 6px 10px;">
+                            <select id="color-mode" onchange="onColorModeChange(this.value)" style="width: 100%;">
+                                <option value="category">Category</option>
+                                <option value="weight">Weight Heatmap</option>
+                                <option value="access">Access Frequency</option>
+                                <option value="fragility">Fragility</option>
+                                <option value="priority">Priority</option>
+                                <option value="stackable">Stackable</option>
+                                <option value="displacement">ML Prediction Error (m)</option>
+                            </select>
+                        </div>
                     </div>
-                    <div style="margin-top: 10px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" id="show-path" onchange="togglePickerPath()">
-                            <span>Show Picker Path</span>
-                        </label>
-                    </div>
-                    <div style="margin-top: 10px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" id="show-zone-names" onchange="toggleZoneLabels()" checked>
-                            <span>Show Zone Names</span>
-                        </label>
-                    </div>
-                    <div id="picker-path-config"
-                        style="display:none; margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-main);">
+                        <input type="checkbox" id="show-path" onchange="togglePickerPath()">
+                        <span style="font-size: 0.82rem;">Show Picker Path</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-main);">
+                        <input type="checkbox" id="show-zone-names" onchange="toggleZoneLabels()" checked>
+                        <span style="font-size: 0.82rem;">Show Zone Names</span>
+                    </label>
+                    <div id="picker-path-config" style="display:none; margin-top: 4px;">
                         <div class="input-group" style="margin-bottom: 8px;">
                             <label>Items to Pick</label>
                             <input type="number" id="picker-item-count" value="5" min="1" max="50">
                         </div>
                         <div class="input-group" style="margin-bottom: 8px;">
                             <label>Selection Mode</label>
-                            <select id="picker-selection-mode"
-                                style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-main); padding: 6px;">
-                                <option value="access">Top Access Frequency</option>
-                                <option value="random">Random</option>
-                                <option value="nearest">Nearest to Door</option>
-                            </select>
+                            <div class="select-wrapper" style="padding: 6px 10px;">
+                                <select id="picker-selection-mode" style="width: 100%;">
+                                    <option value="access">Top Access Frequency</option>
+                                    <option value="random">Random</option>
+                                    <option value="nearest">Nearest to Door</option>
+                                </select>
+                            </div>
                         </div>
-                        <button class="btn" onclick="generatePickerPath()" style="width: 100%;">GENERATE PATH</button>
+                        <button class="btn" onclick="generatePickerPath()" style="width: 100%;">Generate Path</button>
                     </div>
                 </div>
 
                 <div class="panel-section">
-                    <div class="section-title">Weights</div>
+                    <div class="section-title">Optimization Weights</div>
                     <div class="input-group">
-                        <label>Space Utilization</label>
+                        <label style="display: flex; justify-content: space-between;">
+                            <span>Space Utilization</span>
+                        </label>
                         <input type="range" id="weight-space" min="0" max="1" step="0.1" value="0.6">
                     </div>
                     <div class="input-group">
@@ -202,123 +191,120 @@
                     </div>
                 </div>
 
-                <!-- Inference Diagnostics Section -->
-                <div class="panel-section" id="inference-diagnostics" style="display: none; background: rgba(0, 240, 255, 0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(0, 240, 255, 0.1);">
-                    <div class="section-title" style="color: var(--accent-primary); display: flex; align-items: center; gap: 8px;">
-                        <span class="pulse" style="width: 8px; height: 8px; background: var(--accent-primary); border-radius: 50%;"></span>
+                <!-- Inference Diagnostics -->
+                <div class="panel-section" id="inference-diagnostics" style="display: none;">
+                    <div class="section-title" style="color: var(--accent-primary); display: flex; align-items: center; gap: 8px; border-bottom-color: rgba(99,102,241,0.2);">
+                        <span class="pulse" style="width: 7px; height: 7px; background: var(--accent-primary); border-radius: 50%; display: inline-block;"></span>
                         Inference Diagnostics
                     </div>
                     <div class="diag-grid">
                         <div class="diag-row">
                             <span class="diag-label">Engine Latency</span>
-                            <span id="diag-latency" class="diag-value">-</span>
+                            <span id="diag-latency" class="diag-value">—</span>
                         </div>
                         <div class="diag-row">
                             <span class="diag-label">Avg Displacement</span>
-                            <span id="diag-displacement" class="diag-value">-</span>
+                            <span id="diag-displacement" class="diag-value">—</span>
                         </div>
                         <div class="diag-row">
                             <span class="diag-label">Volumetric Efficiency</span>
-                            <span id="diag-efficiency" class="diag-value">-</span>
+                            <span id="diag-efficiency" class="diag-value">—</span>
                         </div>
                         <div class="diag-row">
                             <span class="diag-label">Support Ratio (SSR)</span>
-                            <span id="diag-ssr" class="diag-value">-</span>
+                            <span id="diag-ssr" class="diag-value">—</span>
                         </div>
                         <div class="diag-row">
                             <span class="diag-label">Placement Success (PSR)</span>
-                            <span id="diag-psr" class="diag-value">-</span>
+                            <span id="diag-psr" class="diag-value">—</span>
                         </div>
                         <div class="diag-row">
                             <span class="diag-label">Settlement Count</span>
-                            <span id="diag-placed" class="diag-value">-</span>
+                            <span id="diag-placed" class="diag-value">—</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="panel-section">
-                    <button class="btn" id="start-btn" onclick="startOptimization()">
-                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <div class="panel-section" style="gap: 8px;">
+                    <button class="btn" id="start-btn" onclick="startOptimization()" style="width: 100%; padding: 11px 16px;">
+                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                             <path d="M4 4l8 4-8 4V4z" />
                         </svg>
-                        INITIATE OPTIMIZATION
+                        Initiate Optimization
                     </button>
-                    <button class="btn btn-danger" id="stop-btn" onclick="stopOptimization()" disabled
-                        style="margin-top: 10px;">
-                        STOP
+                    <button class="btn btn-danger" id="stop-btn" onclick="stopOptimization()" disabled style="width: 100%;">
+                        Stop
                     </button>
                 </div>
             </div>
 
-            <!-- Items View (Hidden by default) -->
+            <!-- ── Items View ─────────────────────────────────── -->
             <div id="view-items" class="view-panel" style="display:none;">
+
                 <div class="panel-section">
                     <div class="section-title">Item Management</div>
-                    <div class="data-grid" style="grid-template-columns: 1fr;">
-                        <button class="btn btn-danger" onclick="deleteAllItems()" style="margin-bottom: 10px;">DELETE
-                            ALL ITEMS</button>
-                        <div style="display: flex; gap: 10px; width: 100%;">
-                            <button class="btn" onclick="document.getElementById('file-upload').click()" style="flex: 1; padding: 10px;">REPLACE (CSV)</button>
-                            <button class="btn" onclick="document.getElementById('file-upload-append').click()" style="flex: 1; padding: 10px;">ADD (CSV)</button>
-                        </div>
-                        <input type="file" id="file-upload" accept=".csv" style="display:none" onchange="uploadCSV(false)">
-                        <input type="file" id="file-upload-append" accept=".csv" style="display:none" onchange="uploadCSV(true)">
-                        <button class="btn" onclick="scrambleItems()"
-                            style="background: var(--bg-dark-secondary); border: 1px solid var(--accent-primary); color: var(--accent-primary);">SCRAMBLE
-                            (RANDOMIZE)</button>
-                        <button class="btn" onclick="exportCSV()">EXPORT LAYOUT</button>
+                    <button class="btn btn-danger" onclick="deleteAllItems()" style="width: 100%;">Delete All Items</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn" onclick="document.getElementById('file-upload').click()" style="flex: 1;">Replace (CSV)</button>
+                        <button class="btn" onclick="document.getElementById('file-upload-append').click()" style="flex: 1;">Add (CSV)</button>
+                    </div>
+                    <input type="file" id="file-upload" accept=".csv" style="display:none" onchange="uploadCSV(false)">
+                    <input type="file" id="file-upload-append" accept=".csv" style="display:none" onchange="uploadCSV(true)">
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn" onclick="scrambleItems()" style="flex: 1;">Scramble (Random)</button>
+                        <button class="btn" onclick="exportCSV()" style="flex: 1;">Export Layout</button>
                     </div>
                 </div>
+
                 <div class="panel-section">
                     <div class="section-title">Add New Item</div>
-                    <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="data-grid">
                         <div class="input-group">
                             <label>Name</label>
-                            <input type="text" id="new-item-name" placeholder="Item Name">
+                            <input type="text" id="new-item-name" placeholder="Item name">
                         </div>
                         <div class="input-group">
                             <label>Category</label>
                             <input type="text" id="new-item-category" placeholder="e.g. Electronics">
                         </div>
-                        <div class="input-group">
-                            <label>Dimensions (LxWxH)</label>
-                            <div style="display: flex; gap: 5px;">
-                                <input type="number" id="new-item-length" placeholder="L" style="width: 30%;">
-                                <input type="number" id="new-item-width" placeholder="W" style="width: 30%;">
-                                <input type="number" id="new-item-height" placeholder="H" style="width: 30%;">
-                            </div>
-                        </div>
-                        <div class="input-group">
-                            <label>Weight (kg)</label>
-                            <input type="number" id="new-item-weight" placeholder="0">
-                        </div>
-                        <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
-                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-main);">
-                                <input type="checkbox" id="new-item-fragile"> Fragile
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-main);">
-                                <input type="checkbox" id="new-item-stackable" checked> Stackable
-                            </label>
-                        </div>
-                        <button class="btn" onclick="addNewItem()" style="grid-column: span 2; background: var(--success); color: #000; font-weight: bold;">ADD ITEM</button>
                     </div>
+                    <div class="input-group">
+                        <label>Dimensions — L × W × H</label>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="number" id="new-item-length" placeholder="L">
+                            <input type="number" id="new-item-width" placeholder="W">
+                            <input type="number" id="new-item-height" placeholder="H">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Weight (kg)</label>
+                        <input type="number" id="new-item-weight" placeholder="0">
+                    </div>
+                    <div style="display: flex; gap: 16px; align-items: center;">
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-main); font-size: 0.82rem;">
+                            <input type="checkbox" id="new-item-fragile"> Fragile
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-main); font-size: 0.82rem;">
+                            <input type="checkbox" id="new-item-stackable" checked> Stackable
+                        </label>
+                    </div>
+                    <button class="btn" onclick="addNewItem()" style="width: 100%; background: rgba(16,185,129,0.15); color: var(--success); border-color: rgba(16,185,129,0.3);">
+                        Add Item
+                    </button>
                 </div>
+
                 <div class="panel-section">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <div class="section-title" style="margin-bottom: 0;">Inventory List</div>
-                    </div>
-                    <div class="input-group" style="margin-bottom: 10px;">
-                        <input type="text" id="item-search" placeholder="Search by name or category..." style="width: 100%; font-size: 0.85rem;">
-                    </div>
-                    <div id="items-list"
-                        style="overflow-y: auto; font-size: 0.8rem; color: var(--text-muted); max-height: 400px;">
+                    <div class="section-title">Inventory</div>
+                    <input type="text" id="item-search" placeholder="Search by name or category…" style="width: 100%;">
+                    <div id="items-list" style="overflow-y: auto; max-height: 420px; font-size: 0.78rem; color: var(--text-muted);">
                         <!-- Items injected here -->
                     </div>
                 </div>
             </div>
 
-            <!-- Analytics View (Hidden) -->
+            <!-- ── Analytics View ─────────────────────────────── -->
             <div id="view-analytics" class="view-panel" style="display:none;">
+
                 <div class="panel-section">
                     <div class="section-title">Performance Metrics</div>
                     <div class="data-grid">
@@ -327,7 +313,7 @@
                             <div class="data-value" id="metric-space">0%</div>
                         </div>
                         <div class="data-card">
-                            <div class="data-label">Free Space Vol</div>
+                            <div class="data-label">Free Space</div>
                             <div class="data-value" id="metric-free-space">0 m³</div>
                         </div>
                         <div class="data-card">
@@ -346,77 +332,69 @@
                             <div class="data-label">Total Items</div>
                             <div class="data-value" id="metric-count">0</div>
                         </div>
-                        <div class="data-card">
-                            <div class="data-label">Rendered 3D</div>
+                        <div class="data-card" style="grid-column: span 2;">
+                            <div class="data-label">Rendered 3D Boxes</div>
                             <div class="data-value" id="metric-rendered">0</div>
                         </div>
                     </div>
-                    <button class="btn" onclick="countRenderedBoxes()" style="margin-top: 10px; width: 100%;">
-                        📦 COUNT 3D BOXES
+                    <button class="btn" onclick="countRenderedBoxes()" style="width: 100%;">
+                        Count 3D Boxes
                     </button>
                 </div>
-                <!-- Mini Charts -->
+
                 <div class="panel-section">
                     <div class="section-title">Category Distribution</div>
                     <div style="height: 200px; width: 100%;">
                         <canvas id="categoryChart"></canvas>
                     </div>
                 </div>
+
                 <div class="panel-section">
                     <div class="section-title">Optimization History</div>
                     <div style="height: 150px; width: 100%;">
                         <canvas id="historyChart"></canvas>
                     </div>
                 </div>
+
                 <div class="panel-section">
                     <div class="section-title">Algorithm Best Performance</div>
-                    <div id="algo-best-summary" style="margin-bottom: 15px;">
+                    <div id="algo-best-summary">
                         <div id="algo-best-cards">
-                            <!-- Cards injected here by script.js -->
-                            <div style="padding:10px; color:var(--text-muted); text-align:center;">Loading performance data...</div>
+                            <div style="padding: 12px; color: var(--text-muted); text-align: center; font-size: 0.8rem;">Loading performance data...</div>
                         </div>
-                        <div style="display: flex; gap: 10px; margin-top: 10px;">
-                            <button class="btn" onclick="runBenchmark()" id="benchmark-btn" style="flex: 1;">
-                                RUN BENCHMARK (×20)
-                            </button>
-                            <button class="btn" onclick="exportAlgoPerformance()" style="flex: 1;">
-                                EXPORT CSV
-                            </button>
-                            <button class="btn btn-danger" onclick="clearAlgoPerformance()" style="flex: 1;">
-                                CLEAR PERFORMANCE
-                            </button>
+                        <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+                            <button class="btn" onclick="runBenchmark()" id="benchmark-btn" style="flex: 1; min-width: 80px;">Benchmark ×20</button>
+                            <button class="btn" onclick="exportAlgoPerformance()" style="flex: 1; min-width: 80px;">Export CSV</button>
+                            <button class="btn btn-danger" onclick="clearAlgoPerformance()" style="flex: 1; min-width: 80px;">Clear</button>
                         </div>
-                        <div id="benchmark-status"
-                            style="display: none; margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                                <span id="benchmark-algo" style="color: var(--accent-primary);">-</span>
-                                <span id="benchmark-progress" style="font-family: 'JetBrains Mono';">0%</span>
+                        <div id="benchmark-status" style="display: none; margin-top: 10px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.78rem;">
+                                <span id="benchmark-algo" style="color: var(--accent-primary);">—</span>
+                                <span id="benchmark-progress" style="font-family: var(--font-mono);">0%</span>
                             </div>
-                            <div
-                                style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
-                                <div id="benchmark-bar"
-                                    style="width: 0%; height: 100%; background: var(--accent-primary); transition: width 0.3s;">
-                                </div>
+                            <div class="progress-track">
+                                <div id="benchmark-bar" class="progress-fill" style="width: 0%;"></div>
                             </div>
                             <div id="benchmark-results"></div>
                         </div>
                     </div>
                 </div>
+
                 <div class="panel-section">
                     <div class="section-title">Optimization Log</div>
                     <div style="max-height: 250px; overflow-y: auto;">
                         <table class="compact-table">
                             <thead>
-                                <tr style="color:var(--accent-primary); border-bottom:1px solid #444;">
+                                <tr>
                                     <th style="width: 25%;">Algo</th>
-                                    <th style="width: 20%;">Fit</th>
-                                    <th style="width: 25%;">Time(B)</th>
+                                    <th style="width: 20%;">Fitness</th>
+                                    <th style="width: 25%;">Time (B)</th>
                                     <th style="width: 30%;">Total</th>
                                 </tr>
                             </thead>
                             <tbody id="analytics-history-body">
                                 <tr>
-                                    <td colspan="4" style="padding:10px;">Loading...</td>
+                                    <td colspan="4" style="padding: 10px; color: var(--text-muted);">Loading...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -424,113 +402,136 @@
                 </div>
             </div>
 
-            <!-- Warehouse Config View (Hidden) -->
+            <!-- ── Warehouse Config View ───────────────────────── -->
             <div id="view-warehouse" class="view-panel" style="display:none;">
+
                 <div class="panel-section">
                     <div class="section-title">Presets</div>
-                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
-                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('large-zoned')">Large Zoned Warehouse</button>
-                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('small-room')">Small Room (5x5)</button>
-                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('long-hall')">Long Hall (Compact)</button>
-                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('l-shape')">L-Shape (Compact)</button>
-                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('massive-center')">Massive Center (50x50)</button>
-                        <button class="btn" style="flex: 1 1 100%;" onclick="applyPreset('4-shelves')">Physics Setup (Compact)</button>
-                        <button class="btn"
-                            style="flex: 1 1 100%; background: var(--bg-dark-secondary); border: 1px solid var(--border-color);"
-                            onclick="applyPreset('clear')">Clear All (Default 20x20)</button>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('large-zoned')">Large Zoned</button>
+                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('small-room')">Small Room (5×5)</button>
+                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('long-hall')">Long Hall</button>
+                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('l-shape')">L-Shape</button>
+                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('massive-center')">Massive (50×50)</button>
+                        <button class="btn" style="flex: 1 1 45%;" onclick="applyPreset('4-shelves')">Physics Setup</button>
+                        <button class="btn" style="flex: 1 1 100%; opacity: 0.7;" onclick="applyPreset('clear')">Clear All (20×20 Default)</button>
                     </div>
+                </div>
 
+                <div class="panel-section">
                     <div class="section-title">Dimensions</div>
-                    <div class="input-group">
-                        <label>Length (m)</label>
-                        <input type="number" id="warehouse-length">
-                    </div>
-                    <div class="input-group">
-                        <label>Width (m)</label>
-                        <input type="number" id="warehouse-width">
-                    </div>
-                    <div class="input-group">
-                        <label>Height (m)</label>
-                        <input type="number" id="warehouse-height">
-                    </div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 15px; margin-bottom: 5px;">
-                        Door Location (Entry Point)</div>
-                    <button id="place-door-btn" class="btn" style="width: 100%; margin-bottom: 5px; border: 1px dashed var(--accent-primary);" onclick="togglePlaceDoorMode()">PLACE DOOR (Click on floor)</button>
-                    <button id="confirm-door-btn" class="btn" style="width: 100%; margin-bottom: 10px; background: var(--success); color: #000; display: none; font-weight: bold;" onclick="confirmDoorPlacement()">SAVE NEW LOCATION</button>
-                    <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
-                        <div class="input-group"><label>Door X (m)</label><input type="number" id="warehouse-door-x"
-                                step="0.5" value="0">
+                    <div class="data-grid">
+                        <div class="input-group">
+                            <label>Length (m)</label>
+                            <input type="number" id="warehouse-length">
                         </div>
-                        <div class="input-group"><label>Door Y (m)</label><input type="number" id="warehouse-door-y"
-                                step="0.5" value="0">
+                        <div class="input-group">
+                            <label>Width (m)</label>
+                            <input type="number" id="warehouse-width">
+                        </div>
+                        <div class="input-group" style="grid-column: span 2;">
+                            <label>Height (m)</label>
+                            <input type="number" id="warehouse-height">
                         </div>
                     </div>
-                    <button class="btn" onclick="updateWarehouseConfig()">UPDATE CONFIG</button>
-                    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-title">Door Placement</div>
+                    <button id="place-door-btn" class="btn" style="width: 100%;" onclick="togglePlaceDoorMode()">
+                        Place Door (Click on Floor)
+                    </button>
+                    <button id="confirm-door-btn" class="btn" style="width: 100%; display: none; background: rgba(16,185,129,0.15); color: var(--success); border-color: rgba(16,185,129,0.3);" onclick="confirmDoorPlacement()">
+                        Save New Location
+                    </button>
+                    <div class="data-grid">
+                        <div class="input-group">
+                            <label>Door X (m)</label>
+                            <input type="number" id="warehouse-door-x" step="0.5" value="0">
+                        </div>
+                        <div class="input-group">
+                            <label>Door Y (m)</label>
+                            <input type="number" id="warehouse-door-y" step="0.5" value="0">
+                        </div>
+                    </div>
+                    <button class="btn" onclick="updateWarehouseConfig()" style="width: 100%;">Update Config</button>
+                </div>
+
+                <div class="panel-section">
                     <div class="section-title">Zone Management</div>
                     <div class="input-group">
                         <label>Zone Name</label>
-                        <input type="text" id="zone-name" placeholder="Name">
+                        <input type="text" id="zone-name" placeholder="Zone name">
                     </div>
-
-                    <!-- Group: Floor Coordinates (Position & Size) -->
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; margin-bottom: 5px;">
-                        Position & Size</div>
-                    <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
-                        <div class="input-group"><label>Pos X (m)</label><input type="number" id="zone-pos-x"
-                                step="0.5"></div>
-                        <div class="input-group"><label>Pos Y (m)</label><input type="number" id="zone-pos-y"
-                                step="0.5"></div>
-                        <div class="input-group"><label>Width (m)</label><input type="number" id="zone-width"
-                                step="0.5"></div>
-                        <div class="input-group"><label>Depth (m)</label><input type="number" id="zone-depth"
-                                step="0.5"></div>
+                    <div class="data-grid">
+                        <div class="input-group">
+                            <label>Pos X (m)</label>
+                            <input type="number" id="zone-pos-x" step="0.5">
+                        </div>
+                        <div class="input-group">
+                            <label>Pos Y (m)</label>
+                            <input type="number" id="zone-pos-y" step="0.5">
+                        </div>
+                        <div class="input-group">
+                            <label>Width (m)</label>
+                            <input type="number" id="zone-width" step="0.5">
+                        </div>
+                        <div class="input-group">
+                            <label>Depth (m)</label>
+                            <input type="number" id="zone-depth" step="0.5">
+                        </div>
+                        <div class="input-group">
+                            <label>Base Height</label>
+                            <input type="number" id="zone-base-z" step="0.5" value="0">
+                        </div>
+                        <div class="input-group">
+                            <label>Height (m)</label>
+                            <input type="number" id="zone-height" step="0.5" value="5">
+                        </div>
                     </div>
-
-                    <!-- Group: Vertical Limits -->
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; margin-bottom: 5px;">
-                        Vertical Limits</div>
-                    <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
-                        <div class="input-group"><label>Base Height</label><input type="number" id="zone-base-z"
-                                step="0.5" value="0"></div>
-                        <div class="input-group"><label>Height (H)</label><input type="number" id="zone-height"
-                                step="0.5" value="5"></div>
-                    </div>
-
                     <div class="input-group">
-                        <label>Type</label>
-                        <select id="zone-type"
-                            style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px;">
-                            <option value="exclusion">Restriction Zone (Red)</option>
-                            <option value="allocation">Allocation Zone (Green)</option>
-                        </select>
+                        <label>Zone Type</label>
+                        <div class="select-wrapper" style="padding: 6px 10px;">
+                            <select id="zone-type" style="width: 100%;">
+                                <option value="exclusion">Restriction Zone (Red)</option>
+                                <option value="allocation">Allocation Zone (Green)</option>
+                            </select>
+                        </div>
                     </div>
-                    <button class="btn" onclick="addZone()">ADD ZONE</button>
+                    <button class="btn" onclick="addZone()" style="width: 100%;">Add Zone</button>
+                </div>
 
-                    <div class="section-title" style="margin-top:20px;">Current Zones</div>
-                    <div id="zones-list" style="margin-top: 10px;"></div>
+                <div class="panel-section">
+                    <div class="section-title">Current Zones</div>
+                    <div id="zones-list"></div>
                 </div>
             </div>
 
         </aside>
 
+        <!-- Footer / Status Bar -->
+        <footer id="footer">
+            <div class="status-indicator">
+                <div id="status-dot-footer" class="dot"></div>
+                <span>Core Logistics — Warehouse Optimizer</span>
+            </div>
+            <span id="footer-coords" style="font-family: var(--font-mono);">Ready</span>
+        </footer>
 
-
-        <!-- Comparison Results Modal -->
-        <div id="comparison-modal"
-            style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:999; justify-content:center; align-items:center;">
-            <div
-                style="background: var(--bg-secondary); padding: 30px; border-radius: 8px; width: 80%; max-width: 800px; border: 1px solid var(--accent-primary); box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                    <h3 style="margin:0; color:var(--accent-primary);">Algorithm Comparison Results</h3>
+        <!-- Algorithm Comparison Modal -->
+        <div id="comparison-modal" style="display:none; position:fixed; inset:0; background: rgba(0,0,0,0.75); z-index:999; justify-content:center; align-items:center;">
+            <div style="background: #111827; padding: 28px; border-radius: 12px; width: 80%; max-width: 800px; border: 1px solid var(--border-color); box-shadow: 0 24px 64px rgba(0,0,0,0.6);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                    <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-main);">Algorithm Comparison Results</h3>
                     <button onclick="document.getElementById('comparison-modal').style.display='none'"
-                        style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">&times;</button>
+                        style="background:none; border:none; color: var(--text-muted); font-size:1.4rem; cursor:pointer; line-height:1;">&times;</button>
                 </div>
-                <div id="comparison-results-content" style="color: var(--text-muted);">
+                <div id="comparison-results-content" style="color: var(--text-muted); font-size: 0.85rem;">
                     Loading comparison data...
                 </div>
             </div>
         </div>
+
     </div>
     <script src="script.js?v=3"></script>
 </body>

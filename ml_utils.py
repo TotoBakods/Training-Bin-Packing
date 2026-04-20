@@ -11,6 +11,9 @@ from optimizer import (
 )
 import platform
 import psutil
+import importlib
+import optimizer
+importlib.reload(optimizer)
 
 ITEMS_PER_SCENARIO = 50
 
@@ -33,8 +36,9 @@ class PackingModel(nn.Module):
     """
     Neural network for predicting normalized (x, y, z, rot) placement coordinates.
     Outputs are constrained to [0, 1] via Sigmoid to match normalized target range.
+    Feature vector has 20 dims (19 geometric + af_prio composite at index 19).
     """
-    def __init__(self, input_dim=19, output_dim=4):
+    def __init__(self, input_dim=20, output_dim=4):
         super(PackingModel, self).__init__()
         self.net = nn.Sequential(
             # Layer 1: Condensed Input
@@ -89,13 +93,13 @@ class MLOptimizer:
                  print(f"Model {model_path} not found.")
                  return
              
-             self.model = PackingModel()
+             self.model = PackingModel().to(self.device)
              self.model.load_state_dict(torch.load(model_path, map_location=self.device))
-             self.model.to(self.device)
              self.model.eval()
              print(f"Loaded ML model: {model_path}")
         except Exception as e:
             print(f"Failed to load ML model: {e}")
+            self.model = None  # Prevent using a partially loaded or random-weight model
 
     def optimize(self, items, warehouse, weights=None, callback=None, optimization_state=None):
         num_items = len(items)
@@ -121,21 +125,30 @@ class MLOptimizer:
         # Props for repair
         items_props = np.zeros((num_items, 10), dtype=np.float32)
         
-        # Features for Model: 19 advanced geometric features (including Sequence Progress)
-        features = np.zeros((num_items, 19), dtype=np.float32)
-        
+        # Features for Model: 20 features (19 geometric + af_prio composite at index 19)
+        features = np.zeros((num_items, 20), dtype=np.float32)
+
         wh_l = warehouse['length']
         wh_w = warehouse['width']
         wh_h = warehouse['height']
-        
+
         # Pre-calculate warehouse values
         wh_vol = wh_l * wh_w * wh_h
         wh_area = wh_l * wh_w
+        door_x = warehouse.get('door_x', 0.0)
+        door_y = warehouse.get('door_y', 0.0)
         item_l_max = max(float(max(item['length'] for item in items)), 1.0)
         item_w_max = max(float(max(item['width'] for item in items)), 1.0)
         item_h_max = max(float(max(item['height'] for item in items)), 1.0)
         weight_max = max(float(max(item.get('weight', 0) for item in items)), 1.0)
-        
+        access_freq_max = max(float(max(item.get('access_freq', 1) for item in items)), 1.0)
+        priority_max    = max(float(max(item.get('priority',    1) for item in items)), 1.0)
+        # Composite max for normalisation
+        af_prio_max = max(
+            float(max(item.get('access_freq', 1) * item.get('priority', 1) for item in items)),
+            1.0
+        )
+
         for i, item in enumerate(items):
             # Props (for heuristic)
             items_props[i] = [
@@ -146,12 +159,14 @@ class MLOptimizer:
                 item.get('fragility', 0),
                 item.get('priority', 1)
             ]
-            
+
             # Features (for Neural Network)
             l, w, h = item['length'], item['width'], item['height']
-            item_vol = l * w * h
+            item_vol  = l * w * h
             item_area = l * w
-            
+            af   = item.get('access_freq', 1.0)
+            prio = item.get('priority', 1)
+
             features[i] = [
                 l / item_l_max,
                 w / item_w_max,
@@ -160,20 +175,27 @@ class MLOptimizer:
                 1.0 if item.get('fragility', 0) else 0.0,
                 1.0 if item.get('stackable', 1) else 0.0,
                 1.0 if item.get('can_rotate', 1) else 0.0,
-                1.0,
-                1.0,
-                1.0,
+                # 7: normalised access frequency — high-AF items should be near door
+                af / access_freq_max,
+                # 8: normalised priority — high-prio items should hug zone walls
+                prio / priority_max,
+                # 9: door X position (normalised) — gives the model door awareness
+                door_x / (wh_l + 1e-6),
                 # Advanced features
                 item_vol / max(item_l_max * item_w_max * item_h_max, 1e-6),
-                1.0,
+                # 11: door Y position (normalised)
+                door_y / (wh_w + 1e-6),
                 item_vol / (wh_vol + 1e-6),
                 item_area / max(item_l_max * item_w_max, 1e-6),
-                1.0,
+                # 14: is non-fragile (1=robust, 0=fragile)
+                0.0 if item.get('fragility', 0) else 1.0,
                 item_area / (wh_area + 1e-6),
                 l / (wh_l + 1e-6),
                 w / (wh_w + 1e-6),
-                # 19. Sequence Progress (Proxy for fill level)
-                (i % ITEMS_PER_SCENARIO) / float(ITEMS_PER_SCENARIO)
+                # 18: Sequence Progress (proxy for fill level)
+                (i % ITEMS_PER_SCENARIO) / float(ITEMS_PER_SCENARIO),
+                # 19: Composite af×priority — mirrors optimizer sort key
+                (af * prio) / af_prio_max,
             ]
         
         try:
@@ -192,6 +214,41 @@ class MLOptimizer:
             # Clamp Z > 0
             pred_z = np.maximum(pred_z, 0)
             pred_rot = outputs[:, 3] * 6.0
+
+            # ── Post-inference warm-start biasing ────────────────────────────
+            # The model was trained without door/priority features; we therefore
+            # apply a lightweight post-processing pass so that the repair
+            # function's candidate generation starts from door-aware and
+            # wall-aware positions even before a full retrain is available.
+            for _i, _item in enumerate(items):
+                _af   = float(_item.get('access_freq', 1.0))
+                _prio = int(_item.get('priority', 1))
+
+                # High-AF → pull predicted position toward the door.
+                # Bias grows linearly: 0 % at af=5, 50 % at af=10.
+                if _af >= 5.0:
+                    _bias = min((_af - 5.0) / 5.0, 1.0) * 0.5   # 0..0.5
+                    pred_x[_i] += _bias * (door_x - pred_x[_i])
+                    pred_y[_i] += _bias * (door_y - pred_y[_i])
+
+                # High-priority → pull predicted position toward the nearest wall.
+                # Priority 2 → 30 % pull; priority 3+ → 50 % pull.
+                if _prio >= 2:
+                    _wall_bias = 0.3 if _prio == 2 else 0.5
+                    _d_left  = pred_x[_i]
+                    _d_right = wh_l - pred_x[_i]
+                    _d_front = pred_y[_i]
+                    _d_back  = wh_w - pred_y[_i]
+                    _near    = min(_d_left, _d_right, _d_front, _d_back)
+                    if _near == _d_left:
+                        pred_x[_i] *= (1.0 - _wall_bias)
+                    elif _near == _d_right:
+                        pred_x[_i] += _wall_bias * (wh_l - pred_x[_i])
+                    elif _near == _d_front:
+                        pred_y[_i] *= (1.0 - _wall_bias)
+                    else:
+                        pred_y[_i] += _wall_bias * (wh_w - pred_y[_i])
+            # ─────────────────────────────────────────────────────────────────
 
             # Store ML predictions for displacement calculation
             ml_predictions = np.column_stack((pred_x, pred_y, pred_z, pred_rot))
@@ -228,18 +285,26 @@ class MLOptimizer:
                 
                 # Higher callback interval for fast_mode to reduce JSON/List conversion overhead
                 cb_interval = 200 if is_eo_ga else 50
+                wh_dx = warehouse.get('door_x', 0.0)
+                wh_dy = warehouse.get('door_y', 0.0)
                 solution = repair_solution_compact(
-                    solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
+                    solution, items_props, (wh_l, wh_w, wh_h, wh_dx, wh_dy), allocation_zones, valid_z, 
                     callback=intermediate_callback, callback_interval=cb_interval, fast_mode=is_eo_ga,
                     item_categories=[item.get('category', 'General') for item in items],
-                    item_names=[item.get('name', 'N/A') for item in items]
+                    item_names=[item.get('name', 'N/A') for item in items],
+                    warehouse_id=warehouse.get('id'),
+                    warehouse_name=warehouse.get('name')
                 )
             else:
+                wh_dx = warehouse.get('door_x', 0.0)
+                wh_dy = warehouse.get('door_y', 0.0)
                 solution = repair_solution_compact(
-                    solution, items_props, (wh_l, wh_w, wh_h, 0, 0), allocation_zones, valid_z, 
+                    solution, items_props, (wh_l, wh_w, wh_h, wh_dx, wh_dy), allocation_zones, valid_z, 
                     fast_mode=is_eo_ga,
                     item_categories=[item.get('category', 'General') for item in items],
-                    item_names=[item.get('name', 'N/A') for item in items]
+                    item_names=[item.get('name', 'N/A') for item in items],
+                    warehouse_id=warehouse.get('id'),
+                    warehouse_name=warehouse.get('name')
                 )
             repair_end = time.time()
             repair_latency = (repair_end - repair_start) * 1000 # ms
@@ -249,8 +314,10 @@ class MLOptimizer:
             
             # Calculate Fitness
             current_weights = weights if weights else {'space': 0.5, 'accessibility': 0.4, 'stability': 0.1}
+            wh_dx = warehouse.get('door_x', 0.0)
+            wh_dy = warehouse.get('door_y', 0.0)
             fitness, su, acc, sta, grp = fitness_function_numpy(
-                solution, items_props, (wh_l, wh_w, wh_h, 0, 0), current_weights, valid_z, exclusion_zones_arr
+                solution, items_props, (wh_l, wh_w, wh_h, wh_dx, wh_dy), current_weights, valid_z, exclusion_zones_arr
             )
             
             # --- Inference Metrics / Diagnostics ---

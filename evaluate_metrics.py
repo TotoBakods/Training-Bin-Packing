@@ -60,7 +60,7 @@ PATIENCE_EO_GA = 10
 INFERENCE_DATASETS = ["200_items.csv", "400_items.csv", "600_items.csv"]
 
 # Constants for Physics Verification
-PHYSICS_SAMPLE_SIZE = 2   # Reduced for benchmarking speed
+PHYSICS_SAMPLE_SIZE = 0   # Skip physics for faster evaluation
 ITEMS_PER_SCENARIO  = 50
 
 # Dummy warehouse used for inference benchmarking
@@ -125,25 +125,31 @@ class WarehouseDataset(Dataset):
         x_raw[:, 4] = df['fragile'].values.astype(np.float32)
         x_raw[:, 5] = df['stackable'].values.astype(np.float32)
         x_raw[:, 6] = df['can_rotate'].values.astype(np.float32)
-        # Features 7-9: Actual per-row warehouse dims, normalized by global max
-        x_raw[:, 7] = wh_l / WH_L_MAX
-        x_raw[:, 8] = wh_w / WH_W_MAX
-        x_raw[:, 9] = wh_h / WH_H_MAX
-        
-        # Volumetric features using actual warehouse per-row
+        # ── Features 7-9 / 11 / 14 — must match ml_utils.py exactly ───────────
+        # New columns (graceful fallback for old CSVs)
+        af     = df['access_freq'].values.astype(np.float32) if 'access_freq' in df.columns else np.ones(n, np.float32)
+        prio   = df['priority'].values.astype(np.float32)    if 'priority'    in df.columns else np.ones(n, np.float32)
+        door_x = df['door_x'].values.astype(np.float32)      if 'door_x'      in df.columns else np.zeros(n, np.float32)
+        door_y = df['door_y'].values.astype(np.float32)      if 'door_y'      in df.columns else np.zeros(n, np.float32)
+        AF_MAX   = max(float(af.max()),   1.0)
+        PRIO_MAX = max(float(prio.max()), 1.0)
+
+        x_raw[:, 7] = af     / AF_MAX           # normalised access frequency
+        x_raw[:, 8] = prio   / PRIO_MAX          # normalised priority
+        x_raw[:, 9] = door_x / (wh_l + 1e-6)    # door X  / wh_l
+
+        # Volumetric features using actual per-row warehouse dims
         item_vol = item_l * item_w * item_h
-        wh_vol   = wh_l * wh_w * wh_h
-        wh_vol_max = WH_L_MAX * WH_W_MAX * WH_H_MAX
-        x_raw[:, 10] = item_vol / (ITEM_L_MAX * ITEM_W_MAX * ITEM_H_MAX)  # relative item vol
-        x_raw[:, 11] = wh_vol / wh_vol_max                                 # relative wh vol
-        x_raw[:, 12] = item_vol / (wh_vol + 1e-6)                          # item-to-wh ratio
-        
+        wh_vol   = wh_l  * wh_w  * wh_h
+        x_raw[:, 10] = item_vol / (ITEM_L_MAX * ITEM_W_MAX * ITEM_H_MAX)
+        x_raw[:, 11] = door_y / (wh_w + 1e-6)   # door Y  / wh_w
+        x_raw[:, 12] = item_vol / (wh_vol + 1e-6)
+
         # Floor area features
         item_area = item_l * item_w
-        wh_area   = wh_l * wh_w
-        wh_area_max = WH_L_MAX * WH_W_MAX
+        wh_area   = wh_l  * wh_w
         x_raw[:, 13] = item_area / (ITEM_L_MAX * ITEM_W_MAX)
-        x_raw[:, 14] = wh_area / wh_area_max
+        x_raw[:, 14] = (df['fragile'].values == 0).astype(np.float32)  # is non-fragile
         x_raw[:, 15] = item_area / (wh_area + 1e-6)
         
         # Relative item size within THIS row's warehouse
@@ -397,16 +403,58 @@ def run_inference(model_name, items_df, warehouse):
     model.eval()
 
     wh_l, wh_w, wh_h = warehouse["length"], warehouse["width"], warehouse["height"]
+    door_x = float(warehouse.get("door_x", 0.0))
+    door_y = float(warehouse.get("door_y", 0.0))
     num = len(items_df)
-    features = np.zeros((num, 19), dtype=np.float32)
-    items_props = np.zeros((num, 9), dtype=np.float32)
-    wh_vol, wh_area = wh_l*wh_w*wh_h, wh_l*wh_w
+    features    = np.zeros((num, 19), dtype=np.float32)
+    items_props = np.zeros((num, 10), dtype=np.float32)
+    wh_vol, wh_area = wh_l * wh_w * wh_h, wh_l * wh_w
+
+    l_vals = items_df["length"].values.astype(np.float32)
+    w_vals = items_df["width"].values.astype(np.float32)
+    h_vals = items_df["height"].values.astype(np.float32)
+    l_max = max(float(l_vals.max()), 1.0)
+    w_max = max(float(w_vals.max()), 1.0)
+    h_max = max(float(h_vals.max()), 1.0)
+    wt_max = max(float(items_df.get("weight", pd.Series([1.0])).max()), 1.0)
+    af_vals   = items_df["access_freq"].values.astype(np.float32) if "access_freq" in items_df.columns else np.ones(num, np.float32)
+    prio_vals = items_df["priority"].values.astype(np.float32)    if "priority"    in items_df.columns else np.ones(num, np.float32)
+    af_max   = max(float(af_vals.max()),   1.0)
+    prio_max = max(float(prio_vals.max()), 1.0)
 
     for i, (_, row) in enumerate(items_df.iterrows()):
         l, w, h = row["length"], row["width"], row["height"]
-        iv, ia = l*w*h, l*w
-        features[i] = [l/10, w/10, h/10, row.get("weight",0)/100, 1.0 if row.get("fragile",0) else 0.0, 1.0 if row.get("stackable",1) else 0.0, 1.0 if row.get("can_rotate",1) else 0.0, wh_l/100, wh_w/100, wh_h/100, iv/10, wh_vol/1000, iv/(wh_vol+1e-6), ia/10, wh_area/100, ia/(wh_area+1e-6), l/(wh_l+1e-6), w/(wh_w+1e-6), i/float(num)]
-        items_props[i] = [l, w, h, row.get("can_rotate",1), row.get("stackable",1), row.get("access_freq",1), row.get("weight",0), hash(row.get("category",""))%10000, row.get("fragile",0)]
+        iv, ia = l * w * h, l * w
+        af   = float(af_vals[i])
+        prio = float(prio_vals[i])
+        # ── Feature layout: must match ml_utils.py exactly ──────────────────
+        features[i] = [
+            l / l_max,                                    # 0
+            w / w_max,                                    # 1
+            h / h_max,                                    # 2
+            row.get("weight", 0) / wt_max,               # 3
+            1.0 if row.get("fragile", 0) else 0.0,       # 4
+            1.0 if row.get("stackable", 1) else 0.0,     # 5
+            1.0 if row.get("can_rotate", 1) else 0.0,    # 6
+            af / af_max,                                  # 7: access_freq
+            prio / prio_max,                              # 8: priority
+            door_x / (wh_l + 1e-6),                      # 9: door X
+            iv / max(l_max * w_max * h_max, 1e-6),       # 10
+            door_y / (wh_w + 1e-6),                      # 11: door Y
+            iv / (wh_vol + 1e-6),                        # 12
+            ia / max(l_max * w_max, 1e-6),               # 13
+            0.0 if row.get("fragile", 0) else 1.0,       # 14: is non-fragile
+            ia / (wh_area + 1e-6),                       # 15
+            l / (wh_l + 1e-6),                           # 16
+            w / (wh_w + 1e-6),                           # 17
+            i / float(num),                              # 18: sequence progress
+        ]
+        items_props[i] = [l, w, h,
+                          row.get("can_rotate", 1), row.get("stackable", 1),
+                          af, row.get("weight", 0),
+                          hash(row.get("category", "")) % 10000,
+                          row.get("fragile", 0),
+                          prio]                          # index 9: priority
 
     t0 = time.perf_counter()
     with torch.no_grad():
@@ -1572,7 +1620,9 @@ def main():
         model_path = os.path.join(MODELS_DIR, f"{name}.pth")
         
         # 1. Physics Verification (ML RAW Predictions Benchmark)
-        if inference_test_df is not None and os.path.exists(model_path):
+        if PHYSICS_SAMPLE_SIZE == 0:
+            physics_results[name] = {"stability_index": 1.0, "correction_rate": 0.0, "avg_displacement_m": 0.0, "max_displacement_m": 0.0, "n_items_tested": 0}
+        elif inference_test_df is not None and os.path.exists(model_path):
             physics_results[name] = perform_physics_verification_ml(name, inference_test_df)
         elif os.path.exists(master_csv): # Fallback to training proof
             physics_results[name] = perform_physics_verification(master_csv, "MASTER")

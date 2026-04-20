@@ -1,6 +1,6 @@
 # ML Model Training & Logic Report
 
-> Auto-generated on **2026-04-05 23:50**
+> Auto-generated on **2026-04-18 06:29**
 
 ---
 
@@ -39,6 +39,6 @@ The models were trained on 125,000 synthetic samples per variant. The objective 
 
 ## 5. Hardware & System Context
 - **CPU**: AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD
-- **GPU**: NVIDIA GeForce RTX 3060
+- **GPU**: None
 - **RAM**: 47.91 GB
 - **Datasets**: 500,000 Total Synthetic Rows (125k Shared Master)

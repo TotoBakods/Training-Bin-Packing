@@ -15,17 +15,24 @@ def diag():
     zones = get_exclusion_zones(wh_id)
     alloc_zones = [z for z in zones if z['zone_type'] == 'allocation']
     
-    # Setup props
-    items_props = np.zeros((len(items), 9), dtype=np.float32)
+    # Setup props (10 columns to include Priority)
+    items_props = np.zeros((len(items), 10), dtype=np.float32)
     for i, item in enumerate(items):
-        items_props[i] = [item['length'], item['width'], item['height'], item['can_rotate'], item['stackable'], item['access_freq'], item['weight'], 1, item['fragility']]
+        # length, width, height, rotate, stack, af, weight, 1, fragile, priority
+        items_props[i] = [
+            item['length'], item['width'], item['height'], 
+            item['can_rotate'], item['stackable'], item['access_freq'], 
+            item['weight'], 1, item['fragility'], item.get('priority', 1)
+        ]
 
     vols = items_props[:,0] * items_props[:,1] * items_props[:,2]
     
     solution = np.zeros((len(items), 4), dtype=np.float32)
     solution[:, 0] = 5.0; solution[:, 1] = 5.0; solution[:, 2] = 0.0
 
-    repaired = repair_solution_compact(solution, items_props, (10, 10, 10, 0, 0), alloc_zones)
+    wh_dx = warehouse.get('door_x', 0.0)
+    wh_dy = warehouse.get('door_y', 0.0)
+    repaired = repair_solution_compact(solution, items_props, (warehouse['length'], warehouse['width'], warehouse['height'], wh_dx, wh_dy), alloc_zones)
 
     zone_stats = {z['name']: {'count': 0, 'vol': 0.0, 'large': 0, 'top_vols': []} for z in alloc_zones}
 

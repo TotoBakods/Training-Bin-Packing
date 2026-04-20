@@ -200,8 +200,8 @@ def get_warehouse_config(warehouse_id=1):
             'name': row[1],
             'length': row[2], 'width': row[3], 'height': row[4],
             'grid_size': row[5], 'levels': row[6], 'walkway_width': row[7],
-            'door_x': row[9] if len(row) > 9 else 0,
-            'door_y': row[10] if len(row) > 10 else 0
+            'door_x': row[10] if len(row) > 10 else 0,
+            'door_y': row[11] if len(row) > 11 else 0
         }
         layer_heights_json = row[8] if len(row) > 8 else None
         if layer_heights_json:
@@ -229,7 +229,9 @@ def get_all_warehouses():
             'name': row[1],
             'length': row[2], 'width': row[3], 'height': row[4],
             'grid_size': row[5], 'levels': row[6], 'walkway_width': row[7],
-            'is_active': row[9] if len(row) > 9 else 1
+            'is_active': row[9] if len(row) > 9 else 1,
+            'door_x': row[10] if len(row) > 10 else 0,
+            'door_y': row[11] if len(row) > 11 else 0
         }
         layer_heights_json = row[8] if len(row) > 8 else None
         if layer_heights_json:

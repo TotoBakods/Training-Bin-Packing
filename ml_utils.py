@@ -15,8 +15,6 @@ import importlib
 import optimizer
 importlib.reload(optimizer)
 
-ITEMS_PER_SCENARIO = 50
-
 def get_system_metadata():
     """Captures hardware and software environment details for documentation."""
     metadata = {
@@ -35,36 +33,57 @@ def get_system_metadata():
 class PackingModel(nn.Module):
     """
     Neural network for predicting normalized (x, y, z, rot) placement coordinates.
-    Outputs are constrained to [0, 1] via Sigmoid to match normalized target range.
+    Outputs are constrained to [0, 1] via Hardsigmoid for faster gradient flow
+    at extremes compared to Sigmoid.
     Feature vector has 20 dims (19 geometric + af_prio composite at index 19).
+
+    Architecture: 5-layer MLP with a residual skip connection around the
+    bottleneck (256→512→256) to improve gradient flow and spatial precision.
     """
     def __init__(self, input_dim=20, output_dim=4):
         super(PackingModel, self).__init__()
-        self.net = nn.Sequential(
-            # Layer 1: Condensed Input
+        # Input projection
+        self.input_block = nn.Sequential(
             nn.Linear(input_dim, 128),
             nn.BatchNorm1d(128),
             nn.LeakyReLU(0.1),
             nn.Dropout(0.1),
-
-            # Layer 2: Feature Extraction
+        )
+        # Expand to 256
+        self.expand = nn.Sequential(
             nn.Linear(128, 256),
             nn.BatchNorm1d(256),
             nn.LeakyReLU(0.1),
             nn.Dropout(0.1),
-
-            # Layer 3: Dimensional Narrowing
+        )
+        # Residual bottleneck: 256 → 512 → 256 (skip connection)
+        self.res_block = nn.Sequential(
+            nn.Linear(256, 512),
+            nn.BatchNorm1d(512),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(0.1),
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
+        )
+        self.res_act = nn.LeakyReLU(0.1)
+        # Compress to 128
+        self.compress = nn.Sequential(
             nn.Linear(256, 128),
             nn.BatchNorm1d(128),
             nn.LeakyReLU(0.1),
-            
-            # Output: Scaled to [0, 1] for unit-space coordinate prediction
-            nn.Linear(128, output_dim),
-            nn.Sigmoid()
         )
+        # Output: Hardsigmoid avoids Sigmoid's vanishing-gradient saturation
+        self.head = nn.Linear(128, output_dim)
+        self.output_act = nn.Hardsigmoid()
 
     def forward(self, x):
-        return self.net(x)
+        x = self.input_block(x)
+        x = self.expand(x)
+        # Residual connection around the deep bottleneck
+        x = self.res_act(self.res_block(x) + x)
+        x = self.compress(x)
+        x = self.head(x)
+        return self.output_act(x)
 
 class MLOptimizer:
     """Uses trained Neural Network models to predict item positions."""
@@ -114,7 +133,6 @@ class MLOptimizer:
              return [], 0, 0
 
         # Pre-process items
-        zones = get_exclusion_zones(warehouse['id'])
         zones = get_exclusion_zones(warehouse['id'])
         exclusion_zones_arr = None
         if zones:
@@ -192,8 +210,8 @@ class MLOptimizer:
                 item_area / (wh_area + 1e-6),
                 l / (wh_l + 1e-6),
                 w / (wh_w + 1e-6),
-                # 18: Sequence Progress (proxy for fill level)
-                (i % ITEMS_PER_SCENARIO) / float(ITEMS_PER_SCENARIO),
+                # 18: Sequence Progress (proxy for fill level) — i/N for consistent scaling
+                i / float(max(num_items, 1)),
                 # 19: Composite af×priority — mirrors optimizer sort key
                 (af * prio) / af_prio_max,
             ]
@@ -215,40 +233,8 @@ class MLOptimizer:
             pred_z = np.maximum(pred_z, 0)
             pred_rot = outputs[:, 3] * 6.0
 
-            # ── Post-inference warm-start biasing ────────────────────────────
-            # The model was trained without door/priority features; we therefore
-            # apply a lightweight post-processing pass so that the repair
-            # function's candidate generation starts from door-aware and
-            # wall-aware positions even before a full retrain is available.
-            for _i, _item in enumerate(items):
-                _af   = float(_item.get('access_freq', 1.0))
-                _prio = int(_item.get('priority', 1))
-
-                # High-AF → pull predicted position toward the door.
-                # Bias grows linearly: 0 % at af=5, 50 % at af=10.
-                if _af >= 5.0:
-                    _bias = min((_af - 5.0) / 5.0, 1.0) * 0.5   # 0..0.5
-                    pred_x[_i] += _bias * (door_x - pred_x[_i])
-                    pred_y[_i] += _bias * (door_y - pred_y[_i])
-
-                # High-priority → pull predicted position toward the nearest wall.
-                # Priority 2 → 30 % pull; priority 3+ → 50 % pull.
-                if _prio >= 2:
-                    _wall_bias = 0.3 if _prio == 2 else 0.5
-                    _d_left  = pred_x[_i]
-                    _d_right = wh_l - pred_x[_i]
-                    _d_front = pred_y[_i]
-                    _d_back  = wh_w - pred_y[_i]
-                    _near    = min(_d_left, _d_right, _d_front, _d_back)
-                    if _near == _d_left:
-                        pred_x[_i] *= (1.0 - _wall_bias)
-                    elif _near == _d_right:
-                        pred_x[_i] += _wall_bias * (wh_l - pred_x[_i])
-                    elif _near == _d_front:
-                        pred_y[_i] *= (1.0 - _wall_bias)
-                    else:
-                        pred_y[_i] += _wall_bias * (wh_w - pred_y[_i])
-            # ─────────────────────────────────────────────────────────────────
+            # Post-inference bias removed — door/wall proximity is now learned
+            # via door_proximity_loss and wall_proximity_loss in training.
 
             # Store ML predictions for displacement calculation
             ml_predictions = np.column_stack((pred_x, pred_y, pred_z, pred_rot))

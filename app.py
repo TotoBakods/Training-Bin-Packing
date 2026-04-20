@@ -174,67 +174,81 @@ def finalize_optimization(
         try:
             with open('app_placement_debug.log', 'w', encoding='utf-8') as log_f:
                 log_f.write('--- FINAL PLACEMENT LOGGING (app.py) ---\n')
-                from optimizer import get_rotated_dims
+                from optimizer import get_rotated_dims, SimpleGrid
                 num_solution_items = len(solution)
                 _final_overlap_count = 0
-                
+
+                wh_len = warehouse.get('length', 20)
+                wh_wid = warehouse.get('width', 10)
+
+                # Precompute bounds and build spatial grid
+                _bounds = []  # (x1, y1, z1, x2, y2, z2, name, base_item)
+                _grid = SimpleGrid(wh_len, wh_wid, cell_size=0.5)
+
                 for i in range(num_solution_items):
                     item_i = solution[i]
                     base_item_i = next((it for it in items if it['id'] == item_i['id']), None)
                     if not base_item_i:
+                        _bounds.append(None)
                         continue
-                    name_str = f"({base_item_i.get('name', 'N/A')})"
                     l, w, h = base_item_i['length'], base_item_i['width'], base_item_i['height']
                     cx, cy, cz, rot = item_i['x'], item_i['y'], item_i['z'], item_i['rotation']
                     dx, dy, dz = get_rotated_dims(l, w, h, int(rot))
-                    x1_i, y1_i, z1_i = cx - dx / 2, cy - dy / 2, cz
-                    x2_i, y2_i, z2_i = cx + dx / 2, cy + dy / 2, cz + dz
-                    
+                    x1, y1, z1 = cx - dx / 2, cy - dy / 2, cz
+                    x2, y2, z2 = cx + dx / 2, cy + dy / 2, cz + dz
+                    name_str = f"({base_item_i.get('name', 'N/A')})"
+
+                    _bounds.append((x1, y1, z1, x2, y2, z2, name_str, base_item_i))
+                    _grid.insert(i, x1, y1, x2, y2)
+
                     log_f.write(f'  {name_str}: Pos=({cx:.3f}, {cy:.3f}, {cz:.3f}) Size=({dx:.2f}x{dy:.2f}x{dz:.2f}) '
-                                f'Bounds=[{x1_i:.3f}, {x2_i:.3f}], [{y1_i:.3f}, {y2_i:.3f}], [{z1_i:.3f}, {z2_i:.3f}]\n')
-                    
-                    for j in range(i + 1, num_solution_items):
-                        item_j = solution[j]
-                        base_item_j = next((it for it in items if it['id'] == item_j['id']), None)
-                        if not base_item_j:
+                                f'Bounds=[{x1:.3f}, {x2:.3f}], [{y1:.3f}, {y2:.3f}], [{z1:.3f}, {z2:.3f}]\n')
+
+                # Overlap + stacking check using spatial grid (O(N*k) instead of O(N²))
+                _checked = set()
+                for i in range(num_solution_items):
+                    if _bounds[i] is None:
+                        continue
+                    x1_i, y1_i, z1_i, x2_i, y2_i, z2_i, name_i, base_i = _bounds[i]
+                    nearby = _grid.query(x1_i, y1_i, x2_i, y2_i)
+
+                    for j in nearby:
+                        if j <= i or _bounds[j] is None:
                             continue
-                        lj, wj, hj = base_item_j['length'], base_item_j['width'], base_item_j['height']
-                        cxj, cyj, czj, rotj = item_j['x'], item_j['y'], item_j['z'], item_j['rotation']
-                        dxj, dyj, dzj = get_rotated_dims(lj, wj, hj, int(rotj))
-                        x1_j, y1_j, z1_j = cxj - dxj / 2, cyj - dyj / 2, czj
-                        x2_j, y2_j, z2_j = cxj + dxj / 2, cyj + dyj / 2, czj + dzj
+                        pair = (i, j)
+                        if pair in _checked:
+                            continue
+                        _checked.add(pair)
+
+                        x1_j, y1_j, z1_j, x2_j, y2_j, z2_j, name_j, base_j = _bounds[j]
 
                         ox = min(x2_i, x2_j) - max(x1_i, x1_j)
                         oy = min(y2_i, y2_j) - max(y1_i, y1_j)
                         oz = min(z2_i, z2_j) - max(z1_i, z1_j)
 
                         if ox > 1e-4 and oy > 1e-4 and oz > 1e-4:
-                            j_name_str = f"({base_item_j.get('name', 'N/A')})"
-                            if (x1_i >= x1_j - 1e-4 and x2_i <= x2_j + 1e-4 and 
-                                y1_i >= y1_j - 1e-4 and y2_i <= y2_j + 1e-4 and 
+                            if (x1_i >= x1_j - 1e-4 and x2_i <= x2_j + 1e-4 and
+                                y1_i >= y1_j - 1e-4 and y2_i <= y2_j + 1e-4 and
                                 z1_i >= z1_j - 1e-4 and z2_i <= z2_j + 1e-4):
-                                log_f.write(f'  [CRITICAL ERROR] {name_str} is completely INSIDE {j_name_str}!\n')
-                            elif (x1_j >= x1_i - 1e-4 and x2_j <= x2_i + 1e-4 and 
-                                  y1_j >= y1_i - 1e-4 and y2_j <= y2_i + 1e-4 and 
+                                log_f.write(f'  [CRITICAL ERROR] {name_i} is completely INSIDE {name_j}!\n')
+                            elif (x1_j >= x1_i - 1e-4 and x2_j <= x2_i + 1e-4 and
+                                  y1_j >= y1_i - 1e-4 and y2_j <= y2_i + 1e-4 and
                                   z1_j >= z1_i - 1e-4 and z2_j <= z2_i + 1e-4):
-                                log_f.write(f'  [CRITICAL ERROR] {j_name_str} is completely INSIDE {name_str}!\n')
+                                log_f.write(f'  [CRITICAL ERROR] {name_j} is completely INSIDE {name_i}!\n')
                             else:
-                                log_f.write(f'  [ERROR] {name_str} intersects with {j_name_str} by ({ox:.3f}x{oy:.3f}x{oz:.3f})\n')
+                                log_f.write(f'  [ERROR] {name_i} intersects with {name_j} by ({ox:.3f}x{oy:.3f}x{oz:.3f})\n')
                             _final_overlap_count += 1
-                        
+
                         # --- STACKING CHECK (Fragile Under Non-Fragile) ---
-                        # Threshold for XY overlap to consider it "stacked" is 5cm.
                         if ox > 0.05 and oy > 0.05:
-                            frag_i = base_item_i.get('fragility', 0)
-                            frag_j = base_item_j.get('fragility', 0)
-                            # Check i under j
+                            frag_i = base_i.get('fragility', 0)
+                            frag_j = base_j.get('fragility', 0)
                             if z2_i <= z1_j + 1e-4:
                                 if frag_i == 1 and frag_j == 0:
-                                    log_f.write(f'  [STACKING ERROR] Fragile item {name_str} is underneath Non-Fragile item ({base_item_j.get("name", "N/A")})!\n')
-                            # Check j under i
+                                    log_f.write(f'  [STACKING ERROR] Fragile item {name_i} is underneath Non-Fragile item {name_j}!\n')
                             elif z2_j <= z1_i + 1e-4:
                                 if frag_j == 1 and frag_i == 0:
-                                    log_f.write(f'  [STACKING ERROR] Fragile item ({base_item_j.get("name", "N/A")}) is underneath Non-Fragile item {name_str}!\n')
+                                    log_f.write(f'  [STACKING ERROR] Fragile item {name_j} is underneath Non-Fragile item {name_i}!\n')
 
                 if _final_overlap_count == 0:
                     log_f.write('  [FINAL CHECK OK] No items are inside each other or overlapping in final placement.\n')

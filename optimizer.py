@@ -455,10 +455,10 @@ class ZoneOccupancy:
         else:
             self.max_fr_top[zi] = max(self.max_fr_top[zi], z + dz)
 
-    def touch_points(self, zi, limit=None):
+    def touch_points(self, zi, limit=30):
         """Adjacency touch-point (x1, y1) positions from zone zi's recently placed items."""
         pts = []
-        recent_items = self.items[zi][-limit:] if limit else self.items[zi]
+        recent_items = self.items[zi][-limit:]
         
         x_cands = set()
         y_cands = set()
@@ -672,7 +672,7 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
                 lvl     = unique_z_levels[l_idx]
                 lvl_cap  = sum(zone_caps[zi] for zi in zones_by_lvl[lvl])
                 lvl_used = sum(used_vols[zi]  for zi in zones_by_lvl[lvl])
-                if lvl_cap > 0 and lvl_used >= lvl_cap * 1.0:
+                if lvl_cap > 0 and lvl_used >= lvl_cap * 0.85:
                     l_idx += 1
                 else:
                     break
@@ -850,7 +850,7 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
     # ─────────────────────────────────────────────────────────────────────────
     zone_occ     = ZoneOccupancy(use_zones)
     placed_items = []                           # global list: (x1, y1, z, dx, dy, dz)
-    global_grid  = SimpleGrid(wh_len, wh_wid, cell_size=0.1) # Maximum density for space optimization
+    global_grid  = SimpleGrid(wh_len, wh_wid, cell_size=0.5) # Balanced density: 0.5m cells for items 0.3-1.5m
 
     if _TORCH_AVAILABLE:
         _dev          = _TORCH_DEVICE
@@ -1326,8 +1326,10 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
         else:
             _z_ceil = wh_hgt
         _resolved = True
-        while _resolved:
+        _resolve_iters = 0
+        while _resolved and _resolve_iters < 10:
             _resolved = False
+            _resolve_iters += 1
             for _px, _py, _pz, _pdx, _pdy, _pdz in placed_items:
                 # Fast Z pre-check: skip if no Z overlap with current b_z
                 if _pz + _pdz <= b_z + _OVL_R or _pz >= b_z + b_dz - _OVL_R:
@@ -1339,9 +1341,6 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
                     # but never above the zone/warehouse ceiling.  Unresolvable
                     # overlaps are logged by the final overlap checker.
                     new_b_z = _pz + _pdz
-                    # Allow pushing above ceiling to resolve physics overlaps
-                    # if new_b_z + b_dz > _z_ceil + _OVL_R:
-                    #     break
                     b_z = new_b_z
                     _resolved = True   # re-check from scratch (b_z changed)
                     break
@@ -1472,6 +1471,12 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
     _OVL_S = 1e-4   # 0.1 mm XY overlap threshold used in settle
     n_placed = len(placed_items)
 
+    # Build a settle grid for spatial acceleration of the O(N) inner loop
+    _settle_grid = SimpleGrid(wh_len, wh_wid, cell_size=0.5)
+    for _sg_k in range(n_placed):
+        _sg_x1, _sg_y1, _, _sg_dx, _sg_dy, _ = placed_items[_sg_k]
+        _settle_grid.insert(_sg_k, _sg_x1, _sg_y1, _sg_x1 + _sg_dx, _sg_y1 + _sg_dy)
+
     for _sp in range(3):           # up to 3 passes for multi-item cascades
         _any_moved = False
         # Process items from bottom to top so lower items settle first.
@@ -1489,10 +1494,14 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
             # candidate position, repeating until no conflicts remain.
             new_z = z_floor
             sx2, sy2 = sx1 + sdx, sy1 + sdy
+            # Use spatial grid to only check nearby items (O(k) vs O(N))
+            _nearby = _settle_grid.query(sx1, sy1, sx2, sy2)
             _s_resolved = True
-            while _s_resolved:
+            _s_iters = 0
+            while _s_resolved and _s_iters < 10:
                 _s_resolved = False
-                for j in range(n_placed):
+                _s_iters += 1
+                for j in _nearby:
                     if j == k:
                         continue
                     px, py, pz, pdx, pdy, pdz = placed_items[j]
@@ -1526,6 +1535,11 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
     _OVL_CHK = 1e-4   # 0.1 mm tolerance — anything beyond is a real overlap
     _overlap_count = 0
     _overlap_vol_total = 0.0
+    # Rebuild settle grid after settle pass (positions may have changed)
+    _ovl_grid = SimpleGrid(wh_len, wh_wid, cell_size=0.5)
+    for _og_k in range(len(placed_items)):
+        _og_x1, _og_y1, _, _og_dx, _og_dy, _ = placed_items[_og_k]
+        _ovl_grid.insert(_og_k, _og_x1, _og_y1, _og_x1 + _og_dx, _og_y1 + _og_dy)
     _chk_resolved = True
     _chk_passes = 0
     while _chk_resolved and _chk_passes < 5:
@@ -1534,7 +1548,10 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
         for a in range(len(placed_items)):
             ax, ay, az_, adx, ady, adz = placed_items[a]
             ax2, ay2, az2 = ax + adx, ay + ady, az_ + adz
-            for b in range(a + 1, len(placed_items)):
+            _ovl_nearby = _ovl_grid.query(ax, ay, ax2, ay2)
+            for b in _ovl_nearby:
+                if b <= a:
+                    continue
                 bx, by, bz_, bdx, bdy, bdz = placed_items[b]
                 bx2, by2, bz2 = bx + bdx, by + bdy, bz_ + bdz
                 # 3D AABB intersection (with tolerance)
@@ -1599,23 +1616,30 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
     # ── Final Item Placement Logging and Strict Overlap Check ─────────────────
     _log_f.write('--- FINAL PLACEMENT LOGGING ---\n')
     _final_overlap_count = 0
+    # Build spatial grid for final overlap check to avoid O(N^2)
+    _final_grid = SimpleGrid(wh_len, wh_wid, cell_size=0.5)
+    _final_bounds = []  # (x1, y1, z1, x2, y2, z2) per item
     for i in range(num_items):
-        name_str = f"({item_names[i]})" if item_names and i < len(item_names) else f"Item {i}"
         l, w, h = items_props[i, 0:3]
         cx, cy, cz, rot = solution[i, 0:4]
         dx, dy, dz = get_rotated_dims(l, w, h, int(rot))
         x1_i, y1_i, z1_i = cx - dx / 2, cy - dy / 2, cz
         x2_i, y2_i, z2_i = cx + dx / 2, cy + dy / 2, cz + dz
-        
+        _final_bounds.append((x1_i, y1_i, z1_i, x2_i, y2_i, z2_i, dx, dy, dz))
+        _final_grid.insert(i, x1_i, y1_i, x2_i, y2_i)
+    for i in range(num_items):
+        name_str = f"({item_names[i]})" if item_names and i < len(item_names) else f"Item {i}"
+        cx, cy, cz = solution[i, 0], solution[i, 1], solution[i, 2]
+        x1_i, y1_i, z1_i, x2_i, y2_i, z2_i, dx, dy, dz = _final_bounds[i]
+
         _log_f.write(f'  {name_str}: Pos=({cx:.3f}, {cy:.3f}, {cz:.3f}) Size=({dx:.2f}x{dy:.2f}x{dz:.2f}) '
                      f'Bounds=[{x1_i:.3f}, {x2_i:.3f}], [{y1_i:.3f}, {y2_i:.3f}], [{z1_i:.3f}, {z2_i:.3f}]\n')
-        
-        for j in range(i + 1, num_items):
-            lj, wj, hj = items_props[j, 0:3]
-            cxj, cyj, czj, rotj = solution[j, 0:4]
-            dxj, dyj, dzj = get_rotated_dims(lj, wj, hj, int(rotj))
-            x1_j, y1_j, z1_j = cxj - dxj / 2, cyj - dyj / 2, czj
-            x2_j, y2_j, z2_j = cxj + dxj / 2, cyj + dyj / 2, czj + dzj
+
+        _final_nearby = _final_grid.query(x1_i, y1_i, x2_i, y2_i)
+        for j in _final_nearby:
+            if j <= i:
+                continue
+            x1_j, y1_j, z1_j, x2_j, y2_j, z2_j, _, _, _ = _final_bounds[j]
 
             ox = min(x2_i, x2_j) - max(x1_i, x1_j)
             oy = min(y2_i, y2_j) - max(y1_i, y1_j)

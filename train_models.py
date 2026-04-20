@@ -25,13 +25,14 @@ else:
 # ── Configuration ─────────────────────────────────────────────────────────────
 DATA_DIR   = "training_data"
 MODELS_DIR = "models"
-EPOCHS      = 100
+EPOCHS      = 200
 # 4096 fits comfortably in 12 GB VRAM for a 20-feature MLP; increase to 8192
 # if VRAM usage stays below 8 GB during the first epoch.
 BATCH_SIZE  = 4096
 LR          = 0.001
 VAL_SPLIT   = 0.2
-PATIENCE    = 10
+PATIENCE    = 20
+WARMUP_EPOCHS = 5
 ITEMS_PER_SCENARIO = 50    # Matches generate_training_data.py
 # Pin memory speeds up CPU→GPU transfer; only effective with CUDA
 PIN_MEMORY  = torch.cuda.is_available()
@@ -112,8 +113,13 @@ class WarehouseDataset(Dataset):
         self.x[:, 15] = item_area / (wh_area + 1e-6)
         self.x[:, 16] = item_l / (wh_l + 1e-6)
         self.x[:, 17] = item_w / (wh_w + 1e-6)
-        # 18: sequence progress within scenario
-        self.x[:, 18] = (np.arange(n) % ITEMS_PER_SCENARIO) / float(ITEMS_PER_SCENARIO)
+        # 18: sequence progress within scenario — use i/N for consistent scaling
+        # Group by scenario_id and compute within-scenario fill fraction
+        _unique_sids = np.unique(self.scenario_id)
+        for _sid in _unique_sids:
+            _mask = self.scenario_id == _sid
+            _count = int(np.sum(_mask))
+            self.x[_mask, 18] = np.arange(_count, dtype=np.float32) / float(max(_count, 1))
         # 19: normalised af×priority composite — directly encodes optimizer sort key
         self.x[:, 19] = af_prio / af_prio_max
 
@@ -200,43 +206,69 @@ def train_model(csv_path, model_name):
 
         return frag_penalty.mean() + nonfrag_penalty.mean()
 
+    def wall_proximity_loss(pred, batch_x):
+        """
+        High-priority items (feature 8 > 0.5, i.e. prio >= 2/3) should be placed
+        near the nearest wall of the warehouse. Penalise the distance to the
+        nearest wall boundary in normalised [0,1] space.
+        """
+        prio_norm = batch_x[:, 8]                          # normalised priority
+        high_prio = (prio_norm > 0.5).float()              # items with prio >= 2
+        # Distance to nearest wall in normalised space (pred in [0,1])
+        d_left  = pred[:, 0]
+        d_right = 1.0 - pred[:, 0]
+        d_front = pred[:, 1]
+        d_back  = 1.0 - pred[:, 1]
+        d_wall  = torch.min(torch.min(d_left, d_right), torch.min(d_front, d_back))
+        return (high_prio * d_wall ** 2).mean()
+
     def calculate_collision_penalty(pred, batch_x, batch_sid):
         """
-        Penalizes overlapping bounding boxes within items of the same scenario (bin).
-        Uses scenario_id (passed separately) to identify items in the same warehouse.
-        Item sizes are inferred from features 16 (item_l/wh_l) and 17 (item_w/wh_w).
+        Penalizes overlapping bounding boxes within items of the same scenario.
+        Optimized: groups by scenario_id and only computes within-group collisions
+        to avoid wasting compute on cross-scenario pairs.
         """
-        # Normalised item footprint in [0,1] space (features 16 & 17 already give L/WH_L)
         l_prime = batch_x[:, 16].clamp(min=1e-4)
         w_prime = batch_x[:, 17].clamp(min=1e-4)
-        h_prime = batch_x[:, 2].clamp(min=1e-4)   # item_h/item_h_max ≈ normalised height
+        h_prime = batch_x[:, 2].clamp(min=1e-4)
 
-        # Bounding boxes in normalised [0,1]^3 space
         x1, y1, z1 = pred[:, 0], pred[:, 1], pred[:, 2]
         x2 = x1 + l_prime
         y2 = y1 + w_prime
         z2 = z1 + h_prime
 
-        # Pairwise intersections (N × N)
-        ix1 = torch.max(x1.unsqueeze(1), x1.unsqueeze(0))
-        ix2 = torch.min(x2.unsqueeze(1), x2.unsqueeze(0))
-        inter_x = torch.clamp(ix2 - ix1, min=0)
+        total_overlap = torch.tensor(0.0, device=device)
+        total_pairs = 0
 
-        iy1 = torch.max(y1.unsqueeze(1), y1.unsqueeze(0))
-        iy2 = torch.min(y2.unsqueeze(1), y2.unsqueeze(0))
-        inter_y = torch.clamp(iy2 - iy1, min=0)
+        # Group by scenario_id and compute pairwise overlap within each group
+        unique_sids = batch_sid.unique()
+        for sid in unique_sids:
+            mask = batch_sid == sid
+            n_g = mask.sum().item()
+            if n_g < 2:
+                continue
+            idx = mask.nonzero(as_tuple=True)[0]
 
-        iz1 = torch.max(z1.unsqueeze(1), z1.unsqueeze(0))
-        iz2 = torch.min(z2.unsqueeze(1), z2.unsqueeze(0))
-        inter_z = torch.clamp(iz2 - iz1, min=0)
+            gx1, gy1, gz1 = x1[idx], y1[idx], z1[idx]
+            gx2, gy2, gz2 = x2[idx], y2[idx], z2[idx]
 
-        overlap_vol = inter_x * inter_y * inter_z
+            ix1 = torch.max(gx1.unsqueeze(1), gx1.unsqueeze(0))
+            ix2 = torch.min(gx2.unsqueeze(1), gx2.unsqueeze(0))
+            iy1 = torch.max(gy1.unsqueeze(1), gy1.unsqueeze(0))
+            iy2 = torch.min(gy2.unsqueeze(1), gy2.unsqueeze(0))
+            iz1 = torch.max(gz1.unsqueeze(1), gz1.unsqueeze(0))
+            iz2 = torch.min(gz2.unsqueeze(1), gz2.unsqueeze(0))
 
-        # Mask: only penalise items that belong to the same warehouse scenario
-        same_seq = (batch_sid.unsqueeze(1) == batch_sid.unsqueeze(0)).float()
-        mask = (1.0 - torch.eye(pred.size(0), device=device)) * same_seq
+            inter = (torch.clamp(ix2 - ix1, min=0) *
+                     torch.clamp(iy2 - iy1, min=0) *
+                     torch.clamp(iz2 - iz1, min=0))
 
-        return (overlap_vol * mask).sum() / (mask.sum() + 1e-6)
+            # Exclude self-pairs
+            grp_mask = 1.0 - torch.eye(n_g, device=device)
+            total_overlap = total_overlap + (inter * grp_mask).sum()
+            total_pairs += int(n_g * (n_g - 1))
+
+        return total_overlap / (total_pairs + 1e-6)
 
     optimizer = optim.Adam(model.parameters(), lr=LR)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
@@ -244,16 +276,23 @@ def train_model(csv_path, model_name):
     best_val_loss = float('inf')
     patience_counter = 0
     history = {"train_loss": [], "val_loss": [], "train_mse": [], "train_coll": [],
-               "train_door": [], "train_frag": [], "lr": []}
+               "train_door": [], "train_frag": [], "train_wall": [], "lr": []}
 
     for epoch in range(EPOCHS):
         # --- Train ---
         model.train()
+        # LR warmup: linearly ramp from LR/10 to LR over WARMUP_EPOCHS
+        if epoch < WARMUP_EPOCHS:
+            warmup_lr = LR * (epoch + 1) / WARMUP_EPOCHS
+            for pg in optimizer.param_groups:
+                pg['lr'] = warmup_lr
+
         total_loss = 0
         total_mse  = 0
         total_coll = 0
         total_door = 0
         total_frag = 0
+        total_wall = 0
         n_batches  = 0
         for batch_x, batch_y, batch_sid in train_loader:
             # non_blocking=True overlaps CPU→GPU transfer with GPU compute
@@ -268,16 +307,19 @@ def train_model(csv_path, model_name):
             coll_penalty = calculate_collision_penalty(outputs, batch_x, batch_sid)
             door_penalty = door_proximity_loss(outputs, batch_x)
             frag_penalty = fragile_z_loss(outputs, batch_x)
+            wall_penalty = wall_proximity_loss(outputs, batch_x)
 
             # Physics-Informed Loss:
             #   MSE          — primary placement accuracy
             #   collision ×5 — prevent overlapping predictions
-            #   door    ×3   — high-AF items must predict near door
+            #   door    ×8   — high-AF items must predict near door
             #   fragile ×4   — fragile items must predict upper zone z
+            #   wall    ×3   — high-priority items prefer wall adjacency
             loss = (mse_loss
                     + 5.0  * coll_penalty
-                    + 3.0  * door_penalty
-                    + 4.0  * frag_penalty)
+                    + 8.0  * door_penalty
+                    + 4.0  * frag_penalty
+                    + 3.0  * wall_penalty)
             loss.backward()
             optimizer.step()
 
@@ -286,6 +328,7 @@ def train_model(csv_path, model_name):
             total_coll += coll_penalty.item()
             total_door += door_penalty.item()
             total_frag += frag_penalty.item()
+            total_wall += wall_penalty.item()
             n_batches  += 1
 
         avg_train = total_loss / max(n_batches, 1)
@@ -293,6 +336,7 @@ def train_model(csv_path, model_name):
         avg_coll  = total_coll / max(n_batches, 1)
         avg_door  = total_door / max(n_batches, 1)
         avg_frag  = total_frag / max(n_batches, 1)
+        avg_wall  = total_wall / max(n_batches, 1)
 
         # Print VRAM usage after first epoch so we can spot OOM early
         if epoch == 0 and torch.cuda.is_available():
@@ -313,14 +357,18 @@ def train_model(csv_path, model_name):
                 val_batches += 1
 
         avg_val = val_loss / max(val_batches, 1)
-        scheduler.step()
-        
+
+        # Only step cosine scheduler after warmup is done
+        if epoch >= WARMUP_EPOCHS:
+            scheduler.step()
+
         # Log history
         history["train_loss"].append(avg_train)
         history["train_mse"].append(avg_mse)
         history["train_coll"].append(avg_coll)
         history["train_door"].append(avg_door)
         history["train_frag"].append(avg_frag)
+        history["train_wall"].append(avg_wall)
         history["val_loss"].append(avg_val)
         history["lr"].append(optimizer.param_groups[0]['lr'])
 
@@ -338,7 +386,8 @@ def train_model(csv_path, model_name):
             print(f"  Epoch [{epoch+1:3d}/{EPOCHS}] | "
                   f"Total: {avg_train:.5f} | MSE: {avg_mse:.5f} | "
                   f"Coll: {avg_coll:.5f} | Door: {avg_door:.5f} | "
-                  f"Frag: {avg_frag:.5f} | Val: {avg_val:.5f} (Best: {best_val_loss:.5f})")
+                  f"Frag: {avg_frag:.5f} | Wall: {avg_wall:.5f} | "
+                  f"Val: {avg_val:.5f} (Best: {best_val_loss:.5f})")
 
         if patience_counter >= PATIENCE:
             print(f"  [STOP] Early stopping at epoch {epoch+1} (no improvement for {PATIENCE} epochs)")

@@ -182,7 +182,8 @@ def get_item_by_id(item_id):
             'id': row[0], 'name': row[1], 'length': row[2], 'width': row[3],
             'height': row[4], 'weight': row[5], 'category': row[6], 'priority': row[7],
             'fragility': row[8], 'stackable': bool(row[9]), 'access_freq': row[10],
-            'can_rotate': bool(row[11]), 'warehouse_id': row[16] if len(row) > 16 else 1
+            'can_rotate': bool(row[11]), 'x': row[12], 'y': row[13], 'z': row[14],
+            'rotation': row[15], 'warehouse_id': row[16] if len(row) > 16 else 1
         }
     return None
 

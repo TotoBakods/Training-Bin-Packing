@@ -16,6 +16,7 @@ from database import (
     init_db,
     migrate_db,
     get_all_items,
+    get_item_by_id,
     get_warehouse_config,
     get_all_warehouses,
     get_exclusion_zones,
@@ -365,6 +366,15 @@ def get_items_api():
     warehouse_id = request.args.get('warehouse_id', default=1, type=int)
     items = get_all_items(warehouse_id)
     return jsonify(items)
+
+
+@app.route('/api/items/<item_id>', methods=['GET'])
+def get_item_api(item_id):
+    item = get_item_by_id(item_id)
+    if item:
+        return jsonify(item)
+    return jsonify({'success': False, 'error': 'Item not found'}), 404
+
 
 
 @app.route('/api/items', methods=['POST'])

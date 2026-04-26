@@ -174,6 +174,28 @@
                 </div>
 
                 <div class="panel-section">
+                    <div class="section-title">Features Demo</div>
+                    <div class="input-group">
+                        <label>Demo Mode</label>
+                        <div class="select-wrapper" style="padding: 6px 10px;">
+                            <select id="demo-mode" onchange="onDemoModeChange(this.value)" style="width: 100%;">
+                                <option value="none">None</option>
+                                <option value="camera-search">Camera Search & Focus</option>
+                                <option value="heatmap">Access Frequency Heatmap</option>
+                                <option value="priority">Priority Visualization</option>
+                                <option value="fragile">Fragile vs. Non-Fragile</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="camera-search-container" style="display:none; margin-top: 8px;">
+                        <div class="input-group" style="margin-bottom: 8px;">
+                            <input type="text" id="demo-search-input" placeholder="Enter Item ID or Name">
+                        </div>
+                        <button class="btn" onclick="focusCameraOnSearch()" style="width: 100%;">Search & Focus</button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
                     <div class="section-title">Optimization Weights</div>
                     <div class="input-group">
                         <label style="display: flex; justify-content: space-between;">

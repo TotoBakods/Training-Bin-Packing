@@ -683,6 +683,12 @@ function renderItems(items) {
 
         itemsGroup.add(mesh);
     });
+
+    // Re-apply demo effects if active
+    const demoMode = document.getElementById('demo-mode');
+    if (demoMode && demoMode.value !== 'none' && demoMode.value !== 'camera-search') {
+        onDemoModeChange(demoMode.value);
+    }
 }
 
 function renderPickerPath(items) {
@@ -790,6 +796,247 @@ function getItemColor(item, mode, maxWeight, maxAccess) {
 }
 
 // UI Event Handlers
+function onDemoModeChange(mode) {
+    const searchContainer = document.getElementById('camera-search-container');
+    if (searchContainer) {
+        searchContainer.style.display = (mode === 'camera-search') ? 'block' : 'none';
+    }
+
+    // Always reset base state first
+    resetDemoEffects();
+
+    if (mode === 'heatmap') {
+        applyHeatmapDemo();
+    } else if (mode === 'priority') {
+        applyPriorityDemo();
+    } else if (mode === 'fragile') {
+        applyFragileDemo();
+    }
+}
+
+function resetDemoEffects() {
+    // Remove all floating sprites/labels that we added for the demo
+    const toRemove = [];
+    itemsGroup.children.forEach(mesh => {
+        mesh.children.forEach(child => {
+            if (child.isSprite && child.userData.isDemoLabel) {
+                toRemove.push({ parent: mesh, child: child });
+            }
+        });
+        
+        // Reset material back to what it should be based on color-mode
+        const item = mesh.userData;
+        const colorMode = document.getElementById('color-mode') ? document.getElementById('color-mode').value : 'category';
+        
+        // Get max weights for color calculation if needed
+        let maxWeight = 0; let maxAccess = 0;
+        Object.values(allItemsData).forEach(i => {
+            if (i.weight > maxWeight) maxWeight = i.weight;
+            if (i.access_freq > maxAccess) maxAccess = i.access_freq;
+        });
+
+        const color = getItemColor(item, colorMode, maxWeight, maxAccess);
+        
+        if (mesh.material) {
+            mesh.material.dispose();
+        }
+        mesh.material = new THREE.MeshStandardMaterial({
+            color: color,
+            roughness: 0.3,
+            metalness: 0.1
+        });
+    });
+
+    toRemove.forEach(rm => {
+        rm.child.material.map.dispose();
+        rm.child.material.dispose();
+        rm.parent.remove(rm.child);
+    });
+}
+
+function applyHeatmapDemo() {
+    let maxAccess = 0;
+    itemsGroup.children.forEach(mesh => {
+        if (mesh.userData.access_freq > maxAccess) {
+            maxAccess = mesh.userData.access_freq;
+        }
+    });
+
+    itemsGroup.children.forEach(mesh => {
+        const item = mesh.userData;
+        // Red for hot (high access), blue for cold (low access)
+        const t = maxAccess > 0 ? (item.access_freq / maxAccess) : 0;
+        const color = new THREE.Color().setHSL(0.66 - (t * 0.66), 1, 0.5); // 0.66 is blue, 0 is red
+        
+        mesh.material.dispose();
+        mesh.material = new THREE.MeshStandardMaterial({
+            color: color,
+            roughness: 0.4,
+            metalness: 0.2
+        });
+    });
+}
+
+function applyPriorityDemo() {
+    itemsGroup.children.forEach(mesh => {
+        const item = mesh.userData;
+        const p = item.priority || 1;
+        mesh.material.dispose();
+        
+        if (p >= 3) {
+            // High priority: Bright glowing yellow/red
+            mesh.material = new THREE.MeshStandardMaterial({
+                color: 0xFF3300,
+                emissive: 0xFF3300,
+                emissiveIntensity: 0.8,
+                roughness: 0.2,
+                metalness: 0.8
+            });
+        } else if (p === 2) {
+            // Medium priority: standard visible color
+            mesh.material = new THREE.MeshStandardMaterial({
+                color: 0xFFAA00,
+                roughness: 0.5,
+                metalness: 0.1
+            });
+        } else {
+            // Low priority: dimmed, semi-transparent
+            mesh.material = new THREE.MeshStandardMaterial({
+                color: 0x444444,
+                transparent: true,
+                opacity: 0.2,
+                roughness: 0.9,
+                depthWrite: false
+            });
+        }
+    });
+}
+
+function applyFragileDemo() {
+    itemsGroup.children.forEach(mesh => {
+        const item = mesh.userData;
+        const isFragile = item.fragility === 1 || item.fragility === true;
+        
+        if (isFragile) {
+            mesh.material.dispose();
+            // Glass-like material
+            mesh.material = new THREE.MeshPhysicalMaterial({
+                color: 0xFFFFFF,
+                transmission: 0.9, // glass effect
+                opacity: 1,
+                transparent: true,
+                roughness: 0.05,
+                ior: 1.5,
+                thickness: 0.5
+            });
+
+            // Add floating warning icon (sprite)
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FF0055';
+            ctx.beginPath();
+            ctx.arc(32, 32, 28, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 36px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('!', 32, 36);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: tex });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(1.5, 1.5, 1.5);
+            
+            // Dimensions to float above
+            const rotCode = item.rotation || 0;
+            const dims = getRotatedDims(item.length, item.width, item.height, rotCode);
+            sprite.position.set(0, (dims.dz / 2) + 1.0, 0); // local space
+            sprite.userData.isDemoLabel = true;
+            
+            mesh.add(sprite);
+        } else {
+            mesh.material.dispose();
+            mesh.material = new THREE.MeshStandardMaterial({
+                color: 0x222222,
+                roughness: 0.8
+            });
+        }
+    });
+}
+
+let cameraAnimationId = null;
+
+function animateCamera(targetPosition, targetLookAt, duration = 1500) {
+    if (cameraAnimationId) cancelAnimationFrame(cameraAnimationId);
+    
+    const startPos = camera.position.clone();
+    const startLookAt = controls.target.clone();
+    const startTime = performance.now();
+
+    function update() {
+        const now = performance.now();
+        let t = (now - startTime) / duration;
+        if (t > 1) t = 1;
+        
+        // Easing function (easeOutCubic)
+        const ease = 1 - Math.pow(1 - t, 3);
+
+        camera.position.lerpVectors(startPos, targetPosition, ease);
+        controls.target.lerpVectors(startLookAt, targetLookAt, ease);
+        controls.update();
+
+        if (t < 1) {
+            cameraAnimationId = requestAnimationFrame(update);
+        }
+    }
+    update();
+}
+
+function focusCameraOnSearch() {
+    const input = document.getElementById('demo-search-input');
+    if (!input) return;
+    const query = input.value.toLowerCase().trim();
+    if (!query) return;
+
+    let targetMesh = null;
+    itemsGroup.children.forEach(mesh => {
+        const item = mesh.userData;
+        if ((item.id && String(item.id).toLowerCase().includes(query)) || 
+            (item.name && String(item.name).toLowerCase().includes(query))) {
+            if (!targetMesh) targetMesh = mesh; // Take first match
+        }
+    });
+
+    if (targetMesh) {
+        // Highlight the selected item momentarily
+        const originalEmissive = targetMesh.material.emissive ? targetMesh.material.emissive.clone() : new THREE.Color(0x000000);
+        if(targetMesh.material.emissive) targetMesh.material.emissive.setHex(0xFFFFFF);
+        
+        setTimeout(() => {
+            if(targetMesh.material && targetMesh.material.emissive) {
+                targetMesh.material.emissive.copy(originalEmissive);
+            }
+        }, 2000);
+
+        // Get world position of target mesh
+        const worldPos = new THREE.Vector3();
+        targetMesh.getWorldPosition(worldPos);
+
+        // Compute camera offset based on item size
+        const item = targetMesh.userData;
+        const maxDim = Math.max(item.length, item.width, item.height) || 1;
+        const offset = new THREE.Vector3(maxDim * 2, maxDim * 2 + 2, maxDim * 2);
+        
+        const finalCameraPos = worldPos.clone().add(offset);
+        
+        animateCamera(finalCameraPos, worldPos);
+    } else {
+        alert("Item not found in current scene!");
+    }
+}
+
 function onColorModeChange(value) {
     const viewModeSelect = document.getElementById('view-mode-select');
     const currentView = viewModeSelect ? viewModeSelect.value : 'live';

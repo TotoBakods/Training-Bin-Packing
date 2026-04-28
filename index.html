@@ -174,24 +174,16 @@
                 </div>
 
                 <div class="panel-section">
-                    <div class="section-title">Features Demo</div>
-                    <div class="input-group">
-                        <label>Demo Mode</label>
-                        <div class="select-wrapper" style="padding: 6px 10px;">
-                            <select id="demo-mode" onchange="onDemoModeChange(this.value)" style="width: 100%;">
-                                <option value="none">None</option>
-                                <option value="camera-search">Camera Search & Focus</option>
-                                <option value="heatmap">Access Frequency Heatmap</option>
-                                <option value="priority">Priority Visualization</option>
-                                <option value="fragile">Fragile vs. Non-Fragile</option>
-                            </select>
-                        </div>
+                    <div class="section-title">Features Tour</div>
+                    <button id="feature-tour-btn" class="btn" onclick="startFeatureTour()" style="width: 100%; background: var(--accent-primary); color: white; margin-bottom: 8px;">
+                        ▶ Start Feature Tour
+                    </button>
+                    <div id="tour-controls" style="display: none; gap: 8px; margin-bottom: 8px;">
+                        <button id="tour-next-btn" class="btn" onclick="nextTourStep()" style="flex: 1; background: var(--accent-primary); color: white;">Next Step</button>
+                        <button id="tour-end-btn" class="btn btn-danger" onclick="endFeatureTour()" style="flex: 1;">End Tour</button>
                     </div>
-                    <div id="camera-search-container" style="display:none; margin-top: 8px;">
-                        <div class="input-group" style="margin-bottom: 8px;">
-                            <input type="text" id="demo-search-input" placeholder="Enter Item ID or Name">
-                        </div>
-                        <button class="btn" onclick="focusCameraOnSearch()" style="width: 100%;">Search & Focus</button>
+                    <div id="feature-tour-status" style="display: none; font-size: 0.82rem; color: var(--text-main); text-align: center;">
+                        Ready
                     </div>
                 </div>
 

@@ -684,11 +684,7 @@ function renderItems(items) {
         itemsGroup.add(mesh);
     });
 
-    // Re-apply demo effects if active
-    const demoMode = document.getElementById('demo-mode');
-    if (demoMode && demoMode.value !== 'none' && demoMode.value !== 'camera-search') {
-        onDemoModeChange(demoMode.value);
-    }
+    // Demo Mode removed for Feature Tour
 }
 
 function renderPickerPath(items) {
@@ -796,22 +792,227 @@ function getItemColor(item, mode, maxWeight, maxAccess) {
 }
 
 // UI Event Handlers
-function onDemoModeChange(mode) {
-    const searchContainer = document.getElementById('camera-search-container');
-    if (searchContainer) {
-        searchContainer.style.display = (mode === 'camera-search') ? 'block' : 'none';
-    }
+let tourActive = false;
+let tourStepIndex = -1;
+let tourOptions = [];
+let origCamPos = null;
+let origTarget = null;
+let demoItemId = null;
 
-    // Always reset base state first
+function startFeatureTour() {
+    if (tourActive) return;
+    tourActive = true;
+    tourStepIndex = -1;
+    
+    const btn = document.getElementById('feature-tour-btn');
+    const controlsUI = document.getElementById('tour-controls');
+    const status = document.getElementById('feature-tour-status');
+    const colorModeSelect = document.getElementById('color-mode');
+    
+    if (!btn || !status || !colorModeSelect || !controlsUI) {
+        tourActive = false;
+        return;
+    }
+    
+    btn.style.display = 'none';
+    controlsUI.style.display = 'flex';
+    status.style.display = 'block';
+    
+    // Original camera position and look target
+    origCamPos = camera.position.clone();
+    origTarget = controls.target.clone();
+    
+    tourOptions = Array.from(colorModeSelect.options);
+    
+    nextTourStep();
+}
+
+async function nextTourStep() {
+    if (!tourActive) return;
+    
+    const status = document.getElementById('feature-tour-status');
+    const colorModeSelect = document.getElementById('color-mode');
+    const setStatus = (text) => { status.textContent = text; };
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const nextBtn = document.getElementById('tour-next-btn');
+    
+    nextBtn.disabled = true; // disable until step finishes animating
+    
+    try {
+        tourStepIndex++;
+        
+        const whLength = warehouseConfig.length || 20;
+        const whWidth = warehouseConfig.width || 10;
+        const whHeight = warehouseConfig.height || 5;
+
+        if (tourStepIndex < tourOptions.length) {
+            // Normal color mode steps
+            const opt = tourOptions[tourStepIndex];
+            setStatus(`Step ${tourStepIndex+1}/${tourOptions.length + 3}: ${opt.text}`);
+            
+            resetDemoEffects();
+            colorModeSelect.value = opt.value;
+            onColorModeChange(opt.value);
+            
+            // Move camera dynamically around the warehouse
+            let camX, camY, camZ;
+            if (tourStepIndex === 0) {
+                camX = Math.max(whLength, whWidth) * 1.5;
+                camY = whHeight * 0.8;
+                camZ = 0;
+            } else {
+                const angle = (tourStepIndex / tourOptions.length) * Math.PI * 2;
+                const radius = Math.max(whLength, whWidth) * 1.2;
+                camX = Math.cos(angle) * radius;
+                camZ = Math.sin(angle) * radius;
+                camY = whHeight * 2;
+            }
+            
+            animateCamera(new THREE.Vector3(camX, camY, camZ), new THREE.Vector3(0, 0, 0), 1000);
+            
+            if (opt.value === 'priority') {
+                applyPriorityDemo();
+            } else if (opt.value === 'fragility') {
+                applyFragileDemo();
+            }
+            
+            // Allow user to click next after animation
+            setTimeout(() => { if(tourActive) nextBtn.disabled = false; }, 1000);
+            
+        } else if (tourStepIndex === tourOptions.length) {
+            // Add Item Step
+            setStatus(`Step ${tourStepIndex+1}/${tourOptions.length + 3}: Adding Demo Item (Unplaced)`);
+            
+            demoItemId = 'TOUR-DEMO-' + Date.now();
+            const demoItem = {
+                id: demoItemId,
+                name: 'TOUR DEMO CRATE',
+                category: 'Tour Demo',
+                length: 1.0, 
+                width: 1.0, 
+                height: 1.0,
+                weight: 99, fragility: 0, stackable: 1, access_freq: 10,
+                can_rotate: 1, priority: 3, warehouse_id: currentWarehouseId,
+                x: 0, y: 0, z: 0 // Unplaced
+            };
+            
+            await fetch(`${API_BASE_URL}/api/items`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(demoItem)
+            });
+            
+            updateVisualization();
+            
+            // Look near the origin where unplaced items spawn
+            animateCamera(new THREE.Vector3(whLength/2, whHeight*1.5, whWidth/2), new THREE.Vector3(0, 0, 0), 1000);
+            
+            setTimeout(() => { if(tourActive) nextBtn.disabled = false; }, 1000);
+            
+        } else if (tourStepIndex === tourOptions.length + 1) {
+            // Optimization Step
+            setStatus(`Step ${tourStepIndex+1}/${tourOptions.length + 3}: Running Optimization`);
+            
+            startOptimization();
+            await sleep(2000); // Give it time to initialize and set UI state
+            
+            const stopBtn = document.getElementById('stop-btn');
+            if (stopBtn) {
+                while (!stopBtn.disabled && tourActive) {
+                    await sleep(500);
+                    const pct = document.getElementById('progress-percent');
+                    setStatus(`Running Optimization... ${pct ? pct.textContent : ''}`);
+                }
+            }
+            
+            if (!tourActive) return; // if user ended tour during optimization
+            
+            await sleep(2000); // Extra time to ensure final rendering occurs
+            
+            setStatus("Verifying Demo Item Placement...");
+            let targetMesh = itemsGroup.children.find(m => m.userData && m.userData.id === demoItemId);
+            if (targetMesh) {
+                if(targetMesh.material.emissive) targetMesh.material.emissive.setHex(0xFF0000);
+                const worldPos = new THREE.Vector3();
+                targetMesh.getWorldPosition(worldPos);
+                const offset = new THREE.Vector3(2, 4, 2);
+                animateCamera(worldPos.clone().add(offset), worldPos, 1000);
+            }
+            
+            setTimeout(() => { if(tourActive) nextBtn.disabled = false; setStatus("Verification complete. Click Next to re-optimize."); }, 3000);
+            
+        } else if (tourStepIndex === tourOptions.length + 2) {
+            // Delete and Re-optimize Step
+            setStatus(`Step ${tourStepIndex+1}/${tourOptions.length + 3}: Removing Item & Re-optimizing`);
+            
+            if (demoItemId) {
+                await fetch(`${API_BASE_URL}/api/items/${demoItemId}?warehouse_id=${currentWarehouseId}`, { method: 'DELETE' }).catch(e=>{});
+                demoItemId = null;
+            }
+            updateVisualization();
+            
+            startOptimization();
+            await sleep(2000); // Give it time to initialize and set UI state
+            
+            const stopBtn = document.getElementById('stop-btn');
+            if (stopBtn) {
+                while (!stopBtn.disabled && tourActive) {
+                    await sleep(500);
+                    const pct = document.getElementById('progress-percent');
+                    setStatus(`Re-optimizing... ${pct ? pct.textContent : ''}`);
+                }
+            }
+            
+            if (!tourActive) return; // if user ended tour during optimization
+            
+            await sleep(2000); // Extra time to ensure final rendering occurs
+            
+            // Move camera back to overview to show the settled warehouse
+            const radius = Math.max(whLength, whWidth) * 1.5;
+            animateCamera(new THREE.Vector3(radius, whHeight * 2, radius), new THREE.Vector3(0, 0, 0), 1000);
+            
+            setTimeout(() => { if(tourActive) nextBtn.disabled = false; setStatus("Re-optimization complete. Click Next to End Tour."); }, 3000);
+            
+        } else {
+            // Beyond final step
+            endFeatureTour();
+        }
+    } catch (e) {
+        console.error(e);
+        endFeatureTour();
+    }
+}
+
+async function endFeatureTour() {
+    if (!tourActive) return;
+    tourActive = false;
+    
+    const btn = document.getElementById('feature-tour-btn');
+    const controlsUI = document.getElementById('tour-controls');
+    const status = document.getElementById('feature-tour-status');
+    const colorModeSelect = document.getElementById('color-mode');
+    
+    if (demoItemId) {
+        status.textContent = "Cleaning up...";
+        await fetch(`${API_BASE_URL}/api/items/${demoItemId}?warehouse_id=${currentWarehouseId}`, { method: 'DELETE' }).catch(e=>{});
+        demoItemId = null;
+        updateVisualization();
+    }
+    
+    if (origCamPos && origTarget) {
+        animateCamera(origCamPos, origTarget, 1000);
+    }
+    
+    if(colorModeSelect) colorModeSelect.value = 'category';
+    onColorModeChange('category');
     resetDemoEffects();
-
-    if (mode === 'heatmap') {
-        applyHeatmapDemo();
-    } else if (mode === 'priority') {
-        applyPriorityDemo();
-    } else if (mode === 'fragile') {
-        applyFragileDemo();
-    }
+    
+    setTimeout(() => {
+        btn.style.display = 'block';
+        controlsUI.style.display = 'none';
+        status.style.display = 'none';
+        document.getElementById('tour-next-btn').disabled = false;
+    }, 1000);
 }
 
 function resetDemoEffects() {
@@ -994,48 +1195,7 @@ function animateCamera(targetPosition, targetLookAt, duration = 1500) {
     update();
 }
 
-function focusCameraOnSearch() {
-    const input = document.getElementById('demo-search-input');
-    if (!input) return;
-    const query = input.value.toLowerCase().trim();
-    if (!query) return;
 
-    let targetMesh = null;
-    itemsGroup.children.forEach(mesh => {
-        const item = mesh.userData;
-        if ((item.id && String(item.id).toLowerCase().includes(query)) || 
-            (item.name && String(item.name).toLowerCase().includes(query))) {
-            if (!targetMesh) targetMesh = mesh; // Take first match
-        }
-    });
-
-    if (targetMesh) {
-        // Highlight the selected item momentarily
-        const originalEmissive = targetMesh.material.emissive ? targetMesh.material.emissive.clone() : new THREE.Color(0x000000);
-        if(targetMesh.material.emissive) targetMesh.material.emissive.setHex(0xFFFFFF);
-        
-        setTimeout(() => {
-            if(targetMesh.material && targetMesh.material.emissive) {
-                targetMesh.material.emissive.copy(originalEmissive);
-            }
-        }, 2000);
-
-        // Get world position of target mesh
-        const worldPos = new THREE.Vector3();
-        targetMesh.getWorldPosition(worldPos);
-
-        // Compute camera offset based on item size
-        const item = targetMesh.userData;
-        const maxDim = Math.max(item.length, item.width, item.height) || 1;
-        const offset = new THREE.Vector3(maxDim * 2, maxDim * 2 + 2, maxDim * 2);
-        
-        const finalCameraPos = worldPos.clone().add(offset);
-        
-        animateCamera(finalCameraPos, worldPos);
-    } else {
-        alert("Item not found in current scene!");
-    }
-}
 
 function onColorModeChange(value) {
     const viewModeSelect = document.getElementById('view-mode-select');

@@ -798,18 +798,21 @@ let tourOptions = [];
 let origCamPos = null;
 let origTarget = null;
 let demoItemId = null;
+let tourTimeout = null;
 
 function startFeatureTour() {
     if (tourActive) return;
     tourActive = true;
     tourStepIndex = -1;
+    tourTimeout = null;
     
     const btn = document.getElementById('feature-tour-btn');
     const controlsUI = document.getElementById('tour-controls');
     const status = document.getElementById('feature-tour-status');
     const colorModeSelect = document.getElementById('color-mode');
+    const nextBtn = document.getElementById('tour-next-btn');
     
-    if (!btn || !status || !colorModeSelect || !controlsUI) {
+    if (!btn || !status || !colorModeSelect || !controlsUI || !nextBtn) {
         tourActive = false;
         return;
     }
@@ -817,6 +820,7 @@ function startFeatureTour() {
     btn.style.display = 'none';
     controlsUI.style.display = 'flex';
     status.style.display = 'block';
+    nextBtn.disabled = true; // Disable next button since it's auto-advancing
     
     // Original camera position and look target
     origCamPos = camera.position.clone();
@@ -830,13 +834,15 @@ function startFeatureTour() {
 async function nextTourStep() {
     if (!tourActive) return;
     
+    clearTimeout(tourTimeout);
+    
     const status = document.getElementById('feature-tour-status');
     const colorModeSelect = document.getElementById('color-mode');
     const setStatus = (text) => { status.textContent = text; };
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     const nextBtn = document.getElementById('tour-next-btn');
     
-    nextBtn.disabled = true; // disable until step finishes animating
+    nextBtn.disabled = true; // Keep disabled
     
     try {
         tourStepIndex++;
@@ -876,8 +882,8 @@ async function nextTourStep() {
                 applyFragileDemo();
             }
             
-            // Allow user to click next after animation
-            setTimeout(() => { if(tourActive) nextBtn.disabled = false; }, 1000);
+            // Auto-advance to next step after 1 minute
+            tourTimeout = setTimeout(() => { if(tourActive) nextTourStep(); }, 60000);
             
         } else if (tourStepIndex === tourOptions.length) {
             // Add Item Step
@@ -907,7 +913,8 @@ async function nextTourStep() {
             // Look near the origin where unplaced items spawn
             animateCamera(new THREE.Vector3(whLength/2, whHeight*1.5, whWidth/2), new THREE.Vector3(0, 0, 0), 1000);
             
-            setTimeout(() => { if(tourActive) nextBtn.disabled = false; }, 1000);
+            // Auto-advance after 1 minute
+            tourTimeout = setTimeout(() => { if(tourActive) nextTourStep(); }, 60000);
             
         } else if (tourStepIndex === tourOptions.length + 1) {
             // Optimization Step
@@ -939,7 +946,8 @@ async function nextTourStep() {
                 animateCamera(worldPos.clone().add(offset), worldPos, 1000);
             }
             
-            setTimeout(() => { if(tourActive) nextBtn.disabled = false; setStatus("Verification complete. Click Next to re-optimize."); }, 3000);
+            // Auto-advance after 1 minute
+            tourTimeout = setTimeout(() => { if(tourActive) nextTourStep(); }, 60000);
             
         } else if (tourStepIndex === tourOptions.length + 2) {
             // Delete and Re-optimize Step
@@ -971,7 +979,8 @@ async function nextTourStep() {
             const radius = Math.max(whLength, whWidth) * 1.5;
             animateCamera(new THREE.Vector3(radius, whHeight * 2, radius), new THREE.Vector3(0, 0, 0), 1000);
             
-            setTimeout(() => { if(tourActive) nextBtn.disabled = false; setStatus("Re-optimization complete. Click Next to End Tour."); }, 3000);
+            // Auto-advance after 1 minute
+            tourTimeout = setTimeout(() => { if(tourActive) nextTourStep(); }, 60000);
             
         } else {
             // Beyond final step
@@ -986,6 +995,7 @@ async function nextTourStep() {
 async function endFeatureTour() {
     if (!tourActive) return;
     tourActive = false;
+    clearTimeout(tourTimeout);
     
     const btn = document.getElementById('feature-tour-btn');
     const controlsUI = document.getElementById('tour-controls');

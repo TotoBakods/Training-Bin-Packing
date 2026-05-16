@@ -138,6 +138,18 @@ function initThreeJS() {
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
 
+    // Auto-rotate listeners for feature tour
+    controls.addEventListener('start', () => {
+        if (tourActive) {
+            controls.autoRotate = false;
+        }
+    });
+    controls.addEventListener('end', () => {
+        if (tourActive) {
+            controls.autoRotate = true;
+        }
+    });
+
     // Lights
     const ambientLight = new THREE.AmbientLight(0x404040, 2);
     scene.add(ambientLight);
@@ -799,6 +811,7 @@ let origCamPos = null;
 let origTarget = null;
 let demoItemId = null;
 let tourTimeout = null;
+let tourStepVersion = 0; // Prevent concurrent step executions
 
 function startFeatureTour() {
     if (tourActive) return;
@@ -811,16 +824,23 @@ function startFeatureTour() {
     const status = document.getElementById('feature-tour-status');
     const colorModeSelect = document.getElementById('color-mode');
     const nextBtn = document.getElementById('tour-next-btn');
+    const prevBtn = document.getElementById('tour-prev-btn');
     
     if (!btn || !status || !colorModeSelect || !controlsUI || !nextBtn) {
         tourActive = false;
         return;
     }
     
+    if (nextBtn) nextBtn.disabled = false;
+    if (prevBtn) prevBtn.disabled = true; // No back on first step
+    
     btn.style.display = 'none';
     controlsUI.style.display = 'flex';
     status.style.display = 'block';
-    nextBtn.disabled = true; // Disable next button since it's auto-advancing
+    
+    // Enable auto-rotation for the tour
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.8;
     
     // Original camera position and look target
     origCamPos = camera.position.clone();
@@ -828,6 +848,13 @@ function startFeatureTour() {
     
     tourOptions = Array.from(colorModeSelect.options);
     
+    nextTourStep();
+}
+
+function prevTourStep() {
+    if (!tourActive) return;
+    tourStepIndex -= 2; 
+    if (tourStepIndex < -1) tourStepIndex = -1;
     nextTourStep();
 }
 
@@ -841,20 +868,31 @@ async function nextTourStep() {
     const setStatus = (text) => { status.textContent = text; };
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     const nextBtn = document.getElementById('tour-next-btn');
+    const prevBtn = document.getElementById('tour-prev-btn');
     
-    nextBtn.disabled = true; // Keep disabled
+    if (nextBtn) nextBtn.disabled = false;
+    if (prevBtn) prevBtn.disabled = (tourStepIndex <= -1); // Will be updated after increment
+    
+    const version = ++tourStepVersion;
     
     try {
         tourStepIndex++;
+        if (prevBtn) prevBtn.disabled = (tourStepIndex <= 0);
+        
+        const totalSteps = tourOptions.length + 6; // Color modes(7) + Add(1) + Opt(1) + Highlight(1) + Delete(1) + Re-Opt(1) + Continuous(1) = 13
         
         const whLength = warehouseConfig.length || 20;
         const whWidth = warehouseConfig.width || 10;
         const whHeight = warehouseConfig.height || 5;
 
+        // Helper to check if this step execution is still valid
+        const isValid = () => tourActive && version === tourStepVersion;
+
         if (tourStepIndex < tourOptions.length) {
             // Normal color mode steps
+            controls.autoRotate = true; // Ensure auto-rotate is on for these overview steps
             const opt = tourOptions[tourStepIndex];
-            setStatus(`Step ${tourStepIndex+1}/${tourOptions.length + 3}: ${opt.text}`);
+            setStatus(`Step ${tourStepIndex+1}/${totalSteps}: ${opt.text}`);
             
             resetDemoEffects();
             colorModeSelect.value = opt.value;
@@ -883,11 +921,12 @@ async function nextTourStep() {
             }
             
             // Auto-advance to next step after 1 minute
-            tourTimeout = setTimeout(() => { if(tourActive) nextTourStep(); }, 60000);
+            tourTimeout = setTimeout(() => { if(isValid()) nextTourStep(); }, 60000);
             
         } else if (tourStepIndex === tourOptions.length) {
             // Add Item Step
-            setStatus(`Step ${tourStepIndex+1}/${tourOptions.length + 3}: Adding Demo Item (Unplaced)`);
+            controls.autoRotate = false; // Disable auto-spin for this focus step
+            setStatus(`Step ${tourStepIndex+1}/${totalSteps}: Adding Demo Item (Unplaced)`);
             
             demoItemId = 'TOUR-DEMO-' + Date.now();
             const demoItem = {
@@ -910,77 +949,144 @@ async function nextTourStep() {
             
             updateVisualization();
             
-            // Look near the origin where unplaced items spawn
-            animateCamera(new THREE.Vector3(whLength/2, whHeight*1.5, whWidth/2), new THREE.Vector3(0, 0, 0), 1000);
+            // Focus on the unplaced item (it spawns at 0,0,0 which is the corner in world space)
+            await sleep(500); // Wait for render
+            const targetPos = new THREE.Vector3(-whLength/2, 0.5, -whWidth/2);
+            const cameraPos = targetPos.clone().add(new THREE.Vector3(-5, 6, -5));
+            animateCamera(cameraPos, targetPos, 1000);
             
             // Auto-advance after 1 minute
-            tourTimeout = setTimeout(() => { if(tourActive) nextTourStep(); }, 60000);
+            tourTimeout = setTimeout(() => { if(isValid()) nextTourStep(); }, 60000);
             
         } else if (tourStepIndex === tourOptions.length + 1) {
             // Optimization Step
-            setStatus(`Step ${tourStepIndex+1}/${tourOptions.length + 3}: Running Optimization`);
+            controls.autoRotate = true; // Re-enable auto-spin for overview
+            setStatus(`Step ${tourStepIndex+1}/${totalSteps}: Running Optimization`);
+            
+            if (nextBtn) nextBtn.disabled = true;
+            if (prevBtn) prevBtn.disabled = true;
             
             startOptimization();
+            
+            // Move camera back to default overview
+            if (origCamPos && origTarget) {
+                animateCamera(origCamPos, origTarget, 1000);
+            }
+            
             await sleep(2000); // Give it time to initialize and set UI state
             
             const stopBtn = document.getElementById('stop-btn');
             if (stopBtn) {
-                while (!stopBtn.disabled && tourActive) {
+                while (!stopBtn.disabled && isValid()) {
                     await sleep(500);
+                    if (!isValid()) return;
                     const pct = document.getElementById('progress-percent');
                     setStatus(`Running Optimization... ${pct ? pct.textContent : ''}`);
                 }
             }
             
-            if (!tourActive) return; // if user ended tour during optimization
+            if (!isValid()) return; 
             
-            await sleep(2000); // Extra time to ensure final rendering occurs
+            await sleep(1000);
+            setStatus(`Step ${tourStepIndex+1}/${totalSteps}: Optimization Complete! Click Next.`);
+            if (nextBtn) nextBtn.disabled = false;
+            if (prevBtn) prevBtn.disabled = false;
             
-            setStatus("Verifying Demo Item Placement...");
+            // Auto-advance after 1 minute
+            tourTimeout = setTimeout(() => { if(isValid()) nextTourStep(); }, 60000);
+            
+        } else if (tourStepIndex === tourOptions.length + 2) {
+            // Highlight Placed Item
+            controls.autoRotate = false; // Lock camera
+            setStatus(`Step ${tourStepIndex+1}/${totalSteps}: Optimization Result (Highlighted)`);
+            
             let targetMesh = itemsGroup.children.find(m => m.userData && m.userData.id === demoItemId);
             if (targetMesh) {
-                if(targetMesh.material.emissive) targetMesh.material.emissive.setHex(0xFF0000);
+                // Highlight item with emissive glow
+                if(targetMesh.material) {
+                    targetMesh.material = targetMesh.material.clone(); // Clone to avoid affecting others
+                    targetMesh.material.emissive = new THREE.Color(0xFF0000);
+                    targetMesh.material.emissiveIntensity = 1.0;
+                }
+                
                 const worldPos = new THREE.Vector3();
                 targetMesh.getWorldPosition(worldPos);
-                const offset = new THREE.Vector3(2, 4, 2);
+                const offset = new THREE.Vector3(-3, 4, -3); // Focus from the "other side" as requested previously
                 animateCamera(worldPos.clone().add(offset), worldPos, 1000);
             }
             
             // Auto-advance after 1 minute
-            tourTimeout = setTimeout(() => { if(tourActive) nextTourStep(); }, 60000);
-            
-        } else if (tourStepIndex === tourOptions.length + 2) {
-            // Delete and Re-optimize Step
-            setStatus(`Step ${tourStepIndex+1}/${tourOptions.length + 3}: Removing Item & Re-optimizing`);
-            
+            tourTimeout = setTimeout(() => { if(isValid()) nextTourStep(); }, 60000);
+
+        } else if (tourStepIndex === tourOptions.length + 3) {
+            // NEW Step 11: Delete Item only
+            setStatus(`Step ${tourStepIndex+1}/${totalSteps}: Removing Demo Item`);
             if (demoItemId) {
                 await fetch(`${API_BASE_URL}/api/items/${demoItemId}?warehouse_id=${currentWarehouseId}`, { method: 'DELETE' }).catch(e=>{});
                 demoItemId = null;
             }
             updateVisualization();
             
+            // Auto-advance after 1 minute
+            tourTimeout = setTimeout(() => { if(isValid()) nextTourStep(); }, 60000);
+
+        } else if (tourStepIndex === tourOptions.length + 4) {
+            // NEW Step 12: Re-run Optimization
+            setStatus(`Step ${tourStepIndex+1}/${totalSteps}: Re-optimizing (Item Removed)`);
+            
+            if (nextBtn) nextBtn.disabled = true;
+            if (prevBtn) prevBtn.disabled = true;
+
             startOptimization();
-            await sleep(2000); // Give it time to initialize and set UI state
+            await sleep(2000);
             
             const stopBtn = document.getElementById('stop-btn');
             if (stopBtn) {
-                while (!stopBtn.disabled && tourActive) {
+                while (!stopBtn.disabled && isValid()) {
                     await sleep(500);
+                    if (!isValid()) return;
                     const pct = document.getElementById('progress-percent');
                     setStatus(`Re-optimizing... ${pct ? pct.textContent : ''}`);
                 }
             }
             
-            if (!tourActive) return; // if user ended tour during optimization
+            if (!isValid()) return; 
             
-            await sleep(2000); // Extra time to ensure final rendering occurs
-            
-            // Move camera back to overview to show the settled warehouse
-            const radius = Math.max(whLength, whWidth) * 1.5;
-            animateCamera(new THREE.Vector3(radius, whHeight * 2, radius), new THREE.Vector3(0, 0, 0), 1000);
+            await sleep(1000);
+            setStatus(`Step ${tourStepIndex+1}/${totalSteps}: Re-optimization Complete!`);
+            if (nextBtn) nextBtn.disabled = false;
+            if (prevBtn) prevBtn.disabled = false;
             
             // Auto-advance after 1 minute
-            tourTimeout = setTimeout(() => { if(tourActive) nextTourStep(); }, 60000);
+            tourTimeout = setTimeout(() => { if(isValid()) nextTourStep(); }, 60000);
+
+        } else if (tourStepIndex === tourOptions.length + 5) {
+            // NEW Step 13: Continuous Optimization
+            controls.autoRotate = true; 
+            setStatus(`Step ${tourStepIndex+1}/${totalSteps}: Continuous Optimization Mode`);
+            
+            // Move camera back to default overview
+            if (origCamPos && origTarget) {
+                animateCamera(origCamPos, origTarget, 1000);
+            }
+            
+            // This loop will keep running until we leave this step
+            while (isValid() && tourStepIndex === tourOptions.length + 5) {
+                startOptimization();
+                await sleep(2000);
+                
+                const stopBtn = document.getElementById('stop-btn');
+                if (stopBtn) {
+                    while (!stopBtn.disabled && isValid() && tourStepIndex === tourOptions.length + 5) {
+                        await sleep(500);
+                        const pct = document.getElementById('progress-percent');
+                        setStatus(`Continuous Optimization... ${pct ? pct.textContent : ''}`);
+                    }
+                }
+                
+                if (!isValid() || tourStepIndex !== tourOptions.length + 5) break;
+                await sleep(3000); // Small pause before next iteration
+            }
             
         } else {
             // Beyond final step
@@ -989,6 +1095,8 @@ async function nextTourStep() {
     } catch (e) {
         console.error(e);
         endFeatureTour();
+    } finally {
+        nextBtn.disabled = false;
     }
 }
 
@@ -1013,15 +1121,19 @@ async function endFeatureTour() {
         animateCamera(origCamPos, origTarget, 1000);
     }
     
-    if(colorModeSelect) colorModeSelect.value = 'category';
+    if (colorModeSelect) colorModeSelect.value = 'category';
     onColorModeChange('category');
     resetDemoEffects();
+
+    // Disable auto-rotation
+    controls.autoRotate = false;
     
     setTimeout(() => {
         btn.style.display = 'block';
         controlsUI.style.display = 'none';
         status.style.display = 'none';
-        document.getElementById('tour-next-btn').disabled = false;
+        const nextBtn = document.getElementById('tour-next-btn');
+        if (nextBtn) nextBtn.disabled = false;
     }, 1000);
 }
 
@@ -1597,6 +1709,26 @@ function startOptimization() {
             alert(`Failed to load items: ${err}`);
             if (startBtn) startBtn.disabled = false;
         });
+}
+
+function onWeightChange() {
+    console.log("Weights changed. Restarting optimization if applicable...");
+    const viewModeSelect = document.getElementById('view-mode-select');
+    const currentView = viewModeSelect ? viewModeSelect.value : 'live';
+    
+    // Switch to live mode if looking at cached results
+    if (currentView !== 'live') {
+        if (viewModeSelect) viewModeSelect.value = 'live';
+        onViewModeChange('live');
+    }
+
+    if (isOptimizing) {
+        stopOptimization();
+        // Give the backend a brief moment to process the stop command before restarting
+        setTimeout(startOptimization, 500);
+    } else {
+        startOptimization();
+    }
 }
 
 let currentOptimizationType = null;

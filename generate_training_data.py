@@ -23,6 +23,9 @@ import torch
 import pickle
 import json
 import time
+from logger_config import get_logger
+
+logger = get_logger('training')
 
 # ---------------------------------------------------------------------------
 # Paths

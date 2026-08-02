@@ -1,9 +1,0 @@
-Optimization failed: could not broadcast input array from shape (19,) into shape (20,)
-Traceback (most recent call last):
-  File "c:\Users\TotoBakod\Documents\Github\Training-Bin-Packing\app.py", line 675, in run_optimization
-    best_solution, best_fitness, time_to_best, inf_metrics = optimizer.optimize(
-                                                             ^^^^^^^^^^^^^^^^^^^
-  File "c:\Users\TotoBakod\Documents\Github\Training-Bin-Packing\ml_utils.py", line 170, in optimize
-    features[i] = [
-    ~~~~~~~~^^^
-ValueError: could not broadcast input array from shape (19,) into shape (20,)

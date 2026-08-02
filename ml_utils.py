@@ -14,6 +14,9 @@ import psutil
 import importlib
 import optimizer
 importlib.reload(optimizer)
+from logger_config import get_logger
+
+logger = get_logger('ml_utils')
 
 def get_system_metadata():
     """Captures hardware and software environment details for documentation."""
@@ -109,15 +112,15 @@ class MLOptimizer:
         try:
              model_path = os.path.join("models", f"model_{self.model_name}.pth")
              if not os.path.exists(model_path):
-                 print(f"Model {model_path} not found.")
+                 logger.warning(f"Model {model_path} not found.")
                  return
              
              self.model = PackingModel().to(self.device)
              self.model.load_state_dict(torch.load(model_path, map_location=self.device))
              self.model.eval()
-             print(f"Loaded ML model: {model_path}")
+             logger.info(f"Loaded ML model: {model_path} on device: {self.device}")
         except Exception as e:
-            print(f"Failed to load ML model: {e}")
+            logger.error(f"Failed to load ML model: {e}")
             self.model = None  # Prevent using a partially loaded or random-weight model
 
     def optimize(self, items, warehouse, weights=None, callback=None, optimization_state=None):
@@ -129,7 +132,7 @@ class MLOptimizer:
         
         if self.model is None:
              # Fallback to standard GA if model missing has been removed
-             print("ML Model missing, cannot proceed.")
+             logger.error("ML Model missing, cannot proceed.")
              return [], 0, 0
 
         # Pre-process items
@@ -394,7 +397,5 @@ class MLOptimizer:
             return final_sol_list, float(fitness), time_to_best, metrics
             
         except Exception as e:
-            print(f"ML Inference Error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"ML Inference Error: {e}", exc_info=True)
             return [], 0, 0, {}

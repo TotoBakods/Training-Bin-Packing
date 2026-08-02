@@ -10,6 +10,9 @@ from ml_utils import PackingModel
 
 import json
 import time
+from logger_config import get_logger
+
+logger = get_logger('training')
 
 # ── GPU setup ────────────────────────────────────────────────────────────────
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -18,9 +21,9 @@ if torch.cuda.is_available():
     torch.backends.cudnn.benchmark = True
     _gpu_name = torch.cuda.get_device_name(0)
     _vram_gb  = round(torch.cuda.get_device_properties(0).total_memory / 1024**3, 1)
-    print(f"[GPU] {_gpu_name}  {_vram_gb} GB VRAM  — training on CUDA")
+    logger.info(f"[GPU] {_gpu_name}  {_vram_gb} GB VRAM  — training on CUDA")
 else:
-    print("[GPU] No CUDA device found — falling back to CPU")
+    logger.info("[GPU] No CUDA device found — falling back to CPU")
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 DATA_DIR   = "training_data"

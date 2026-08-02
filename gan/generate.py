@@ -7,6 +7,12 @@ import argparse
 import os
 import uuid
 import random
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from logger_config import get_logger
+
+logger = get_logger('gan')
+
 try:
     from .model import Generator
 except ImportError:

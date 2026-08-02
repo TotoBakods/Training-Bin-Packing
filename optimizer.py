@@ -5,7 +5,10 @@ import multiprocessing
 from database import get_exclusion_zones
 import os
 import datetime
-print(f'>>> OPTIMIZER MODULE LOADED FROM: {__file__}')
+from logger_config import get_logger
+
+logger = get_logger('optimizer')
+logger.info(f'>>> OPTIMIZER MODULE LOADED FROM: {__file__}')
 
 try:
     import torch as _torch
@@ -580,7 +583,7 @@ def _perform_search_cpu(cands, rots, l, w, h,
 
 
 def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zones=None, layer_heights=None, callback=None, callback_interval=50, fast_mode=False, max_candidates=None, item_categories=None, item_names=None, warehouse_id=None, warehouse_name=None):
-    print(f'>>> repair_solution_compact CALLED.')
+    logger.info(f'>>> repair_solution_compact CALLED.')
     """Repair solution by placing items in valid positions with gravity."""
     # Defaults
     if layer_heights is None or len(layer_heights) == 0:
@@ -780,7 +783,7 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
         item_zone_idx = {}
         zone_used_vols = {zi: 0.0 for zi in range(num_zones)}
         
-        print(f"DEBUG shelf: Greedy Bottom-Up active. Total Items={num_items}")
+        logger.info(f"DEBUG shelf: Greedy Bottom-Up active. Total Items={num_items}")
         
         # 1. Non-Fragile Items
         l_idx = 0
@@ -860,9 +863,29 @@ def repair_solution_compact(solution, items_props, warehouse_dims, allocation_zo
         _dev = _placed_buf = None
         _placed_count = 0
 
-    # ── Placement debug log (written to placement_debug.log) ──────────────────
-    _log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'placement_debug.log')
-    _log_f    = open(_log_path, 'w', encoding='utf-8')
+    # ── Placement debug log (redirected to central logger) ──
+    class _LoggerWriter:
+        def __init__(self, log_func):
+            self.log_func = log_func
+            self.buf = ""
+        def write(self, msg, *a, **k):
+            self.buf += str(msg)
+            while '\n' in self.buf:
+                line, self.buf = self.buf.split('\n', 1)
+                line_s = line.strip()
+                if line_s:
+                    self.log_func(line_s)
+        def writelines(self, lines, *a, **k):
+            for line in lines:
+                self.write(line)
+        def flush(self):
+            if self.buf.strip():
+                self.log_func(self.buf.strip())
+                self.buf = ""
+        def close(self):
+            self.flush()
+
+    _log_f = _LoggerWriter(logger.info)
     _ts       = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     _log_f.write(f'\n{"="*80}\n')
     _log_f.write(f'repair_solution_compact  [{_ts}]\n')
@@ -1909,9 +1932,9 @@ def fitness_function_numpy(solution, items_props=None, warehouse_dims=None, weig
         if penalty > 0:
             fitness *= 1.0 / (1.0 + penalty * 5.0)
 
-    if fitness <= 1e-6 and random.random() < 0.001:
-        with open('thread_debug.log', 'a') as f:
-            f.write(f"Zero Fit: Overlap={overlap_penalty:.4f}, Zone={zone_penalty:.4f}, Stack={stackability_penalty:.4f}\n")
+    # Optional debug print for zero fitness if needed
+    # if fitness <= 1e-6 and random.random() < 0.001:
+    #     print(f"Zero Fit: Overlap={overlap_penalty:.4f}, Zone={zone_penalty:.4f}, Stack={stackability_penalty:.4f}")
 
     wh_hgt_val = warehouse_dims[2]
     if wh_hgt_val > 0:

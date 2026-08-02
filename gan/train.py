@@ -5,6 +5,11 @@ import os
 from data_loader import get_gpu_dataset
 from model import Generator, Discriminator
 import pickle
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from logger_config import get_logger
+
+logger = get_logger('gan')
 
 # Parameters
 LATENT_DIM = 100

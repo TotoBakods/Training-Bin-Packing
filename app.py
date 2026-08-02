@@ -41,11 +41,26 @@ from optimizer import (
     fitness_function, calculate_center_of_gravity
 )
 from ml_utils import MLOptimizer
+from logger_config import get_logger
+
+logger = get_logger('app')
 
 app = Flask(__name__)
 # Allow CORS configuration from env, default to *
 cors_origins = os.environ.get('FLASK_CORS_ORIGINS', '*').split(',')
 CORS(app, resources={r"/api/*": {"origins": cors_origins}})
+
+@app.before_request
+def log_request_info():
+    request.start_time = time.time()
+    logger.info(f"HTTP Request: {request.method} {request.path} Remote: {request.remote_addr}")
+
+@app.after_request
+def log_response_info(response):
+    if hasattr(request, 'start_time'):
+        duration = round((time.time() - request.start_time) * 1000, 2)
+        logger.info(f"HTTP Response: {request.method} {request.path} Status: {response.status_code} Duration: {duration}ms")
+    return response
 
 # Global state for optimization
 optimization_state: dict[str, Any] = {
@@ -88,17 +103,12 @@ def finalize_optimization(
     if not optimization_state['running']:
         return
 
-    print("Finalizing optimization...")
-    with open('thread_debug.log', 'a') as f:
-        f.write("Finalizing optimization...\n")
+    logger.info("Finalizing optimization...")
 
     end_time = time.time()
     try:
         items = get_all_items(warehouse_id)
         warehouse = get_warehouse_config(warehouse_id)
-
-        with open('thread_debug.log', 'a') as f:
-            f.write("Loaded items and warehouse config\n")
 
         # --- PyBullet Physics Refinement ---
         try:
@@ -133,26 +143,15 @@ def finalize_optimization(
                             sol_item['z'],
                             sol_item['rotation']]
                 solution = solution_arr
-                print(
+                logger.info(
                     f"Converted list solution to numpy array ({num_items} items)")
-                with open('thread_debug.log', 'a') as f:
-                    f.write(
-                        f"Converted list solution to numpy array ({num_items} items)\n")
 
-            print(
+            logger.info(
                 f"Running PyBullet Physics Settlement with Layers: {layer_heights}...")
-            with open('thread_debug.log', 'a') as f:
-                f.write(
-                    f"Running PyBullet Physics Settlement with Layers: {layer_heights}...\n")
 
             # Update solution with physically settled coordinates
             if isinstance(solution, np.ndarray) and len(solution) > 0:
-                print("Skipping PyBullet Physics Settlement (Bypassed)...")
-                with open('thread_debug.log', 'a') as f:
-                    f.write("Skipping PyBullet Physics Settlement (Bypassed)...\n")
-                # solution = physics_settle(solution, items_props, wh_dims, layer_heights)
-                # print("PyBullet Settlement Complete.")
-                # with open('thread_debug.log', 'a') as f: f.write("PyBullet Settlement Complete.\n")
+                logger.info("Skipping PyBullet Physics Settlement (Bypassed)...")
 
                 # Convert numpy array back to list of dicts for storage
                 solution = [
@@ -166,14 +165,34 @@ def finalize_optimization(
                     for i in range(num_items)
                 ]
         except Exception as e:
-            print(f"Physics Integration Error: {e}")
-            with open('thread_debug.log', 'a') as f:
-                f.write(f"Physics Integration Error: {e}\n")
+            logger.error(f"Physics Integration Error: {e}")
         # -----------------------------------
 
         # --- Final Item Placement Logging and Strict Overlap Check for App.py ---
         try:
-            with open('app_placement_debug.log', 'w', encoding='utf-8') as log_f:
+            class _LoggerWriter:
+                def __init__(self, log_func):
+                    self.log_func = log_func
+                    self.buf = ""
+                def write(self, msg, *a, **k):
+                    self.buf += str(msg)
+                    while '\n' in self.buf:
+                        line, self.buf = self.buf.split('\n', 1)
+                        line_s = line.strip()
+                        if line_s:
+                            self.log_func(line_s)
+                def writelines(self, lines, *a, **k):
+                    for line in lines:
+                        self.write(line)
+                def flush(self):
+                    if self.buf.strip():
+                        self.log_func(self.buf.strip())
+                        self.buf = ""
+                def close(self):
+                    self.flush()
+
+            log_f = _LoggerWriter(logger.info)
+            with log_f:
                 log_f.write('--- FINAL PLACEMENT LOGGING (app.py) ---\n')
                 from optimizer import get_rotated_dims, SimpleGrid
                 num_solution_items = len(solution)
@@ -257,8 +276,6 @@ def finalize_optimization(
                     log_f.write(f'  [FINAL CHECK FAILED] {_final_overlap_count} overlaps/inside errors found in final placement!\n')
         except Exception as e:
             print(f"Logging Final Placement Error: {e}")
-            with open('thread_debug.log', 'a') as f:
-                f.write(f"Logging Final Placement Error: {e}\n")
         # -----------------------------------
 
         final_fitness, space_util, accessibility, stability, grouping = fitness_function(
@@ -273,9 +290,6 @@ def finalize_optimization(
 
         print(
             f"DEBUG: Fitness={final_fitness}, Space={space_util}, Acc={accessibility}, Stab={stability}, Group={grouping}")
-        with open('thread_debug.log', 'a') as f:
-            f.write(
-                f"Calculated fitness: {final_fitness}, Space={space_util}, Acc={accessibility}, Stab={stability}\n")
 
         save_solution(
             solution,
@@ -292,18 +306,11 @@ def finalize_optimization(
         
         optimization_state['inference_metrics'] = inference_metrics
 
-        with open('thread_debug.log', 'a') as f:
-            f.write("Saved solution to DB\n")
-
         optimization_state['best_fitness'] = final_fitness
         optimization_state['best_solution'] = solution
         optimization_state['progress'] = 100
 
     except Exception as e:
-        import traceback
-        with open('thread_debug.log', 'a') as f:
-            f.write(f"Error in finalize_optimization: {e}\n")
-            f.write(traceback.format_exc())
         print(f"Error verify: {e}")
     finally:
         gc.collect()
@@ -762,13 +769,7 @@ def optimize_ga():
     optimization_state['total_generations'] = generations
 
     def run_optimization():
-        with open('thread_debug.log', 'a') as f:
-            f.write("Thread started\n")
         print("Thread started")
-
-        with open('thread_debug.log', 'a') as f:
-            f.write(
-                f"GA Init: pop_size={pop_size}, generations={generations}\n")
 
         optimizer = MLOptimizer("fit_ga")
         try:
@@ -784,16 +785,10 @@ def optimize_ga():
                 inference_metrics=inf_metrics)
             optimization_state['running'] = False
         except Exception as e:
-            import traceback
-            with open('optimization_debug.log', 'w') as f:
-                f.write(f"Optimization failed: {e}\n")
-                f.write(traceback.format_exc())
             print(f"Optimization failed: {e}")
             optimization_state['running'] = False
 
     print("Starting thread...")
-    with open('thread_debug.log', 'a') as f:
-        f.write("Starting thread...\n")
     optimization_thread = threading.Thread(target=run_optimization)
     optimization_thread.start()
 
@@ -1503,11 +1498,12 @@ if __name__ == '__main__':
         init_db()
         migrate_db()
         if not get_all_items():
-            print("No items found in the database. Loading sample data...")
+            logger.info("No items found in the database. Loading sample data...")
             load_sample_data()
     except Exception as e:
-        print(f"Error during startup initialization: {e}")
+        logger.error(f"Error during startup initialization: {e}")
 
     # Use environment variable for debug mode, default to False for safety
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    logger.info("Starting Flask bin packing server on 0.0.0.0:5000...")
     app.run(debug=debug_mode, host='0.0.0.0', port=5000)

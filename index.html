@@ -67,6 +67,12 @@
                         <option value="live">Live Results</option>
                     </select>
                 </div>
+                <button id="toggle-inspector-btn" class="header-toggle-btn" onclick="toggleInspectorPanel()" title="Toggle Right Panel (Hide/Show)">
+                    <svg id="toggle-inspector-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                    <span>Right Panel</span>
+                </button>
             </div>
         </header>
 
@@ -74,12 +80,58 @@
         <main id="viewport">
             <div id="three-container"></div>
             <div id="tooltip"></div>
+
+            <!-- Center Demo Card Overlay -->
+            <div id="demo-overlay" class="demo-card-overlay" style="display: none;">
+                <div class="demo-card">
+                    <div class="demo-card-header">
+                        <div class="demo-badge">
+                            <span class="pulse-dot"></span>
+                            <span class="demo-badge-text">INTERACTIVE DEMO</span>
+                        </div>
+                        <div class="demo-step-counter" id="demo-step-counter">Step 1 of 13</div>
+                        <button class="demo-close-btn" onclick="endFeatureTour()" title="Exit Demo">✕</button>
+                    </div>
+
+                    <div class="demo-card-body">
+                        <h3 id="demo-title" class="demo-title">Loading Demo...</h3>
+                        <p id="demo-description" class="demo-description">Initializing feature demonstration...</p>
+                        <div class="demo-progress-track">
+                            <div id="demo-progress-fill" class="demo-progress-fill" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="demo-card-footer">
+                        <button id="demo-prev-btn" class="btn btn-demo-action" onclick="prevTourStep()" title="Previous Step">
+                            ⏮ Back
+                        </button>
+                        <button id="demo-pause-btn" class="btn btn-demo-action" onclick="toggleTourPause()" title="Pause/Resume Auto-Advance">
+                            ⏸ Pause
+                        </button>
+                        <button id="demo-next-btn" class="btn btn-demo-primary" onclick="nextTourStep()" title="Next Step">
+                            Next Step ⏭
+                        </button>
+                        <button id="demo-toggle-panel-btn" class="btn btn-demo-action" onclick="toggleInspectorPanel()" title="Toggle Right Panel Visibility">
+                            👁 Hide Panel
+                        </button>
+                    </div>
+                </div>
+            </div>
         </main>
 
         <div id="resizer"></div>
 
         <!-- Inspector / Right Sidebar -->
         <aside id="inspector">
+            <!-- Lock Overlay for Demo Mode -->
+            <div id="inspector-lock-overlay" class="inspector-lock-overlay" style="display: none;">
+                <div class="lock-card">
+                    <div class="lock-icon">🔒</div>
+                    <div class="lock-title">Panel Locked in Demo Mode</div>
+                    <div class="lock-subtitle">Control features using the central Demo Card</div>
+                    <button class="btn btn-danger" onclick="endFeatureTour()" style="margin-top: 12px; font-size: 0.78rem; width: 100%;">Exit Demo Mode</button>
+                </div>
+            </div>
 
             <!-- ── Controls View ─────────────────────────────── -->
             <div id="view-controls" class="view-panel">
@@ -174,35 +226,37 @@
                 </div>
 
                 <div class="panel-section">
-                    <div class="section-title">Features Tour</div>
-                    <button id="feature-tour-btn" class="btn" onclick="startFeatureTour()" style="width: 100%; background: var(--accent-primary); color: white; margin-bottom: 8px;">
-                        ▶ Start Feature Tour
+                    <div class="section-title">Interactive Demo</div>
+                    <button id="feature-tour-btn" class="btn" onclick="startFeatureTour()" style="width: 100%; background: linear-gradient(135deg, var(--accent-primary), #6366f1); color: white; margin-bottom: 4px; font-weight: 600; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+                        ▶ Start Interactive Demo
                     </button>
-                    <div id="tour-controls" style="display: none; gap: 8px; margin-bottom: 8px;">
-                        <button id="tour-prev-btn" class="btn" onclick="prevTourStep()" style="flex: 1; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">Back</button>
-                        <button id="tour-next-btn" class="btn" onclick="nextTourStep()" style="flex: 2; background: var(--accent-primary); color: white;">Next Step</button>
-                        <button id="tour-end-btn" class="btn btn-danger" onclick="endFeatureTour()" style="flex: 1;">End Tour</button>
-                    </div>
-                    <div id="feature-tour-status" style="display: none; font-size: 0.82rem; color: var(--text-main); text-align: center;">
-                        Ready
+                    <div id="tour-controls" style="display: none; gap: 8px; margin-top: 4px;">
+                        <button id="tour-end-btn" class="btn btn-danger" onclick="endFeatureTour()" style="width: 100%;">Exit Demo</button>
                     </div>
                 </div>
 
                 <div class="panel-section">
                     <div class="section-title">Optimization Weights</div>
-                    <div class="input-group">
-                        <label style="display: flex; justify-content: space-between;">
+                    <div class="range-group">
+                        <div class="range-header">
                             <span>Space Utilization</span>
-                        </label>
-                        <input type="range" id="weight-space" min="0" max="1" step="0.1" value="0.6" onchange="onWeightChange()">
+                            <span id="weight-space-badge" class="slider-badge">60%</span>
+                        </div>
+                        <input type="range" id="weight-space" min="0" max="1" step="0.05" value="0.6" oninput="updateWeightBadge('space', this.value)" onchange="onWeightChange()">
                     </div>
-                    <div class="input-group">
-                        <label>Accessibility</label>
-                        <input type="range" id="weight-accessibility" min="0" max="1" step="0.1" value="0.3" onchange="onWeightChange()">
+                    <div class="range-group">
+                        <div class="range-header">
+                            <span>Accessibility</span>
+                            <span id="weight-accessibility-badge" class="slider-badge">30%</span>
+                        </div>
+                        <input type="range" id="weight-accessibility" min="0" max="1" step="0.05" value="0.3" oninput="updateWeightBadge('accessibility', this.value)" onchange="onWeightChange()">
                     </div>
-                    <div class="input-group">
-                        <label>Stability</label>
-                        <input type="range" id="weight-stability" min="0" max="1" step="0.1" value="0.1" onchange="onWeightChange()">
+                    <div class="range-group">
+                        <div class="range-header">
+                            <span>Stability</span>
+                            <span id="weight-stability-badge" class="slider-badge">10%</span>
+                        </div>
+                        <input type="range" id="weight-stability" min="0" max="1" step="0.05" value="0.1" oninput="updateWeightBadge('stability', this.value)" onchange="onWeightChange()">
                     </div>
                 </div>
 

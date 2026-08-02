@@ -1,23 +1,27 @@
+from logger_config import get_logger
+
+logger = get_logger('physics')
+
 try:
     import pybullet as p
     import pybullet_data
     PYBULLET_AVAILABLE = True
 except ImportError:
     PYBULLET_AVAILABLE = False
-    print("Warning: pybullet not found. Physics settlement will be disabled.")
+    logger.warning("Warning: pybullet not found. Physics settlement will be disabled.")
 
 def physics_settle(solution, items_props, wh_dims, layer_heights=None):
     """Settle items using PyBullet physics to resolve overlaps."""
     if not PYBULLET_AVAILABLE:
-        print("Physics settlement skipped: pybullet not installed.")
+        logger.info("Physics settlement skipped: pybullet not installed.")
         return solution
         
     client_id = -1
     try:
         # Initialize headless simulation
-        print(f"PyBullet: Connecting to DIRECT mode...")
+        logger.info("PyBullet: Connecting to DIRECT mode...")
         client_id = p.connect(p.DIRECT)
-        print(f"PyBullet: Connected. Client ID: {client_id}")
+        logger.info(f"PyBullet: Connected. Client ID: {client_id}")
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         p.setGravity(0, 0, -9.8, physicsClientId=client_id)
         p.setTimeStep(1.0/240.0, physicsClientId=client_id)
@@ -102,7 +106,7 @@ def physics_settle(solution, items_props, wh_dims, layer_heights=None):
             body_ids.append(bodyId)
             
         # Run simulation
-        print(f"PyBullet: Starting simulation ({len(body_ids)} items)...")
+        logger.info(f"PyBullet: Starting simulation ({len(body_ids)} items)...")
         p.setPhysicsEngineParameter(numSolverIterations=100, numSubSteps=20, physicsClientId=client_id) 
         
         # Keep objects active
@@ -111,9 +115,9 @@ def physics_settle(solution, items_props, wh_dims, layer_heights=None):
 
         for step in range(1000): # Faster settlement
             if step % 500 == 0:
-                print(f"PyBullet: Step {step}/5000")
+                logger.info(f"PyBullet: Step {step}/1000")
             p.stepSimulation(physicsClientId=client_id)
-        print("PyBullet: Simulation complete.")
+        logger.info("PyBullet: Simulation complete.")
             
         # Extract results
         new_solution = solution.copy()
@@ -131,7 +135,7 @@ def physics_settle(solution, items_props, wh_dims, layer_heights=None):
         return new_solution
         
     except Exception as e:
-        print(f"Physics Settle Failed: {e}")
+        logger.error(f"Physics Settle Failed: {e}")
         return solution # Fallback to original
     finally:
         if client_id >= 0:

@@ -4,6 +4,9 @@ from datetime import datetime
 import pandas as pd
 import os
 import uuid
+from logger_config import get_logger
+
+logger = get_logger('database')
 
 DB_PATH = 'warehouse.db'
 
@@ -50,7 +53,7 @@ def migrate_db():
     try:
         c.execute('SELECT layer_heights_json FROM warehouse_config LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating warehouse_config table: adding layer_heights_json column.")
+        logger.info("Migrating warehouse_config table: adding layer_heights_json column.")
         c.execute('ALTER TABLE warehouse_config ADD COLUMN layer_heights_json TEXT')
         c.execute("UPDATE warehouse_config SET layer_heights_json = '[]' WHERE layer_heights_json IS NULL")
         conn.commit()
@@ -58,14 +61,14 @@ def migrate_db():
     try:
         c.execute('SELECT grouping FROM optimization_results LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating optimization_results table: adding grouping column.")
+        logger.info("Migrating optimization_results table: adding grouping column.")
         c.execute('ALTER TABLE optimization_results ADD COLUMN grouping REAL DEFAULT 0')
         conn.commit()
 
     try:
         c.execute('SELECT levels FROM warehouse_config LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating warehouse_config table: adding levels, grid_size columns.")
+        logger.info("Migrating warehouse_config table: adding levels, grid_size columns.")
         c.execute('ALTER TABLE warehouse_config ADD COLUMN levels INTEGER DEFAULT 1')
         c.execute('ALTER TABLE warehouse_config ADD COLUMN grid_size REAL DEFAULT 0.5')
         conn.commit()
@@ -73,28 +76,28 @@ def migrate_db():
     try:
         c.execute('SELECT warehouse_id FROM items LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating items table: adding warehouse_id column.")
+        logger.info("Migrating items table: adding warehouse_id column.")
         c.execute('ALTER TABLE items ADD COLUMN warehouse_id INTEGER DEFAULT 1')
         conn.commit()
 
     try:
         c.execute('SELECT warehouse_id FROM exclusion_zones LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating exclusion_zones table: adding warehouse_id column.")
+        logger.info("Migrating exclusion_zones table: adding warehouse_id column.")
         c.execute('ALTER TABLE exclusion_zones ADD COLUMN warehouse_id INTEGER DEFAULT 1')
         conn.commit()
 
     try:
         c.execute('SELECT warehouse_id FROM optimization_results LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating optimization_results table: adding warehouse_id column.")
+        logger.info("Migrating optimization_results table: adding warehouse_id column.")
         c.execute('ALTER TABLE optimization_results ADD COLUMN warehouse_id INTEGER DEFAULT 1')
         conn.commit()
 
     try:
         c.execute('SELECT name FROM warehouse_config LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating warehouse_config table: adding name column.")
+        logger.info("Migrating warehouse_config table: adding name column.")
         c.execute('ALTER TABLE warehouse_config ADD COLUMN name TEXT')
         c.execute("UPDATE warehouse_config SET name = 'Default Warehouse' WHERE name IS NULL")
         conn.commit()
@@ -102,21 +105,21 @@ def migrate_db():
     try:
         c.execute('SELECT is_active FROM warehouse_config LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating warehouse_config table: adding is_active column.")
+        logger.info("Migrating warehouse_config table: adding is_active column.")
         c.execute('ALTER TABLE warehouse_config ADD COLUMN is_active INTEGER DEFAULT 1')
         conn.commit()
 
     try:
         c.execute('SELECT zone_metadata FROM exclusion_zones LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating exclusion_zones table: adding zone_metadata column.")
+        logger.info("Migrating exclusion_zones table: adding zone_metadata column.")
         c.execute('ALTER TABLE exclusion_zones ADD COLUMN zone_metadata TEXT')
         conn.commit()
 
     try:
         c.execute('SELECT z1 FROM exclusion_zones LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating exclusion_zones table: adding z1, z2 columns.")
+        logger.info("Migrating exclusion_zones table: adding z1, z2 columns.")
         c.execute('ALTER TABLE exclusion_zones ADD COLUMN z1 REAL DEFAULT 0')
         c.execute('ALTER TABLE exclusion_zones ADD COLUMN z2 REAL DEFAULT 100')
         conn.commit()
@@ -124,7 +127,7 @@ def migrate_db():
     try:
         c.execute('SELECT door_x FROM warehouse_config LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating warehouse_config table: adding door_x, door_y columns.")
+        logger.info("Migrating warehouse_config table: adding door_x, door_y columns.")
         c.execute('ALTER TABLE warehouse_config ADD COLUMN door_x REAL DEFAULT 0')
         c.execute('ALTER TABLE warehouse_config ADD COLUMN door_y REAL DEFAULT 0')
         conn.commit()
@@ -132,14 +135,14 @@ def migrate_db():
     try:
         c.execute('SELECT time_to_best FROM optimization_results LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating optimization_results table: adding time_to_best column.")
+        logger.info("Migrating optimization_results table: adding time_to_best column.")
         c.execute('ALTER TABLE optimization_results ADD COLUMN time_to_best REAL DEFAULT 0')
         conn.commit()
 
     try:
         c.execute('SELECT inference_metrics_json FROM optimization_results LIMIT 1')
     except sqlite3.OperationalError:
-        print("Migrating optimization_results table: adding inference_metrics_json column.")
+        logger.info("Migrating optimization_results table: adding inference_metrics_json column.")
         c.execute('ALTER TABLE optimization_results ADD COLUMN inference_metrics_json TEXT')
         conn.commit()
 
@@ -538,7 +541,7 @@ def create_default_sample_data():
         conn.close()
         return True
     except Exception as e:
-        print(f"Error creating default sample data: {e}")
+        logger.error(f"Error creating default sample data: {e}")
         return False
 
 
@@ -610,7 +613,7 @@ def load_sample_data(warehouse_id=1):
                 try:
                     db_df.to_sql('items', conn, if_exists='append', index=False)
                 except Exception as e:
-                     print(f"Chunk load error: {e}")
+                     logger.error(f"Chunk load error: {e}")
                      continue
             
             conn.close()
@@ -618,7 +621,7 @@ def load_sample_data(warehouse_id=1):
         else:
             return create_default_sample_data()
     except Exception as e:
-        print(f"Error loading sample data: {e}")
+        logger.error(f"Error loading sample data: {e}")
         return create_default_sample_data()
 
 
@@ -684,7 +687,7 @@ def load_generated_data(warehouse_id=1):
                 try:
                     db_df.to_sql('items', conn, if_exists='append', index=False)
                 except Exception as e:
-                    print(f"Chunk load error: {e}")
+                    logger.error(f"Chunk load error: {e}")
                     continue
                 total_items += len(db_df)
 
@@ -693,7 +696,7 @@ def load_generated_data(warehouse_id=1):
         else:
             return False, "File not found"
     except Exception as e:
-        print(f"Error loading generated data: {e}")
+        logger.error(f"Error loading generated data: {e}")
         return False, str(e)
 
 
@@ -749,7 +752,7 @@ def get_latest_algo_solution(algorithm, warehouse_id=1):
                 }
             }
         except Exception as e:
-            print(f"Error parsing solution: {e}")
+            logger.error(f"Error parsing solution: {e}")
             return None
     return None
 

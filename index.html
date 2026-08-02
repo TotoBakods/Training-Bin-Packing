@@ -81,6 +81,72 @@
             <div id="three-container"></div>
             <div id="tooltip"></div>
 
+            <!-- Floating Viewport Preset Camera Controls -->
+            <div id="viewport-preset-bar" class="viewport-preset-bar">
+                <button class="preset-btn" onclick="setCameraPreset('isometric')" title="Isometric View">📐 Iso</button>
+                <button class="preset-btn" onclick="setCameraPreset('top')" title="Top-Down Plan View">🔝 Top</button>
+                <button class="preset-btn" onclick="setCameraPreset('door')" title="Loading Door View">🚪 Door</button>
+                <button class="preset-btn" onclick="setCameraPreset('reset')" title="Reset Camera Angle">🔄 Reset</button>
+            </div>
+
+            <!-- Height Slice Filter Slider -->
+            <div id="layer-slice-container" class="layer-slice-container">
+                <div class="slice-header">
+                    <span class="slice-title">Height Slice Filter</span>
+                    <span id="layer-slice-val" class="slice-badge">All Heights</span>
+                </div>
+                <input type="range" id="layer-slice-range" min="0" max="10" step="0.5" value="10" oninput="onLayerSliceInput(this.value)" onchange="onLayerSliceChange(this.value)">
+            </div>
+
+            <!-- Floating 3D Item Inspector HUD Card -->
+            <div id="item-inspector-hud" class="item-inspector-hud" style="display: none;">
+                <div class="hud-header">
+                    <div class="hud-title-group">
+                        <span class="hud-badge" id="hud-category-badge">ELECTRONICS</span>
+                        <h4 id="hud-item-name" class="hud-item-name">Item Name</h4>
+                    </div>
+                    <button class="hud-close-btn" onclick="closeItemInspectorHUD()" title="Close Details">✕</button>
+                </div>
+                <div class="hud-body">
+                    <div class="hud-grid">
+                        <div class="hud-metric">
+                            <span class="hud-label">ID</span>
+                            <span class="hud-val" id="hud-item-id">—</span>
+                        </div>
+                        <div class="hud-metric">
+                            <span class="hud-label">Dimensions</span>
+                            <span class="hud-val" id="hud-item-dims">—</span>
+                        </div>
+                        <div class="hud-metric">
+                            <span class="hud-label">Weight</span>
+                            <span class="hud-val" id="hud-item-weight">—</span>
+                        </div>
+                        <div class="hud-metric">
+                            <span class="hud-label">Priority</span>
+                            <span class="hud-val" id="hud-item-priority">—</span>
+                        </div>
+                        <div class="hud-metric">
+                            <span class="hud-label">Access Freq</span>
+                            <span class="hud-val" id="hud-item-af">—</span>
+                        </div>
+                        <div class="hud-metric">
+                            <span class="hud-label">Position (X,Y,Z)</span>
+                            <span class="hud-val" id="hud-item-pos">—</span>
+                        </div>
+                    </div>
+                    <div class="hud-tags" id="hud-item-tags">
+                        <span class="hud-tag tag-fragile" id="hud-tag-fragile">Fragile</span>
+                        <span class="hud-tag tag-stackable" id="hud-tag-stackable">Stackable</span>
+                        <span class="hud-tag tag-rotation" id="hud-tag-rotation">Can Rotate</span>
+                    </div>
+                </div>
+                <div class="hud-footer">
+                    <button class="btn btn-primary" onclick="focusInspectorItem()" style="width: 100%; font-size: 0.8rem; padding: 7px 12px;">
+                        🔍 Focus Camera on Crate
+                    </button>
+                </div>
+            </div>
+
             <!-- Center Demo Card Overlay -->
             <div id="demo-overlay" class="demo-card-overlay" style="display: none;">
                 <div class="demo-card">
@@ -183,7 +249,14 @@
                 </div>
 
                 <div class="panel-section">
-                    <div class="section-title">Visualization</div>
+                    <div class="section-title">Visualization & Search</div>
+                    <div class="input-group">
+                        <label>3D Search & Highlight Filter</label>
+                        <div class="search-input-wrapper">
+                            <input type="text" id="item-search-input" placeholder="🔍 Search items, categories, IDs..." oninput="search3DItems(this.value)">
+                            <button class="search-clear-btn" onclick="clearItemSearch()" title="Clear Search">✕</button>
+                        </div>
+                    </div>
                     <div class="input-group">
                         <label>Color Items By</label>
                         <div class="select-wrapper" style="padding: 6px 10px;">

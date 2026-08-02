@@ -257,6 +257,9 @@ function onMouseClick(event) {
 
     if (intersects.length > 0) {
         const data = intersects[0].object.userData;
+        const mesh = intersects[0].object;
+        openItemInspectorHUD(data, mesh);
+
         tooltip.style.display = 'block';
         tooltip.style.left = (event.clientX + 15) + 'px';
         tooltip.style.top = (event.clientY + 15) + 'px';
@@ -832,6 +835,165 @@ function toggleInspectorPanel(forceState) {
             onWindowResize();
         }
     }, 50);
+}
+
+// ─── 3D Item Inspector HUD Functions ─────────────────────────
+let currentHUDItemData = null;
+let currentHUDItemMesh = null;
+
+function openItemInspectorHUD(data, mesh) {
+    if (!data) return;
+    currentHUDItemData = data;
+    currentHUDItemMesh = mesh;
+
+    const hud = document.getElementById('item-inspector-hud');
+    if (!hud) return;
+
+    const catBadge = document.getElementById('hud-category-badge');
+    const nameEl = document.getElementById('hud-item-name');
+    const idEl = document.getElementById('hud-item-id');
+    const dimsEl = document.getElementById('hud-item-dims');
+    const weightEl = document.getElementById('hud-item-weight');
+    const prioEl = document.getElementById('hud-item-priority');
+    const afEl = document.getElementById('hud-item-af');
+    const posEl = document.getElementById('hud-item-pos');
+
+    if (catBadge) catBadge.textContent = (data.category || 'GENERAL').toUpperCase();
+    if (nameEl) nameEl.textContent = data.name || `Item ${data.id}`;
+    if (idEl) idEl.textContent = data.id || '—';
+    if (dimsEl) dimsEl.textContent = `${data.length || 0}m × ${data.width || 0}m × ${data.height || 0}m`;
+    if (weightEl) weightEl.textContent = `${data.weight || 0} kg`;
+    if (prioEl) prioEl.textContent = data.priority || 1;
+    if (afEl) afEl.textContent = data.access_freq || 0;
+    
+    const posX = typeof data.x === 'number' ? data.x.toFixed(2) : '0.00';
+    const posY = typeof data.y === 'number' ? data.y.toFixed(2) : '0.00';
+    const posZ = typeof data.z === 'number' ? data.z.toFixed(2) : '0.00';
+    if (posEl) posEl.textContent = `(${posX}, ${posY}, ${posZ})`;
+
+    // Tags
+    const fragileTag = document.getElementById('hud-tag-fragile');
+    const stackableTag = document.getElementById('hud-tag-stackable');
+    const rotTag = document.getElementById('hud-tag-rotation');
+
+    if (fragileTag) fragileTag.style.display = data.fragility ? 'inline-block' : 'none';
+    if (stackableTag) stackableTag.style.display = data.stackable ? 'inline-block' : 'none';
+    if (rotTag) rotTag.style.display = data.can_rotate ? 'inline-block' : 'none';
+
+    hud.style.display = 'flex';
+}
+
+function closeItemInspectorHUD() {
+    const hud = document.getElementById('item-inspector-hud');
+    if (hud) hud.style.display = 'none';
+    currentHUDItemData = null;
+    currentHUDItemMesh = null;
+}
+
+function focusInspectorItem() {
+    if (!currentHUDItemMesh && !currentHUDItemData) return;
+    if (currentHUDItemMesh) {
+        const worldPos = new THREE.Vector3();
+        currentHUDItemMesh.getWorldPosition(worldPos);
+        const cameraPos = worldPos.clone().add(new THREE.Vector3(-4, 5, -4));
+        animateCamera(cameraPos, worldPos, 1000);
+    }
+}
+
+// ─── Camera Viewport Presets ─────────────────────────────────
+function setCameraPreset(presetType) {
+    if (!camera || !controls) return;
+    const whLength = (warehouseConfig && warehouseConfig.length) || 20;
+    const whWidth = (warehouseConfig && warehouseConfig.width) || 10;
+    const whHeight = (warehouseConfig && warehouseConfig.height) || 5;
+    const maxDim = Math.max(whLength, whWidth, whHeight);
+
+    let targetPos = new THREE.Vector3(0, 0, 0);
+    let camPos = new THREE.Vector3();
+
+    if (presetType === 'isometric') {
+        camPos.set(maxDim * 1.4, maxDim * 1.2, maxDim * 1.4);
+    } else if (presetType === 'top') {
+        camPos.set(0, maxDim * 2.2, 0.001);
+    } else if (presetType === 'door') {
+        const doorX = (warehouseConfig && warehouseConfig.door_x) || 0;
+        const doorY = (warehouseConfig && warehouseConfig.door_y) || 0;
+        const doorWorldX = doorX - whLength / 2;
+        const doorWorldZ = doorY - whWidth / 2;
+        targetPos.set(doorWorldX, 0.5, doorWorldZ);
+        camPos.set(doorWorldX - 6, whHeight * 1.2, doorWorldZ - 6);
+    } else if (presetType === 'reset') {
+        camPos.set(20, 20, 20);
+        targetPos.set(0, 0, 0);
+    }
+
+    animateCamera(camPos, targetPos, 1000);
+}
+
+// ─── Height Slice Filter Slider ──────────────────────────────
+function onLayerSliceInput(value) {
+    const badge = document.getElementById('layer-slice-val');
+    const maxH = (warehouseConfig && warehouseConfig.height) || 5;
+    const maxVal = parseFloat(document.getElementById('layer-slice-range').max) || 10;
+    const currentVal = parseFloat(value);
+
+    if (currentVal >= maxVal - 0.1) {
+        if (badge) badge.textContent = "All Heights";
+    } else {
+        const heightMeters = ((currentVal / maxVal) * maxH).toFixed(1);
+        if (badge) badge.textContent = `<= ${heightMeters} m`;
+    }
+    applyLayerSliceFilter(currentVal, maxVal);
+}
+
+function onLayerSliceChange(value) {
+    onLayerSliceInput(value);
+}
+
+function applyLayerSliceFilter(sliceValue, maxVal) {
+    if (!itemsGroup) return;
+    const maxH = (warehouseConfig && warehouseConfig.height) || 5;
+    const cutoffZ = (sliceValue >= maxVal - 0.1) ? 999 : (sliceValue / maxVal) * maxH;
+
+    itemsGroup.children.forEach(mesh => {
+        if (mesh.userData && typeof mesh.userData.z === 'number') {
+            mesh.visible = (mesh.userData.z <= cutoffZ);
+        }
+    });
+}
+
+// ─── Real-time 3D Search & Highlight Filter ─────────────────
+function search3DItems(query) {
+    if (!itemsGroup) return;
+    const q = (query || '').trim().toLowerCase();
+
+    itemsGroup.children.forEach(mesh => {
+        const d = mesh.userData || {};
+        const nameMatch = d.name && d.name.toLowerCase().includes(q);
+        const catMatch = d.category && d.category.toLowerCase().includes(q);
+        const idMatch = d.id && String(d.id).toLowerCase().includes(q);
+        const isMatch = !q || nameMatch || catMatch || idMatch;
+
+        if (mesh.material) {
+            if (Array.isArray(mesh.material)) {
+                mesh.material.forEach(m => {
+                    m.transparent = true;
+                    m.opacity = isMatch ? 1.0 : 0.15;
+                });
+            } else {
+                mesh.material.transparent = true;
+                mesh.material.opacity = isMatch ? 1.0 : 0.15;
+            }
+        }
+    });
+}
+
+function clearItemSearch() {
+    const input = document.getElementById('item-search-input');
+    if (input) {
+        input.value = '';
+        search3DItems('');
+    }
 }
 
 // Dynamic Slider Weight Badge Updates

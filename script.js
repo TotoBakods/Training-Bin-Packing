@@ -699,7 +699,10 @@ function renderItems(items) {
         itemsGroup.add(mesh);
     });
 
-    // Demo Mode removed for Feature Tour
+    // Apply active visualization color, shading, and explosion factor
+    if (typeof applyVisualizationStyles === 'function') {
+        applyVisualizationStyles();
+    }
 }
 
 function renderPickerPath(items) {
@@ -754,56 +757,50 @@ function renderPickerPath(items) {
     pickerPathGroup.add(line);
 }
 
-function getItemColor(item, mode, maxWeight, maxAccess) {
+function getItemColor(item, mode, maxWeight, maxAccess, maxH) {
+    if (!maxH) maxH = (warehouseConfig && warehouseConfig.height) || 5;
+
     if (mode === 'category') {
-        // Hash string to color
         const str = item.category || 'General';
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
             hash = str.charCodeAt(i) + ((hash << 5) - hash);
         }
-
-        // Use HSL for pleasing colors
         const hue = Math.abs(hash % 360);
-        const saturation = 70;
-        const lightness = 50;
-
-        return new THREE.Color(`hsl(${hue}, ${saturation}%, ${lightness}%)`);
-
+        return new THREE.Color(`hsl(${hue}, 75%, 50%)`);
     } else if (mode === 'weight') {
-        // Green (light) -> Red (heavy)
         const t = maxWeight > 0 ? (item.weight / maxWeight) : 0;
-        const color = new THREE.Color().setHSL(0.33 - (t * 0.33), 1, 0.5); // 0.33=Green, 0=Red
-        return color;
+        return new THREE.Color().setHSL(0.33 - (t * 0.33), 1, 0.5); // Green -> Red
+    } else if (mode === 'height') {
+        const normH = Math.max(0, Math.min(1, (item.z || 0) / maxH));
+        const hue = 180 + normH * 120; // Cyan -> Magenta
+        return new THREE.Color(`hsl(${hue}, 85%, 55%)`);
+    } else if (mode === 'stability') {
+        const isGrounded = (item.z || 0) <= 0.05;
+        const hue = isGrounded ? 120 : 30; // Green if grounded, Orange if raised
+        return new THREE.Color(`hsl(${hue}, 85%, 50%)`);
     } else if (mode === 'access') {
-        // Blue (low) -> Red (high)
         const t = maxAccess > 0 ? (item.access_freq / maxAccess) : 0;
-        const color = new THREE.Color().setHSL(0.66 - (t * 0.66), 1, 0.5); // 0.66=Blue, 0=Red
-        return color;
+        return new THREE.Color().setHSL(0.66 - (t * 0.66), 1, 0.5);
     } else if (mode === 'fragility') {
-        // Fragile = Red, Robust = Green
         const isFragile = item.fragility === 1 || item.fragility === true;
         return isFragile ? new THREE.Color(0xFF0055) : new THREE.Color(0x00FF9D);
     } else if (mode === 'priority') {
-        // Priority 1 (Low) = Green, 2 = Yellow, 3 (High) = Red
         const p = item.priority || 1;
-        if (p >= 3) return new THREE.Color(0xFF0055); // Red
-        if (p === 2) return new THREE.Color(0xFFD600); // Yellow
-        return new THREE.Color(0x00FF9D); // Green
+        if (p >= 3) return new THREE.Color(0xFF0055);
+        if (p === 2) return new THREE.Color(0xFFD600);
+        return new THREE.Color(0x00FF9D);
     } else if (mode === 'stackable') {
-        // Stackable = Cyan, Non-stackable = Muted Grey
         return item.stackable ? new THREE.Color(0x00F0FF) : new THREE.Color(0x444444);
     } else if (mode === 'displacement') {
-        // Red (High Error/Displacement) -> Green (Low Error)
         const dx = item.x - (item.ml_x || item.x);
         const dy = item.y - (item.ml_y || item.y);
         const dz = item.z - (item.ml_z || item.z);
         const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
         const t = Math.min(1.0, dist / 2.0);
-        const color = new THREE.Color().setHSL(0.33 - (t * 0.33), 1, 0.5); 
-        return color;
+        return new THREE.Color().setHSL(0.33 - (t * 0.33), 1, 0.5);
     }
-    return 0x888888;
+    return new THREE.Color(0x888888);
 }
 
 // UI Event Handlers
@@ -900,7 +897,12 @@ function focusInspectorItem() {
     }
 }
 
-// ─── Camera Viewport Presets ─────────────────────────────────
+// ─── Camera Viewport & Visualization Controls ──────────────
+let currentVisualizationMode = 'category'; // 'category', 'weight', 'height', 'stability'
+let currentShadingMode = 'solid'; // 'solid', 'xray', 'wireframe'
+let currentExplosionFactor = 0;
+let isOrthographicCameraMode = false;
+
 function setCameraPreset(presetType) {
     if (!camera || !controls) return;
     const whLength = (warehouseConfig && warehouseConfig.length) || 20;
@@ -911,10 +913,20 @@ function setCameraPreset(presetType) {
     let targetPos = new THREE.Vector3(0, 0, 0);
     let camPos = new THREE.Vector3();
 
+    // Reset active class on camera preset buttons
+    ['btn-cam-iso', 'btn-cam-top', 'btn-cam-door', 'btn-cam-side', 'btn-cam-reset'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.remove('active');
+    });
+
     if (presetType === 'isometric') {
         camPos.set(maxDim * 1.4, maxDim * 1.2, maxDim * 1.4);
+        const b = document.getElementById('btn-cam-iso');
+        if (b) b.classList.add('active');
     } else if (presetType === 'top') {
         camPos.set(0, maxDim * 2.2, 0.001);
+        const b = document.getElementById('btn-cam-top');
+        if (b) b.classList.add('active');
     } else if (presetType === 'door') {
         const doorX = (warehouseConfig && warehouseConfig.door_x) || 0;
         const doorY = (warehouseConfig && warehouseConfig.door_y) || 0;
@@ -922,12 +934,167 @@ function setCameraPreset(presetType) {
         const doorWorldZ = doorY - whWidth / 2;
         targetPos.set(doorWorldX, 0.5, doorWorldZ);
         camPos.set(doorWorldX - 6, whHeight * 1.2, doorWorldZ - 6);
+        const b = document.getElementById('btn-cam-door');
+        if (b) b.classList.add('active');
+    } else if (presetType === 'side') {
+        camPos.set(whLength * 1.6, whHeight * 0.8, 0);
+        const b = document.getElementById('btn-cam-side');
+        if (b) b.classList.add('active');
     } else if (presetType === 'reset') {
         camPos.set(20, 20, 20);
         targetPos.set(0, 0, 0);
+        const b = document.getElementById('btn-cam-iso');
+        if (b) b.classList.add('active');
     }
 
     animateCamera(camPos, targetPos, 1000);
+}
+
+function toggleCameraProjection() {
+    if (!camera || !controls || !renderer) return;
+    const btn = document.getElementById('btn-cam-ortho');
+    const container = document.getElementById('three-container');
+    if (!container) return;
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const aspect = width / height;
+
+    isOrthographicCameraMode = !isOrthographicCameraMode;
+
+    const prevPos = camera.position.clone();
+    const prevTarget = controls.target.clone();
+
+    if (isOrthographicCameraMode) {
+        const frustumSize = 35;
+        camera = new THREE.OrthographicCamera(
+            -frustumSize * aspect / 2,
+            frustumSize * aspect / 2,
+            frustumSize / 2,
+            -frustumSize / 2,
+            0.1,
+            1000
+        );
+        if (btn) {
+            btn.classList.add('active');
+            btn.textContent = 'Persp';
+        }
+    } else {
+        camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+        if (btn) {
+            btn.classList.remove('active');
+            btn.textContent = 'Ortho';
+        }
+    }
+
+    camera.position.copy(prevPos);
+    controls.object = camera;
+    controls.target.copy(prevTarget);
+    controls.update();
+}
+
+function toggleAutoRotate() {
+    if (!controls) return;
+    controls.autoRotate = !controls.autoRotate;
+    controls.autoRotateSpeed = 2.5;
+
+    const btn = document.getElementById('btn-cam-rotate');
+    if (btn) {
+        if (controls.autoRotate) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    }
+}
+
+// ─── Color & Heatmap Visualization Modes ───────────────────
+function setVisualizationColorMode(mode) {
+    currentVisualizationMode = mode;
+
+    const select = document.getElementById('color-mode');
+    if (select) {
+        for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].value === mode) {
+                select.value = mode;
+                break;
+            }
+        }
+    }
+
+    ['btn-color-cat', 'btn-color-weight', 'btn-color-height', 'btn-color-stability'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.classList.remove('active');
+    });
+
+    const activeBtnMap = {
+        'category': 'btn-color-cat',
+        'weight': 'btn-color-weight',
+        'height': 'btn-color-height',
+        'stability': 'btn-color-stability'
+    };
+    const activeBtn = document.getElementById(activeBtnMap[mode]);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    applyVisualizationStyles();
+}
+
+function setRenderShadingMode(shading) {
+    currentShadingMode = shading;
+
+    ['btn-shade-solid', 'btn-shade-xray', 'btn-shade-wire'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.classList.remove('active');
+    });
+
+    const activeBtnMap = {
+        'solid': 'btn-shade-solid',
+        'xray': 'btn-shade-xray',
+        'wireframe': 'btn-shade-wire'
+    };
+    const activeBtn = document.getElementById(activeBtnMap[shading]);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    applyVisualizationStyles();
+}
+
+function applyVisualizationStyles() {
+    if (!itemsGroup) return;
+
+    const selectMode = (document.getElementById('color-mode') && document.getElementById('color-mode').value) || 'category';
+    const mode = currentVisualizationMode || selectMode;
+
+    let maxWeight = 0;
+    let maxAccess = 0;
+    const maxH = (warehouseConfig && warehouseConfig.height) || 5;
+
+    itemsGroup.children.forEach(mesh => {
+        const item = mesh.userData || {};
+        if ((item.weight || 0) > maxWeight) maxWeight = item.weight;
+        if ((item.access_freq || 0) > maxAccess) maxAccess = item.access_freq;
+    });
+
+    const isWire = currentShadingMode === 'wireframe';
+    const isXray = currentShadingMode === 'xray';
+    const opacity = isXray ? 0.38 : 1.0;
+    const transparent = isXray;
+
+    itemsGroup.children.forEach(mesh => {
+        const item = mesh.userData || {};
+        const newColor = getItemColor(item, mode, maxWeight, maxAccess, maxH);
+
+        if (mesh.material) {
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            materials.forEach(m => {
+                m.color.copy(newColor);
+                m.wireframe = isWire;
+                m.opacity = opacity;
+                m.transparent = transparent;
+                m.depthWrite = !isXray;
+                m.needsUpdate = true;
+            });
+        }
+    });
 }
 
 // ─── Height Slice Filter Slider ──────────────────────────────
